@@ -1,0 +1,14 @@
+{
+    "name": "mis-gastos-app",
+    "version": "1.0.0",
+    "description": "App de gestión de gastos personales",
+    "scripts": {
+        "install-all": "npm install && cd client && npm install && cd ../server && npm install",
+        "dev": "concurrently \"npm --prefix client run dev\" \"npm --prefix server run dev\"",
+        "client": "npm --prefix client run dev",
+        "server": "npm --prefix server run dev"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2"
+    }
+}
