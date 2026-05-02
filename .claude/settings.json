@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(findstr /E \"AGENTS.md|CLAUDE.md|.cursorrules|GEMINI.md\")"
-    ]
-  }
-}
