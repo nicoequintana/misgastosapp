@@ -1,6 +1,5 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 /**
  * Componente de encabezado de la aplicación.
@@ -8,8 +7,7 @@ import { useNavigate } from 'react-router-dom';
  * @param {string} title - El título a mostrar en el encabezado.
  */
 const Header = ({ title, toggleSidebar, isMobile }) => {
-    const { user, signOut } = useAuth();
-    const navigate = useNavigate();
+    const { user } = useAuth();
     const [theme, setTheme] = React.useState(document.documentElement.getAttribute('data-theme') || 'light');
 
     const toggleTheme = () => {
@@ -17,13 +15,6 @@ const Header = ({ title, toggleSidebar, isMobile }) => {
         setTheme(newTheme);
         document.documentElement.setAttribute('data-theme', newTheme);
         localStorage.setItem('app-theme', newTheme);
-    };
-
-    const handleSignOut = async () => {
-        console.log('👋 Cerrando sesión desde Header...');
-        await signOut();
-        // Forzar redirección a welcome
-        window.location.href = '/welcome';
     };
 
     return (

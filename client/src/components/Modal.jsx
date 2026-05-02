@@ -9,11 +9,11 @@ const Modal = ({ isOpen, onClose, title, subtitle, children }) => {
     const [isVisible, setIsVisible] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
 
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (isOpen) {
             setIsVisible(true);
             setIsClosing(false);
-            // Prevenir scroll en el body cuando el modal está abierto
             document.body.style.overflow = 'hidden';
         } else if (isVisible) {
             setIsClosing(true);
@@ -29,6 +29,7 @@ const Modal = ({ isOpen, onClose, title, subtitle, children }) => {
             document.body.style.overflow = 'auto';
         };
     }, [isOpen, isVisible]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     if (!isVisible && !isOpen) return null;
 

@@ -39,15 +39,13 @@ const CurrencyInput = ({ value, onChange, placeholder, className = 'input', requ
 
         if (currentParsed !== propVal) {
             const hasDecimals = propVal % 1 !== 0;
-            // Formato específico: 
-            // Si es entero, solo número.
-            // Si tiene decimales, mostrarlos.
             const formatted = propVal.toLocaleString('es-AR', {
                 minimumFractionDigits: hasDecimals ? 2 : 0,
                 maximumFractionDigits: 2
             });
             setDisplayValue(formatted);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [value]);
 
     useLayoutEffect(() => {
@@ -100,31 +98,7 @@ const CurrencyInput = ({ value, onChange, placeholder, className = 'input', requ
         }
 
         // 4. Calcular nueva posición del cursor
-        // Recorrer la cadena final hasta pasar la misma cantidad de dígitos/comas
-        let newPos = 0;
-        let seenChars = 0;
-        for (let i = 0; i < finalDisplay.length; i++) {
-            if (/[0-9,]/.test(finalDisplay[i])) {
-                seenChars++;
-            }
-            if (seenChars > charsBeforeCursor) break; // pasado nuestro objetivo
-            // Si estamos exactamente en el objetivo, típicamente queremos estar DESPUÉS de este carácter
-            // Pero espera, si estamos en el objetivo, estamos estrictamente DESPUÉS del carácter que acabamos de contar.
-            newPos = i + 1;
-
-            // Si consumimos todos los caracteres significativos, podríamos haber terminado.
-            if (seenChars === charsBeforeCursor) {
-                // Pero espera, necesitamos tener en cuenta los puntos. 
-                // Si el SIGUIENTE carácter es un punto, ¿deberíamos saltarlo?
-                // El comportamiento estándar de entrada generalmente maneja esto si solo establecemos el índice.
-                // Confiemos en el bucle.
-            }
-        }
-
-        // ¿Ajustar para casos borde de "punto borrado"?
-        // Heurística más simple:
         // Poner el cursor a la derecha del 'charsBeforeCursor'-ésimo dígito/coma
-        // Si ese dígito/coma no existe (borrado), estamos en 0.
 
         let targetIndex = 0;
         let count = 0;

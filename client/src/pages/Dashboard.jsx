@@ -4,7 +4,6 @@ import GlassCard from '../components/GlassCard';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import CurrencyInput from '../components/CurrencyInput';
-import { formatCurrency } from '../utils/format';
 import * as db from '../lib/db';
 import SummaryCard from '../components/dashboard/SummaryCard';
 import DashboardTable from '../components/dashboard/DashboardTable';
@@ -61,7 +60,7 @@ const Dashboard = () => {
     // Estado del formulario de nuevo gasto
     const [expenseForm, setExpenseForm] = useState(ESTADO_INICIAL_GASTO);
 
-    // Estado del formulario de ingreso mensual
+    // Monto del formulario de ingreso
     const [incomeAmount, setIncomeAmount] = useState('');
 
     // ==================== DATA FETCHING ====================
@@ -76,8 +75,6 @@ const Dashboard = () => {
             setErrorCarga(null);
             const data = await db.getStats();
             setStats(data);
-            // Sincronizar el input de ingreso con el valor actual en la DB
-            setIncomeAmount(String(data.ingresoMensual));
         } catch (err) {
             console.error('❌ Error al obtener estadísticas:', err);
             setErrorCarga('No se pudieron cargar los datos. Intentá recargar la página.');
@@ -141,18 +138,19 @@ const Dashboard = () => {
     };
 
     /**
-     * Actualiza el ingreso mensual del usuario en la base de datos.
+     * Guarda el ingreso activo. Crea o actualiza el registro único del usuario.
      */
-    const handleUpdateIncome = async (e) => {
+    const handleSaveIncome = async (e) => {
         e.preventDefault();
         try {
-            await db.updateIncome(parseFloat(incomeAmount) || 0);
-            console.log('✅ Ingreso actualizado correctamente');
+            await db.saveIncome(incomeAmount);
+            console.log('✅ Ingreso guardado correctamente');
             await fetchStats();
             setIsIncomeModalOpen(false);
+            setIncomeAmount('');
         } catch (err) {
-            console.error('❌ Error al actualizar ingreso:', err);
-            alert('Error al actualizar el ingreso. Por favor, intentá de nuevo.');
+            console.error('❌ Error al guardar ingreso:', err);
+            alert('Error al guardar el ingreso. Por favor, intentá de nuevo.');
         }
     };
 
@@ -216,7 +214,7 @@ const Dashboard = () => {
                 <div className="dashboard-actions">
                     <button onClick={() => setIsIncomeModalOpen(true)} className="btn btn-secondary">
                         <span className="material-symbols-outlined">account_balance</span>
-                        <span>Actualizar Ingreso</span>
+                        <span>Ingresos</span>
                     </button>
                     <button onClick={handleAbrirNuevoGasto} className="btn btn-primary">
                         <span className="material-symbols-outlined">add</span>
@@ -264,7 +262,7 @@ const Dashboard = () => {
                         <input
                             type="text"
                             value={expenseForm.descripcion}
-                            onChange={(e) => setExpenseForm({ ...expenseForm, descripcion: e.target.value })}
+                            onChange={(e) => setExpenseForm(prev => ({ ...prev, descripcion: e.target.value }))}
                             required
                             className="input"
                             autoFocus
@@ -275,7 +273,7 @@ const Dashboard = () => {
                             <label className="form-label-box">Monto</label>
                             <CurrencyInput
                                 value={expenseForm.monto}
-                                onChange={(val) => setExpenseForm({ ...expenseForm, monto: val })}
+                                onChange={(val) => setExpenseForm(prev => ({ ...prev, monto: val }))}
                             />
                         </div>
                         <div className="form-group">
@@ -283,7 +281,7 @@ const Dashboard = () => {
                             <input
                                 type="date"
                                 value={expenseForm.fecha}
-                                onChange={(e) => setExpenseForm({ ...expenseForm, fecha: e.target.value })}
+                                onChange={(e) => setExpenseForm(prev => ({ ...prev, fecha: e.target.value }))}
                                 required
                                 className="input"
                             />
@@ -294,7 +292,7 @@ const Dashboard = () => {
                             <label className="form-label-box">Categoría</label>
                             <select
                                 value={expenseForm.id_categoria}
-                                onChange={(e) => setExpenseForm({ ...expenseForm, id_categoria: e.target.value })}
+                                onChange={(e) => setExpenseForm(prev => ({ ...prev, id_categoria: e.target.value }))}
                                 required
                                 className="form-select"
                             >
@@ -308,7 +306,7 @@ const Dashboard = () => {
                             <label className="form-label-box">Método de Pago</label>
                             <select
                                 value={expenseForm.id_metodo_pago}
-                                onChange={(e) => setExpenseForm({ ...expenseForm, id_metodo_pago: e.target.value })}
+                                onChange={(e) => setExpenseForm(prev => ({ ...prev, id_metodo_pago: e.target.value }))}
                                 required
                                 className="form-select"
                             >
@@ -324,7 +322,7 @@ const Dashboard = () => {
                             type="checkbox"
                             id="es_fijo"
                             checked={expenseForm.es_fijo}
-                            onChange={(e) => setExpenseForm({ ...expenseForm, es_fijo: e.target.checked })}
+                            onChange={(e) => setExpenseForm(prev => ({ ...prev, es_fijo: e.target.checked }))}
                         />
                         <label htmlFor="es_fijo">Gasto Fijo</label>
                     </div>
@@ -339,24 +337,29 @@ const Dashboard = () => {
                 </form>
             </Modal>
 
-            {/* Modal: Actualizar Ingreso Mensual */}
+            {/* Modal: Ingreso */}
             <Modal
                 isOpen={isIncomeModalOpen}
                 onClose={() => setIsIncomeModalOpen(false)}
-                title="Actualizar Ingreso Mensual"
-                subtitle="Establecé tu ingreso base para este mes"
+                title="Ingresos"
+                subtitle="Ingresá el monto de tu ingreso mensual"
             >
-                <form onSubmit={handleUpdateIncome} className="form-container">
+                <form onSubmit={handleSaveIncome} className="form-container">
                     <div className="form-group">
                         <label className="form-label-box">Monto</label>
-                        <CurrencyInput value={incomeAmount} onChange={setIncomeAmount} />
+                        <CurrencyInput
+                            key={String(isIncomeModalOpen)}
+                            value={incomeAmount}
+                            onChange={setIncomeAmount}
+                            required
+                        />
                     </div>
                     <div className="form-row">
                         <button type="button" onClick={() => setIsIncomeModalOpen(false)} className="btn btn-secondary" style={{ flex: 1 }}>
                             Cancelar
                         </button>
-                        <button type="submit" className="btn btn-primary pulse-animation" style={{ flex: 1 }}>
-                            Actualizar
+                        <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+                            Guardar
                         </button>
                     </div>
                 </form>

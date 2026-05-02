@@ -1,4 +1,5 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+/* eslint-disable no-undef */
+import { render, screen, waitFor } from '@testing-library/react';
 import Movements from './Movements';
 import { BrowserRouter } from 'react-router-dom';
 

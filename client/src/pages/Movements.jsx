@@ -146,7 +146,7 @@ const Movements = () => {
                 month: '2-digit',
                 year: 'numeric'
             });
-        } catch (e) {
+        } catch {
             return 'Error fecha';
         }
     };
@@ -234,7 +234,7 @@ const Movements = () => {
                                             -${formatCurrency(mov.monto)}
                                         </td>
                                         <td className="text-center">
-                                            {Boolean(mov.es_fijo) ? (
+                                            {mov.es_fijo ? (
                                                 <span className="type-tag-small type-tag-fijo">FIJO</span>
                                             ) : (
                                                 <span className="type-tag-small type-tag-variable">VARIABLE</span>
@@ -282,7 +282,7 @@ const Movements = () => {
                             <input
                                 type="text"
                                 value={gastoEditando.descripcion}
-                                onChange={(e) => setGastoEditando({ ...gastoEditando, descripcion: e.target.value })}
+                                onChange={(e) => setGastoEditando(prev => ({ ...prev, descripcion: e.target.value }))}
                                 required
                                 className="input"
                             />
@@ -291,14 +291,14 @@ const Movements = () => {
                             <label className="form-label-box">Monto</label>
                             <CurrencyInput
                                 value={gastoEditando.monto}
-                                onChange={(val) => setGastoEditando({ ...gastoEditando, monto: val })}
+                                onChange={(val) => setGastoEditando(prev => ({ ...prev, monto: val }))}
                             />
                         </div>
                         <div className="form-group">
                             <label className="form-label-box">Categoría</label>
                             <select
                                 value={gastoEditando.id_categoria}
-                                onChange={(e) => setGastoEditando({ ...gastoEditando, id_categoria: e.target.value })}
+                                onChange={(e) => setGastoEditando(prev => ({ ...prev, id_categoria: e.target.value }))}
                                 required
                                 className="form-select"
                             >
@@ -310,7 +310,7 @@ const Movements = () => {
                             <label className="form-label-box">Método de Pago</label>
                             <select
                                 value={gastoEditando.id_metodo_pago}
-                                onChange={(e) => setGastoEditando({ ...gastoEditando, id_metodo_pago: e.target.value })}
+                                onChange={(e) => setGastoEditando(prev => ({ ...prev, id_metodo_pago: e.target.value }))}
                                 required
                                 className="form-select"
                             >
@@ -323,7 +323,7 @@ const Movements = () => {
                             <input
                                 type="date"
                                 value={gastoEditando.fecha ? gastoEditando.fecha.split('T')[0] : ''}
-                                onChange={(e) => setGastoEditando({ ...gastoEditando, fecha: e.target.value })}
+                                onChange={(e) => setGastoEditando(prev => ({ ...prev, fecha: e.target.value }))}
                                 required
                                 className="input"
                             />
@@ -333,7 +333,7 @@ const Movements = () => {
                                 type="checkbox"
                                 id="es_fijo_edit"
                                 checked={gastoEditando.es_fijo}
-                                onChange={(e) => setGastoEditando({ ...gastoEditando, es_fijo: e.target.checked })}
+                                onChange={(e) => setGastoEditando(prev => ({ ...prev, es_fijo: e.target.checked }))}
                             />
                             <label htmlFor="es_fijo_edit">Gasto Fijo</label>
                         </div>

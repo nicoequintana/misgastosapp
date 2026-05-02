@@ -90,7 +90,7 @@
 
 /* TEMA OSCURO */
 [data-theme='dark'] {
-  --app-bg: radial-gradient(circle at top right, #1a2a3a, #101922);
+  --app-bg: radial-gradient(ellipse at top right, #1a2a3a 0%, #111820 50%, #0c1219 100%);
   --app-bg-solid: #101922;
   --text-main: #ffffff;
   --text-muted: rgba(255, 255, 255, 0.4);
@@ -870,6 +870,39 @@ body::after {
 .welcome-avatar-container .material-symbols-outlined {
   font-size: 40px;
   color: rgba(255, 255, 255, 0.8);
+}
+
+/* Welcome: navbar brand */
+.welcome-navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.welcome-navbar-icon {
+  font-size: 32px;
+  color: white;
+}
+
+.welcome-navbar-title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: white;
+}
+
+/* Welcome: google logo size */
+.welcome-google-logo {
+  width: 20px;
+  height: 20px;
+}
+
+/* Welcome: security note */
+.welcome-security-note {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+  margin: 0;
 }
 
 .btn-pill-google {
@@ -1905,6 +1938,39 @@ body::after {
 .credits-text strong {
   color: var(--text-main);
   font-weight: 700;
+}
+
+/* Sidebar: nav-link button reset */
+.nav-link.logout-link {
+  border: none;
+  background: none;
+  cursor: pointer;
+  width: 100%;
+}
+
+/* Sidebar: chevron icon utility */
+.nav-chevron {
+  margin-left: auto;
+  font-size: 18px;
+  opacity: 0.3;
+}
+
+/* Sidebar: items próximamente */
+.nav-link--soon {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.nav-soon-badge {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--warning);
+  background: var(--warning-light);
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
 }
 
 /* ==========================================================================

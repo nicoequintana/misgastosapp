@@ -1,7 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
-import GlassCard from '../components/GlassCard';
 
 /**
  * Página de aterrizaje (Welcome) para usuarios no autenticados.
@@ -10,35 +9,30 @@ import GlassCard from '../components/GlassCard';
 const Welcome = () => {
     const { session, signInWithGoogle, loading } = useAuth();
 
-    console.log('🏠 Página Welcome - Sesión:', session ? 'Activa' : 'Inactiva', '| Cargando:', loading);
-
-    // Si ya está logueado, redirigir al Dashboard
     if (session) {
-        console.log('➡️ Usuario ya autenticado, redirigiendo a /');
         return <Navigate to="/" replace />;
     }
 
     return (
         <div className="welcome-page-body">
-            {/* Navbar Branding Simplified */}
             <nav className="welcome-navbar">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '32px', color: 'white' }}>payments</span>
-                    <span style={{ fontSize: '24px', fontWeight: '800', letterSpacing: '-0.5px', color: 'white' }}>Mis Gastos</span>
+                <div className="welcome-navbar-brand">
+                    <span className="material-symbols-outlined welcome-navbar-icon">payments</span>
+                    <span className="welcome-navbar-title">Mis Gastos</span>
                 </div>
             </nav>
 
             <main className="welcome-main">
                 <div className="welcome-grid">
-                    {/* LEFT SIDE: Magnetic Copy / Branding */}
+                    {/* LEFT SIDE: Branding */}
                     <div className="welcome-hero-side">
                         <h1>
-                            Control <br />
-                            Inteligente
+                            Tu dinero,<br />
+                            bajo control.
                         </h1>
                         <p>
-                            Transforma la manera en que gestionas tu dinero.
-                            Sin complicaciones, sin estrés. Simplemente el control que necesitas.
+                            Registrá gastos, analizá tus finanzas y tomá decisiones con claridad.
+                            Simple, rápido, sin fricción.
                         </p>
                         <div className="welcome-separator-line"></div>
                     </div>
@@ -49,9 +43,6 @@ const Welcome = () => {
                             <span className="material-symbols-outlined">person</span>
                         </div>
 
-
-
-                        {/* Functional Google Sign In Button */}
                         <button
                             onClick={signInWithGoogle}
                             className="btn-pill-google pulse-animation"
@@ -60,12 +51,12 @@ const Welcome = () => {
                             <img
                                 src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
                                 alt="Google"
-                                style={{ width: '20px', height: '20px' }}
+                                className="welcome-google-logo"
                             />
                             <span>{loading ? 'Conectando...' : 'Iniciar con Google'}</span>
                         </button>
 
-                        <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', textAlign: 'center', margin: 0 }}>
+                        <p className="welcome-security-note">
                             Acceso seguro garantizado por Google
                         </p>
                     </div>

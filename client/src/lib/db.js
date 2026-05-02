@@ -184,11 +184,13 @@ export const getPaymentMethods = async () => {
  * [DEPRECATED] Los métodos de pago son ahora globales de sistema.
  * Se mantienen por compatibilidad si fueran necesarios, pero no tienen uso en la UI actual.
  */
+// eslint-disable-next-line no-unused-vars
 export const updatePaymentMethod = async (id, nombre) => {
     console.warn('updatePaymentMethod is deprecated.');
     return null;
 };
 
+// eslint-disable-next-line no-unused-vars
 export const deletePaymentMethod = async (id) => {
     console.warn('deletePaymentMethod is deprecated.');
     return null;
@@ -197,13 +199,8 @@ export const deletePaymentMethod = async (id) => {
 // ==================== INGRESOS ====================
 
 /**
- * Obtiene el registro de ingreso mensual del usuario autenticado.
- * 
- * NOTA: Filtra explícitamente por user_id para máxima seguridad,
- * aunque RLS ya lo garantiza. Si no existe un registro previo,
- * crea uno con monto 0 automáticamente.
- * 
- * @returns {Object} El registro de ingreso del usuario
+ * Obtiene el ingreso activo del usuario.
+ * Si no existe ninguno, retorna monto 0 sin crear filas vacías.
  */
 export const getIncome = async () => {
     const usuario = await obtenerUsuarioActivo();
@@ -212,7 +209,7 @@ export const getIncome = async () => {
         .from('ingresos')
         .select('*')
         .eq('user_id', usuario.id)
-        .limit(1) // Evitar error PGRST116 si existen duplicados
+        .limit(1)
         .maybeSingle();
 
     if (error) {
@@ -220,86 +217,47 @@ export const getIncome = async () => {
         throw error;
     }
 
-    // Si no existe un registro de ingreso, crear uno por defecto con monto 0
-    if (!data) {
-        console.info('ℹ️ No se encontró ingreso previo. Creando registro inicial.');
-        return await createIncome(0, usuario.id);
-    }
-
-    return data;
+    return data ?? { monto: 0 };
 };
 
 /**
- * Crea un registro de ingreso inicial para el usuario.
- * Se llama internamente cuando getIncome no encuentra datos.
- * 
- * @param {number} monto - Monto inicial (generalmente 0)
- * @param {string} userId - ID del usuario (opcional, se obtiene si no se pasa)
- * @returns {Object} El registro de ingreso creado
+ * Guarda el ingreso del usuario.
+ * Si ya existe un registro, lo actualiza. Si no, lo crea.
+ * La fecha de actualización la gestiona Supabase automáticamente.
  */
-export const createIncome = async (monto, userId = null) => {
-    // Si no se pasa userId, lo obtenemos (para llamadas directas)
-    const idUsuario = userId || (await obtenerUsuarioActivo()).id;
-
-    const { data, error } = await supabase
-        .from('ingresos')
-        .insert([{
-            user_id: idUsuario,
-            monto: Number(monto) || 0
-        }])
-        .select()
-        .single();
-
-    if (error) {
-        console.error('❌ Error en createIncome:', error);
-        throw error;
-    }
-    return data;
-};
-
-/**
- * Actualiza el ingreso mensual del usuario. 
- * Si no existe un registro previo, lo crea (upsert lógico).
- * 
- * @param {number} monto - Nuevo monto de ingreso mensual
- * @returns {Object} El registro de ingreso actualizado o creado
- */
-export const updateIncome = async (monto) => {
+export const saveIncome = async (monto) => {
     const usuario = await obtenerUsuarioActivo();
     const montoLimpio = Number(monto) || 0;
 
-    // Buscar registro existente del usuario
     const { data: existente, error: errorBusqueda } = await supabase
         .from('ingresos')
         .select('id')
         .eq('user_id', usuario.id)
-        .limit(1) // Evitar error PGRST116 si existen duplicados
+        .limit(1)
         .maybeSingle();
 
-    if (errorBusqueda) {
-        console.error('❌ Error al buscar ingreso para actualizar:', errorBusqueda);
-        throw errorBusqueda;
-    }
+    if (errorBusqueda) throw errorBusqueda;
 
     if (existente) {
-        // Actualizar el registro existente
         const { data, error } = await supabase
             .from('ingresos')
-            .update({ monto: montoLimpio })
+            .update({ monto: montoLimpio, fecha_actualizacion: new Date().toISOString() })
             .eq('id', existente.id)
             .select()
             .single();
 
-        if (error) {
-            console.error('❌ Error al actualizar ingreso:', error);
-            throw error;
-        }
+        if (error) throw error;
         return data;
     }
 
-    // Si no hay registro, crear uno nuevo
-    console.info('ℹ️ No existía registro de ingreso. Creando uno nuevo.');
-    return await createIncome(montoLimpio, usuario.id);
+    const { data, error } = await supabase
+        .from('ingresos')
+        .insert([{ user_id: usuario.id, monto: montoLimpio }])
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
 };
 
 // ==================== ESTADÍSTICAS ====================

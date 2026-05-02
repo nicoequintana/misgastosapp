@@ -12,13 +12,12 @@ const Sidebar = ({ isOpen, isMobile, toggleSidebar }) => {
     const menuItems = [
         { name: 'Resumen', icon: 'dashboard', path: '/' },
         { name: 'Movimientos', icon: 'history', path: '/movimientos' },
-        { name: 'Presupuestos', icon: 'account_balance_wallet', path: '/presupuestos' },
-        { name: 'Informes', icon: 'bar_chart', path: '/informes' },
-        { name: 'Ahorros', icon: 'savings', path: '/ahorros' },
+        { name: 'Presupuestos', icon: 'account_balance_wallet', path: '/presupuestos', soon: true },
+        { name: 'Informes', icon: 'bar_chart', path: '/informes', soon: true },
+        { name: 'Ahorros', icon: 'savings', path: '/ahorros', soon: true },
     ];
 
     const handleLogout = async () => {
-        console.log('👋 Cerrando sesión desde Sidebar...');
         await signOut();
     };
 
@@ -47,14 +46,17 @@ const Sidebar = ({ isOpen, isMobile, toggleSidebar }) => {
                     <NavLink
                         key={item.path}
                         to={item.path}
-                        className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                        className={({ isActive }) => `nav-link ${isActive ? 'active' : ''} ${item.soon ? 'nav-link--soon' : ''}`}
                         title={!isOpen ? item.name : ''}
                     >
                         <span className="material-symbols-outlined">{item.icon}</span>
                         {isOpen && (
                             <>
                                 <span className="sidebar-text">{item.name}</span>
-                                <span className="material-symbols-outlined" style={{ marginLeft: 'auto', fontSize: '18px', opacity: 0.3 }}>chevron_right</span>
+                                {item.soon
+                                    ? <span className="nav-soon-badge">Pronto</span>
+                                    : <span className="material-symbols-outlined nav-chevron">chevron_right</span>
+                                }
                             </>
                         )}
                     </NavLink>
@@ -66,7 +68,6 @@ const Sidebar = ({ isOpen, isMobile, toggleSidebar }) => {
                     onClick={handleLogout}
                     className="nav-link logout-link"
                     title={!isOpen ? 'Cerrar Sesión' : ''}
-                    style={{ border: 'none', background: 'none', cursor: 'pointer', width: '100%' }}
                 >
                     <span className="material-symbols-outlined">logout</span>
                     {isOpen && <span className="sidebar-text">Cerrar Sesión</span>}
