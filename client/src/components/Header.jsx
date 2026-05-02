@@ -1,20 +1,23 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 /**
  * Componente de encabezado de la aplicación.
  * Muestra el título de la página actual, barra de búsqueda y perfil de usuario.
- * @param {string} title - El título a mostrar en el encabezado.
+ * El toggle de tema alterna entre modo claro y oscuro manteniendo la paleta activa.
  */
 const Header = ({ title, toggleSidebar, isMobile }) => {
     const { user } = useAuth();
-    const [theme, setTheme] = React.useState(document.documentElement.getAttribute('data-theme') || 'light');
+    const { currentTheme, applyTheme, themes } = useTheme();
+    const navigate = useNavigate();
 
-    const toggleTheme = () => {
-        const newTheme = theme === 'light' ? 'dark' : 'light';
-        setTheme(newTheme);
-        document.documentElement.setAttribute('data-theme', newTheme);
-        localStorage.setItem('app-theme', newTheme);
+    // Alterna entre el tema claro y oscuro equivalente al activo
+    const toggleMode = () => {
+        const targetMode = currentTheme.mode === 'light' ? 'dark' : 'light';
+        const equivalent = themes.find(t => t.mode === targetMode) ?? themes[0];
+        applyTheme(equivalent.id);
     };
 
     return (
@@ -44,12 +47,12 @@ const Header = ({ title, toggleSidebar, isMobile }) => {
 
             <div className="header-right">
                 <button
-                    onClick={toggleTheme}
+                    onClick={toggleMode}
                     className="header-btn"
-                    title={theme === 'light' ? 'Activar Modo Oscuro' : 'Activar Modo Claro'}
+                    title={currentTheme.mode === 'light' ? 'Activar Modo Oscuro' : 'Activar Modo Claro'}
                 >
                     <span className="material-symbols-outlined">
-                        {theme === 'light' ? 'dark_mode' : 'light_mode'}
+                        {currentTheme.mode === 'light' ? 'dark_mode' : 'light_mode'}
                     </span>
                 </button>
 
@@ -60,7 +63,7 @@ const Header = ({ title, toggleSidebar, isMobile }) => {
 
                 <div className="v-separator"></div>
 
-                <div className="user-profile">
+                <div className="user-profile" onClick={() => navigate('/configuracion')} style={{ cursor: 'pointer' }} title="Ir a Configuración">
                     <div className="user-info-text">
                         <p className="user-name">{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuario'}</p>
                         <p className="user-role">Cuenta Personal</p>
