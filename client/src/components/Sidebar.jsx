@@ -15,6 +15,7 @@ const Sidebar = ({ isOpen, isMobile, toggleSidebar, onNewExpense }) => {
         { name: 'Presupuestos', icon: 'account_balance_wallet', path: '/presupuestos', soon: true },
         { name: 'Informes', icon: 'bar_chart', path: '/informes', soon: true },
         { name: 'Ahorros', icon: 'savings', path: '/ahorros', soon: true },
+        { name: 'Configuración', icon: 'settings', path: '/configuracion' },
     ];
 
     const handleLogout = async () => {
