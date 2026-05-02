@@ -8,6 +8,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const isProduction = process.env.NODE_ENV === 'production';
 
 // ==================== CONFIGURACIÓN DE SEGURIDAD ====================
 
@@ -30,9 +31,14 @@ const validateApiKey = (req, res, next) => {
     next();
 };
 
-// Configuración de CORS
+// En producción Express sirve el frontend desde /public,
+// así que el origen del CORS es el propio servidor.
+const corsOrigin = isProduction
+    ? (process.env.FRONTEND_URL || true)
+    : (process.env.FRONTEND_URL || 'http://localhost:5173');
+
 const corsOptions = {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: corsOrigin,
     methods: ['GET', 'POST'],
     allowedHeaders: ['Content-Type', 'x-api-key']
 };
@@ -41,7 +47,6 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // En producción, Express sirve el build estático del frontend
-const isProduction = process.env.NODE_ENV === 'production';
 if (isProduction) {
     const staticPath = path.join(__dirname, 'public');
     app.use(express.static(staticPath));
