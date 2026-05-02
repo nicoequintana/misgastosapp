@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const { normalizeAmount, generateFingerprint } = require('./utils');
@@ -38,6 +39,13 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// En producción, Express sirve el build estático del frontend
+const isProduction = process.env.NODE_ENV === 'production';
+if (isProduction) {
+    const staticPath = path.join(__dirname, 'public');
+    app.use(express.static(staticPath));
+}
 
 // ==================== INICIALIZACIÓN DE SUPABASE ====================
 
@@ -131,5 +139,12 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
 });
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+// Catch-all: devuelve el index.html del frontend para rutas de React Router
+if (isProduction) {
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    });
+}
 
 app.listen(PORT, () => console.log(`🚀 Servidor de Integraciones corriendo en puerto ${PORT}`));

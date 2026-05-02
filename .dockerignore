@@ -1,0 +1,15 @@
+node_modules
+client/node_modules
+server/node_modules
+client/dist
+.env
+client/.env
+server/.env
+.git
+.gitignore
+.vscode
+.claude
+.atl
+README.md
+CLAUDE.md
+*.log
