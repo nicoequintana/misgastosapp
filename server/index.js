@@ -147,7 +147,7 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 // Catch-all: devuelve el index.html del frontend para rutas de React Router
 if (isProduction) {
-    app.get('*', (req, res) => {
+    app.get('/*path', (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'index.html'));
     });
 }
