@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { setSeo } from '../utils/seo';
 
 /**
  * Página de aterrizaje (Welcome) para usuarios no autenticados.
@@ -8,6 +9,13 @@ import { Navigate } from 'react-router-dom';
  */
 const Welcome = () => {
     const { session, signInWithGoogle, loading } = useAuth();
+
+    React.useEffect(() => {
+        setSeo({
+            title: 'Bienvenido - Mis Gastos',
+            description: 'Ingresá con Google para registrar tus gastos y ordenar tus finanzas.'
+        });
+    }, []);
 
     if (session) {
         return <Navigate to="/" replace />;

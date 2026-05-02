@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
+import { setSeo } from '../utils/seo';
 
 /**
  * Esquema principal (Layout) de la aplicación.
@@ -66,6 +67,50 @@ const MainLayout = () => {
             default: return 'Mis Gastos';
         }
     };
+
+    const getPageSeo = (path) => {
+        switch (path) {
+            case '/':
+                return {
+                    title: 'Dashboard - Mis Gastos',
+                    description: 'Resumen financiero, ingresos y gastos fijos/variables en un solo lugar.'
+                };
+            case '/movimientos':
+                return {
+                    title: 'Movimientos - Mis Gastos',
+                    description: 'Historial completo de gastos con búsqueda y filtros por categoría.'
+                };
+            case '/configuracion':
+                return {
+                    title: 'Configuración - Mis Gastos',
+                    description: 'Perfil del usuario y personalización del tema visual.'
+                };
+            case '/presupuestos':
+                return {
+                    title: 'Presupuestos - Mis Gastos',
+                    description: 'Planificá gastos mensuales y mantené el control del presupuesto.'
+                };
+            case '/informes':
+                return {
+                    title: 'Informes - Mis Gastos',
+                    description: 'Informes detallados para analizar tu comportamiento financiero.'
+                };
+            case '/ahorros':
+                return {
+                    title: 'Ahorros - Mis Gastos',
+                    description: 'Seguimiento de metas y progreso de ahorro personal.'
+                };
+            default:
+                return {
+                    title: 'Mis Gastos - Control Personal',
+                    description: 'Registrá gastos, analizá tus finanzas y tomá decisiones con claridad.'
+                };
+        }
+    };
+
+    React.useEffect(() => {
+        setSeo(getPageSeo(location.pathname));
+    }, [location.pathname]);
 
     return (
         <div className={`main-layout ${isMobile ? 'mobile' : ''} ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
