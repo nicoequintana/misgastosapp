@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\Nico\\\\.claude\\\\skills\" -Recurse -Filter \"SKILL.md\")",
+      "Bash(Select-Object FullName)"
+    ]
+  }
+}

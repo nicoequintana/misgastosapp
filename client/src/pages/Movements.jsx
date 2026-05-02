@@ -19,7 +19,10 @@ const Movements = () => {
     const [filtroCategoria, setFiltroCategoria] = useState('Todas');
 
     const [gastoEditando, setGastoEditando] = useState(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
     const [gastoEliminando, setGastoEliminando] = useState(null);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
     const [categories, setCategories] = useState([]);
     const [paymentMethods, setPaymentMethods] = useState([]);
@@ -62,6 +65,12 @@ const Movements = () => {
 
     const handleEliminarClick = (gasto) => {
         setGastoEliminando(gasto);
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleCerrarEliminar = () => {
+        setIsDeleteModalOpen(false);
+        setTimeout(() => setGastoEliminando(null), 300);
     };
 
     /**
@@ -72,11 +81,21 @@ const Movements = () => {
         try {
             await db.deleteExpense(gastoEliminando.id);
             console.log('✅ Gasto eliminado correctamente');
-            setGastoEliminando(null);
-            fetchMovimientos();
+            handleCerrarEliminar();
+            await fetchMovimientos();
         } catch (err) {
             console.error('❌ Error al eliminar el gasto:', err);
         }
+    };
+
+    const handleEditarClick = (gasto) => {
+        setGastoEditando({ ...gasto });
+        setIsEditModalOpen(true);
+    };
+
+    const handleCerrarEdicion = () => {
+        setIsEditModalOpen(false);
+        setTimeout(() => setGastoEditando(null), 300);
     };
 
     /**
@@ -96,8 +115,8 @@ const Movements = () => {
                 es_fijo: gastoEditando.es_fijo
             });
             console.log('✅ Gasto actualizado correctamente');
-            setGastoEditando(null);
-            fetchMovimientos();
+            handleCerrarEdicion();
+            await fetchMovimientos();
         } catch (err) {
             console.error('❌ Error al actualizar el gasto:', err);
             alert('Error al actualizar el gasto. Por favor, intentá de nuevo.');
@@ -106,13 +125,31 @@ const Movements = () => {
 
     // Filtrado y búsqueda sobre los movimientos cargados
     const movimientosFiltrados = movimientos.filter((mov) => {
-        const coincideBusqueda = mov.descripcion?.toLowerCase().includes(busqueda.toLowerCase());
+        const coincideBusqueda = (mov.descripcion || '').toLowerCase().includes(busqueda.toLowerCase());
         const coincideCategoria = filtroCategoria === 'Todas' || mov.categorias?.nombre === filtroCategoria;
         return coincideBusqueda && coincideCategoria;
     });
 
-    const totalFiltrado = movimientosFiltrados.reduce((suma, mov) => suma + parseFloat(mov.monto || 0), 0);
     const categoriasUnicas = ['Todas', ...new Set(movimientos.map(m => m.categorias?.nombre).filter(Boolean))];
+
+    /**
+     * Formatea una fecha de manera robusta para evitar "Invalid Date".
+     */
+    const formatDate = (dateStr) => {
+        if (!dateStr) return 'N/A';
+        try {
+            // Si viene solo fecha (YYYY-MM-DD), forzamos mediodía para evitar desfases de zona horaria
+            const date = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr + 'T12:00:00');
+            if (isNaN(date.getTime())) return 'Fecha inválida';
+            return date.toLocaleDateString('es-AR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        } catch (e) {
+            return 'Error fecha';
+        }
+    };
 
     return (
         <div className="movements-container">
@@ -124,13 +161,14 @@ const Movements = () => {
             {/* Barra de búsqueda y filtros */}
             <GlassCard className="mb-8">
                 <div className="movements-filters">
-                    <div className="filter-group">
+                    <div className="search-group flex-1">
+                        <span className="material-symbols-outlined search-icon-inner">search</span>
                         <input
                             type="text"
                             placeholder="Buscar por descripción..."
                             value={busqueda}
                             onChange={(e) => setBusqueda(e.target.value)}
-                            className="input"
+                            className="input search-with-icon"
                         />
                     </div>
                     <div className="filter-group-fixed">
@@ -160,54 +198,65 @@ const Movements = () => {
                         <p className="mt-4">No se encontraron movimientos</p>
                     </div>
                 ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <div className="table-responsive">
+                        <table className="movements-table">
                             <thead>
-                                <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                                    <th style={{ padding: '12px 8px', textAlign: 'left', fontSize: '10px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Fecha</th>
-                                    <th style={{ padding: '12px 8px', textAlign: 'left', fontSize: '10px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Descripción</th>
-                                    <th style={{ padding: '12px 8px', textAlign: 'left', fontSize: '10px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Categoría</th>
-                                    <th style={{ padding: '12px 8px', textAlign: 'left', fontSize: '10px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Método</th>
-                                    <th style={{ padding: '12px 8px', textAlign: 'right', fontSize: '10px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Monto</th>
-                                    <th style={{ padding: '12px 8px', textAlign: 'center', fontSize: '10px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Tipo</th>
-                                    <th style={{ padding: '12px 8px', textAlign: 'center', fontSize: '10px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Acciones</th>
+                                <tr>
+                                    <th className="td-date">Fecha</th>
+                                    <th className="td-desc">Descripción</th>
+                                    <th>Categoría</th>
+                                    <th>Método</th>
+                                    <th className="td-amount">Monto</th>
+                                    <th className="text-center">Tipo</th>
+                                    <th className="td-actions">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {movimientosFiltrados.map((mov) => (
-                                    <tr key={mov.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                                        <td style={{ padding: '16px 8px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                                            {/* Agregar T00:00:00 para evitar el desfase de zona horaria */}
-                                            {new Date(mov.fecha + 'T00:00:00').toLocaleDateString('es-AR')}
+                                    <tr key={mov.id}>
+                                        <td className="td-date">
+                                            {formatDate(mov.fecha)}
                                         </td>
-                                        <td style={{ padding: '16px 8px', fontSize: '13px', fontWeight: '600', color: 'var(--text-main)' }}>
+                                        <td className="td-desc">
                                             {mov.descripcion}
                                         </td>
-                                        <td style={{ padding: '16px 8px' }}>
-                                            <span className="category-tag" style={{ fontSize: '10px', padding: '4px 8px', background: 'var(--primary-light)', color: 'var(--primary)' }}>
+                                        <td>
+                                            <span className="category-tag-small">
                                                 {mov.categorias?.nombre || 'Sin categoría'}
                                             </span>
                                         </td>
-                                        <td style={{ padding: '16px 8px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                                            {mov.metodos_pago?.nombre || 'N/A'}
+                                        <td>
+                                            <span className="method-tag-small">
+                                                {mov.metodos_pago?.nombre || 'N/A'}
+                                            </span>
                                         </td>
-                                        <td style={{ padding: '16px 8px', textAlign: 'right', fontWeight: 'bold', color: 'var(--danger)', fontSize: '13px' }}>
+                                        <td className="td-amount">
                                             -${formatCurrency(mov.monto)}
                                         </td>
-                                        <td style={{ padding: '16px 8px', textAlign: 'center' }}>
-                                            {mov.es_fijo ? (
-                                                <span style={{ fontSize: '10px', padding: '4px 8px', background: 'rgba(251,191,36,0.1)', color: '#fbbf24', borderRadius: '6px', fontWeight: 'bold' }}>FIJO</span>
+                                        <td className="text-center">
+                                            {Boolean(mov.es_fijo) ? (
+                                                <span className="type-tag-small type-tag-fijo">FIJO</span>
                                             ) : (
-                                                <span style={{ fontSize: '10px', padding: '4px 8px', background: 'rgba(16,185,129,0.1)', color: '#10b981', borderRadius: '6px', fontWeight: 'bold' }}>VARIABLE</span>
+                                                <span className="type-tag-small type-tag-variable">VARIABLE</span>
                                             )}
                                         </td>
-                                        <td style={{ padding: '16px 8px', textAlign: 'center' }}>
-                                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                                                <button onClick={() => setGastoEditando(mov)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: '4px' }}>
-                                                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>edit</span>
+                                        <td className="td-actions">
+                                            <div className="action-buttons-group">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleEditarClick(mov)}
+                                                    className="action-btn edit"
+                                                    title="Editar"
+                                                >
+                                                    <span className="material-symbols-outlined">edit</span>
                                                 </button>
-                                                <button onClick={() => handleEliminarClick(mov)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: '4px' }}>
-                                                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleEliminarClick(mov)}
+                                                    className="action-btn delete"
+                                                    title="Eliminar"
+                                                >
+                                                    <span className="material-symbols-outlined">delete</span>
                                                 </button>
                                             </div>
                                         </td>
@@ -220,11 +269,12 @@ const Movements = () => {
             </GlassCard>
 
             {/* Modal: Editar gasto */}
-            <Modal isOpen={!!gastoEditando} onClose={() => setGastoEditando(null)}>
-                <div className="modal-inner-header">
-                    <h2 className="modal-title">Editar Gasto</h2>
-                    <p className="modal-subtitle">Modificá los datos del registro</p>
-                </div>
+            <Modal
+                isOpen={isEditModalOpen}
+                onClose={handleCerrarEdicion}
+                title="Editar Gasto"
+                subtitle="Modificá la información de tu movimiento"
+            >
                 {gastoEditando && (
                     <form onSubmit={handleGuardarEdicion} className="form-container">
                         <div className="form-group">
@@ -288,7 +338,7 @@ const Movements = () => {
                             <label htmlFor="es_fijo_edit">Gasto Fijo</label>
                         </div>
                         <div className="form-row mt-4">
-                            <button type="button" onClick={() => setGastoEditando(null)} className="btn btn-secondary" style={{ flex: 1 }}>Cancelar</button>
+                            <button type="button" onClick={handleCerrarEdicion} className="btn btn-secondary" style={{ flex: 1 }}>Cancelar</button>
                             <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Actualizar</button>
                         </div>
                     </form>
@@ -297,11 +347,11 @@ const Movements = () => {
 
             {/* Modal: Confirmar eliminación */}
             <ConfirmModal
-                isOpen={!!gastoEliminando}
-                onClose={() => setGastoEliminando(null)}
+                isOpen={isDeleteModalOpen}
+                onClose={handleCerrarEliminar}
                 onConfirm={confirmarEliminar}
                 title="Eliminar Gasto"
-                message={`¿Estás seguro de que deseas eliminar "${gastoEliminando?.descripcion}"? Esta acción no se puede deshacer.`}
+                message={`¿Estás seguro de que deseas eliminar "${gastoEliminando?.descripcion || 'este movimiento'}"? Esta acción no se puede deshacer.`}
             />
         </div>
     );

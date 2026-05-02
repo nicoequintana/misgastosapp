@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
+const { normalizeAmount, generateFingerprint } = require('./utils');
 require('dotenv').config();
 
 const app = express();
@@ -50,22 +51,6 @@ if (isSupabaseConfigured) {
     );
 }
 
-// ==================== HELPERS ====================
-
-/** Normaliza montos (acepta coma o punto) */
-const normalizeAmount = (val) => {
-    if (typeof val === 'number') return val;
-    if (typeof val !== 'string') return NaN;
-    const clean = val.replace(/\s/g, '').replace(',', '.');
-    return parseFloat(clean);
-};
-
-/** Genera huella digital para evitar duplicados exactos el mismo día */
-const generateFingerprint = (data) => {
-    const { descripcion, monto, categoria, medioPago, fecha } = data;
-    const raw = `${descripcion.trim().toLowerCase()}|${Number(monto).toFixed(2)}|${categoria.trim().toLowerCase()}|${medioPago.trim().toLowerCase()}|${fecha}`;
-    return crypto.createHash('md5').update(raw).digest('hex');
-};
 
 // ==================== ENDPOINTS DE INTEGRACIÓN ====================
 

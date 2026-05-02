@@ -158,7 +158,6 @@ export const getCategories = async () => {
     const { data, error } = await supabase
         .from('categorias')
         .select('*')
-        .eq('activo', true)
         .order('nombre');
 
     if (error) throw error;
@@ -166,67 +165,8 @@ export const getCategories = async () => {
 };
 
 /**
- * Crea una nueva categoría para el usuario autenticado.
- * 
- * @param {string} nombre - Nombre de la categoría
- * @returns {Object} La categoría creada
- */
-export const createCategory = async (nombre) => {
-    const usuario = await obtenerUsuarioActivo();
-
-    const { data, error } = await supabase
-        .from('categorias')
-        .insert([{
-            user_id: usuario.id,
-            nombre: nombre.trim().toUpperCase(),
-            activo: true
-        }])
-        .select()
-        .single();
-
-    if (error) throw error;
-    return data;
-};
-
-/**
- * Actualiza el nombre de una categoría existente.
- * 
- * @param {string} id - ID de la categoría
- * @param {string} nombre - Nuevo nombre
- * @returns {Object} La categoría actualizada
- */
-export const updateCategory = async (id, nombre) => {
-    const { data, error } = await supabase
-        .from('categorias')
-        .update({ nombre: nombre.trim().toUpperCase() })
-        .eq('id', id)
-        .select()
-        .single();
-
-    if (error) throw error;
-    return data;
-};
-
-/**
- * Realiza un "soft delete" de una categoría (la marca como inactiva).
- * No se elimina físicamente para preservar la integridad referencial
- * con los gastos que ya la usan.
- * 
- * @param {string} id - ID de la categoría a desactivar
- */
-export const deleteCategory = async (id) => {
-    const { error } = await supabase
-        .from('categorias')
-        .update({ activo: false })
-        .eq('id', id);
-
-    if (error) throw error;
-};
-
-// ==================== MÉTODOS DE PAGO ====================
-
-/**
- * Obtiene todos los métodos de pago activos del usuario.
+ * Obtiene todos los métodos de pago.
+ * Ahora son globales y vienen pre-configurados en Supabase.
  * 
  * @returns {Array} Lista de métodos de pago ordenados alfabéticamente
  */
@@ -234,7 +174,6 @@ export const getPaymentMethods = async () => {
     const { data, error } = await supabase
         .from('metodos_pago')
         .select('*')
-        .eq('activo', true)
         .order('nombre');
 
     if (error) throw error;
@@ -242,59 +181,17 @@ export const getPaymentMethods = async () => {
 };
 
 /**
- * Crea un nuevo método de pago para el usuario autenticado.
- * 
- * @param {string} nombre - Nombre del método de pago
- * @returns {Object} El método de pago creado
- */
-export const createPaymentMethod = async (nombre) => {
-    const usuario = await obtenerUsuarioActivo();
-
-    const { data, error } = await supabase
-        .from('metodos_pago')
-        .insert([{
-            user_id: usuario.id,
-            nombre: nombre.trim().toUpperCase(),
-            activo: true
-        }])
-        .select()
-        .single();
-
-    if (error) throw error;
-    return data;
-};
-
-/**
- * Actualiza el nombre de un método de pago existente.
- * 
- * @param {string} id - ID del método de pago
- * @param {string} nombre - Nuevo nombre
- * @returns {Object} El método de pago actualizado
+ * [DEPRECATED] Los métodos de pago son ahora globales de sistema.
+ * Se mantienen por compatibilidad si fueran necesarios, pero no tienen uso en la UI actual.
  */
 export const updatePaymentMethod = async (id, nombre) => {
-    const { data, error } = await supabase
-        .from('metodos_pago')
-        .update({ nombre: nombre.trim().toUpperCase() })
-        .eq('id', id)
-        .select()
-        .single();
-
-    if (error) throw error;
-    return data;
+    console.warn('updatePaymentMethod is deprecated.');
+    return null;
 };
 
-/**
- * Realiza un "soft delete" de un método de pago (lo marca como inactivo).
- * 
- * @param {string} id - ID del método de pago a desactivar
- */
 export const deletePaymentMethod = async (id) => {
-    const { error } = await supabase
-        .from('metodos_pago')
-        .update({ activo: false })
-        .eq('id', id);
-
-    if (error) throw error;
+    console.warn('deletePaymentMethod is deprecated.');
+    return null;
 };
 
 // ==================== INGRESOS ====================

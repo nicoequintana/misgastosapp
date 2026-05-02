@@ -6,6 +6,8 @@ import ConfirmModal from '../components/ConfirmModal';
 import CurrencyInput from '../components/CurrencyInput';
 import { formatCurrency } from '../utils/format';
 import * as db from '../lib/db';
+import SummaryCard from '../components/dashboard/SummaryCard';
+import DashboardTable from '../components/dashboard/DashboardTable';
 
 // ==================== ESTADO INICIAL ====================
 
@@ -29,89 +31,6 @@ const ESTADO_INICIAL_STATS = {
     gastos: []
 };
 
-// ==================== SUB-COMPONENTES ====================
-
-/**
- * Tarjeta de resumen financiero.
- * Muestra un ícono, etiqueta y monto formateado.
- * 
- * @param {string} title - Título de la métrica
- * @param {number} amount - Monto a mostrar (puede ser negativo)
- * @param {string} icon - Nombre del ícono de Material Symbols
- * @param {string} color - Nombre de la variable de color CSS (ej: 'success')
- */
-const TarjetaResumen = ({ title, amount, icon, color }) => (
-    <GlassCard className="summary-card">
-        <div className="summary-icon" style={{
-            backgroundColor: `var(--${color}-light)`,
-            color: `var(--${color})`
-        }}>
-            <span className="material-symbols-outlined">{icon}</span>
-        </div>
-        <p className="summary-label">{title}</p>
-        <h3 className="summary-amount">
-            ${formatCurrency(amount)}
-        </h3>
-    </GlassCard>
-);
-
-/**
- * Tabla de gastos de solo lectura para el Dashboard.
- * Muestra descripción, categoría y monto alineados correctamente.
- * Las acciones de edición/eliminación se hacen en la página Movimientos.
- * 
- * @param {string} title - Título de la tabla
- * @param {Array} expenses - Lista de gastos a mostrar
- */
-const TablaGastos = ({ title, expenses }) => (
-    <GlassCard className="expense-table-card">
-        <div className="table-header-box">
-            <h3 className="table-title">{title}</h3>
-            <span className="category-tag counter">{expenses.length} registros</span>
-        </div>
-        <div className="table-responsive">
-            <table className="expense-table">
-                <thead>
-                    <tr>
-                        <th className="text-left">Descripción</th>
-                        <th className="text-center">Categoría</th>
-                        <th className="text-right">Monto</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {expenses.length > 0 ? (
-                        expenses.map((gasto) => (
-                            <tr key={gasto.id} className="expense-row">
-                                <td className="cell-desc">
-                                    <span style={{ fontWeight: 600 }}>{gasto.descripcion}</span>
-                                </td>
-                                <td className="text-center">
-                                    <span className="category-tag" style={{
-                                        color: 'var(--primary)',
-                                        display: 'inline-block'
-                                    }}>
-                                        {gasto.categorias?.nombre || 'General'}
-                                    </span>
-                                </td>
-                                <td className="cell-amount amount-expense text-right">
-                                    <span className="responsive-amount">
-                                        -${formatCurrency(gasto.monto)}
-                                    </span>
-                                </td>
-                            </tr>
-                        ))
-                    ) : (
-                        <tr>
-                            <td colSpan="3" className="empty-state">
-                                No hay datos registrados aún.
-                            </td>
-                        </tr>
-                    )}
-                </tbody>
-            </table>
-        </div>
-    </GlassCard>
-);
 
 // ==================== COMPONENTE PRINCIPAL ====================
 
@@ -258,12 +177,7 @@ const Dashboard = () => {
      * Si faltan categorías o métodos, abre el modal de advertencia de configuración.
      */
     const handleAbrirNuevoGasto = () => {
-        if (categories.length === 0 || paymentMethods.length === 0) {
-            // Reusar el estado de confirmDeleteAll con una bandera especial para no duplicar modales
-            setConfirmDeleteAll({ isConfigWarning: true });
-        } else {
-            setIsModalOpen(true);
-        }
+        setIsModalOpen(true);
     };
 
     // Gastos separados por tipo para las tablas inferiores
@@ -311,21 +225,19 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* Tarjetas de resumen financiero */}
             <div className="summary-grid">
-                <TarjetaResumen title="Ingresos" amount={stats.ingresoMensual} icon="trending_up" color="success" />
-                <TarjetaResumen title="Saldo Disponible" amount={stats.saldoDisponible} icon="account_balance_wallet" color="primary" />
-                <TarjetaResumen title="Gastos Fijos" amount={stats.gastosFijos} icon="lock" color="warning" />
-                <TarjetaResumen title="Gastos Variables" amount={stats.gastosVariables} icon="payments" color="danger" />
+                <SummaryCard title="Ingresos" amount={stats.ingresoMensual} icon="trending_up" color="success" />
+                <SummaryCard title="Saldo Disponible" amount={stats.saldoDisponible} icon="account_balance_wallet" color="primary" />
+                <SummaryCard title="Gastos Fijos" amount={stats.gastosFijos} icon="lock" color="warning" />
+                <SummaryCard title="Gastos Variables" amount={stats.gastosVariables} icon="payments" color="danger" />
             </div>
 
-            {/* Tablas de gastos (solo lectura) */}
             <div className="tables-grid">
                 <div style={{ height: '100%' }}>
-                    <TablaGastos title="Gastos Recientes" expenses={gastosRecientes} />
+                    <DashboardTable title="Gastos Recientes" expenses={gastosRecientes} />
                 </div>
                 <div style={{ height: '100%' }}>
-                    <TablaGastos title="Gastos Fijos" expenses={gastosFijos} />
+                    <DashboardTable title="Gastos Fijos" expenses={gastosFijos} />
                 </div>
             </div>
 
@@ -340,11 +252,12 @@ const Dashboard = () => {
             {/* ========== MODALES ========== */}
 
             {/* Modal: Nuevo Gasto */}
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-                <div className="modal-inner-header">
-                    <h2 className="modal-title">Nuevo Gasto</h2>
-                    <p className="modal-subtitle">Completá los detalles del movimiento</p>
-                </div>
+            <Modal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                title="Nuevo Gasto"
+                subtitle="Completá los detalles del movimiento"
+            >
                 <form onSubmit={handleSubmitExpense} className="form-container">
                     <div className="form-group">
                         <label className="form-label-box">Descripción</label>
@@ -427,11 +340,12 @@ const Dashboard = () => {
             </Modal>
 
             {/* Modal: Actualizar Ingreso Mensual */}
-            <Modal isOpen={isIncomeModalOpen} onClose={() => setIsIncomeModalOpen(false)}>
-                <div className="modal-inner-header">
-                    <h2 className="modal-title">Actualizar Ingreso Mensual</h2>
-                    <p className="modal-subtitle">Establecé tu ingreso base para este mes</p>
-                </div>
+            <Modal
+                isOpen={isIncomeModalOpen}
+                onClose={() => setIsIncomeModalOpen(false)}
+                title="Actualizar Ingreso Mensual"
+                subtitle="Establecé tu ingreso base para este mes"
+            >
                 <form onSubmit={handleUpdateIncome} className="form-container">
                     <div className="form-group">
                         <label className="form-label-box">Monto</label>
@@ -457,30 +371,6 @@ const Dashboard = () => {
                 message="¿Estás seguro de que deseas eliminar TODOS los gastos variables? Esta acción no se puede deshacer."
             />
 
-            {/* Modal: Advertencia de configuración incompleta */}
-            <Modal isOpen={!!confirmDeleteAll?.isConfigWarning} onClose={() => setConfirmDeleteAll(false)}>
-                <div className="modal-inner-header">
-                    <h2 className="modal-title" style={{ color: 'var(--warning)' }}>
-                        ⚠️ Falta Configuración
-                    </h2>
-                    <p className="modal-subtitle">
-                        No podés cargar gastos sin tener categorías ni métodos de pago.
-                    </p>
-                </div>
-                <div className="modal-body-centered">
-                    <p className="modal-message">
-                        Para comenzar, necesitás agregar al menos una categoría y un método de pago.
-                    </p>
-                </div>
-                <div className="modal-actions">
-                    <button onClick={() => setConfirmDeleteAll(false)} className="btn btn-secondary">
-                        Cancelar
-                    </button>
-                    <Link to="/configuracion" className="btn btn-primary">
-                        Ir a Configuración
-                    </Link>
-                </div>
-            </Modal>
 
         </div>
     );

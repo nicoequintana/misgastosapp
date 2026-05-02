@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
  * Componente de modal genérico con efecto glassmorphism y animaciones de entrada/salida.
  * Utiliza React Portals para renderizarse fuera del flujo principal del DOM.
  */
-const Modal = ({ isOpen, onClose, title, children }) => {
+const Modal = ({ isOpen, onClose, title, subtitle, children }) => {
     const [isVisible, setIsVisible] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
 
@@ -40,8 +40,8 @@ const Modal = ({ isOpen, onClose, title, children }) => {
             <div className={contentClass} onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <div>
-                        <h3 className="modal-title">{title}</h3>
-                        <p className="modal-subtitle">Completá los detalles para continuar</p>
+                        {title && <h3 className="modal-title">{title}</h3>}
+                        {subtitle && <p className="modal-subtitle">{subtitle}</p>}
                     </div>
                     <button className="modal-close" onClick={onClose}>
                         <span className="material-symbols-outlined">close</span>

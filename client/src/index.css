@@ -333,19 +333,42 @@ body::after {
 .modal-content {
   width: 100%;
   max-width: 500px;
-  padding: var(--space-8);
+  max-height: 90vh;
+  margin: auto;
   position: relative;
-  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
   background: var(--app-bg-solid);
   border-radius: var(--radius-lg);
   border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-lg);
+  animation: modalSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .modal-header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: var(--space-8);
+  padding: var(--space-8) var(--space-8) var(--space-4);
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-8) var(--space-8);
+  /* Custom scrollbar for glassmorphism */
+  scrollbar-width: thin;
+  scrollbar-color: var(--glass-border) transparent;
+}
+
+.modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background-color: var(--glass-border);
+  border-radius: 10px;
 }
 
 .modal-title {
@@ -427,6 +450,17 @@ body::after {
   font-size: 15px;
   outline: none;
   transition: var(--transition);
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  /* Reset para custom arrows if needed */
+}
+
+/* Estilo para los menús desplegables nativos */
+.form-select option,
+.input option {
+  background-color: var(--app-bg-solid);
+  color: var(--text-main);
 }
 
 .form-input::placeholder {
@@ -438,8 +472,17 @@ body::after {
 .form-select:focus,
 .input:focus {
   border-color: var(--primary);
-  background: var(--glass-bg);
+  background-color: var(--glass-bg);
   box-shadow: 0 0 0 4px var(--primary-light);
+}
+
+/* Flecha personalizada para selects */
+.form-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1.25rem;
+  padding-right: 3rem;
 }
 
 .btn {
@@ -1508,12 +1551,19 @@ body::after {
 
   /* Modals */
   .modal-content {
-    width: 100%;
+    max-width: 100%;
+    max-height: 100vh;
     height: 100%;
-    max-width: none;
     border-radius: 0;
-    padding: 20px;
     margin: 0;
+  }
+
+  .modal-header {
+    padding: 20px 20px 10px;
+  }
+
+  .modal-body {
+    padding: 10px 20px 20px;
   }
 
   .modal-overlay {
@@ -2100,4 +2150,160 @@ body::after {
 
 .btn-icon-action.cancel {
   color: var(--text-muted);
+}
+
+/* ==========================================================================
+   MOVEMENTS PAGE REFINEMENTS
+   ========================================================================== */
+
+.movements-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.movements-table th {
+  text-align: left;
+  padding: var(--space-4);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.movements-table td {
+  padding: var(--space-4);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--glass-border);
+  font-size: 15px;
+}
+
+.movements-table tr:hover {
+  background: var(--row-hover);
+}
+
+.td-date {
+  width: 120px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.td-desc {
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.td-amount {
+  text-align: right;
+  font-weight: 800;
+  color: var(--danger);
+  font-size: 16px;
+}
+
+.td-actions {
+  text-align: center;
+  width: 100px;
+}
+
+.category-tag-small {
+  padding: 4px 10px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.action-buttons-group {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+}
+
+.action-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  cursor: pointer;
+  transition: var(--transition-spring);
+}
+
+.action-btn:hover {
+  transform: translateY(-2px);
+  background: var(--glass-bg);
+}
+
+.action-btn.edit {
+  color: var(--primary);
+}
+
+.action-btn.delete {
+  color: var(--danger);
+}
+
+.action-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+/* Movements Filters & Search */
+.search-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon-inner {
+  position: absolute;
+  left: 16px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.search-with-icon {
+  padding-left: 48px !important;
+}
+
+/* Tags Refinements */
+.method-tag-small {
+  padding: 4px 10px;
+  background: var(--secondary-light);
+  color: var(--secondary);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.type-tag-small {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.type-tag-fijo {
+  background: var(--success-light);
+  color: var(--success);
+  border: 1px solid var(--success-light);
+}
+
+.type-tag-variable {
+  background: var(--warning-light);
+  color: var(--warning);
+  border: 1px solid var(--warning-light);
+}
+
+.flex-1 {
+  flex: 1;
 }

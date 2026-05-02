@@ -20,7 +20,6 @@ const Sidebar = ({ isOpen, isMobile, toggleSidebar }) => {
     const handleLogout = async () => {
         console.log('👋 Cerrando sesión desde Sidebar...');
         await signOut();
-        window.location.href = '/welcome';
     };
 
     return (
@@ -63,14 +62,6 @@ const Sidebar = ({ isOpen, isMobile, toggleSidebar }) => {
             </nav>
 
             <div className="sidebar-footer">
-                <NavLink
-                    to="/configuracion"
-                    className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-                    title={!isOpen ? 'Configuración' : ''}
-                >
-                    <span className="material-symbols-outlined">settings</span>
-                    {isOpen && <span className="sidebar-text">Configuración</span>}
-                </NavLink>
                 <button
                     onClick={handleLogout}
                     className="nav-link logout-link"

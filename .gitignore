@@ -27,6 +27,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Agent Teams
+.atl/
+
 # Editor
 .vscode/
 .idea/
