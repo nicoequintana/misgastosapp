@@ -198,73 +198,92 @@ const Movements = () => {
                         <p className="mt-4">No se encontraron movimientos</p>
                     </div>
                 ) : (
-                    <div className="table-responsive">
-                        <table className="movements-table">
-                            <thead>
-                                <tr>
-                                    <th className="td-date">Fecha</th>
-                                    <th className="td-desc">Descripción</th>
-                                    <th>Categoría</th>
-                                    <th>Método</th>
-                                    <th className="td-amount">Monto</th>
-                                    <th className="text-center">Tipo</th>
-                                    <th className="td-actions">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {movimientosFiltrados.map((mov) => (
-                                    <tr key={mov.id}>
-                                        <td className="td-date">
-                                            {formatDate(mov.fecha)}
-                                        </td>
-                                        <td className="td-desc">
-                                            {mov.descripcion}
-                                        </td>
-                                        <td>
-                                            <span className="category-tag-small">
-                                                {mov.categorias?.nombre || 'Sin categoría'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className="method-tag-small">
-                                                {mov.metodos_pago?.nombre || 'N/A'}
-                                            </span>
-                                        </td>
-                                        <td className="td-amount">
-                                            -${formatCurrency(mov.monto)}
-                                        </td>
-                                        <td className="text-center">
+                    <>
+                        {/* Vista tabla — desktop */}
+                        <div className="table-responsive movements-table-desktop">
+                            <table className="movements-table">
+                                <thead>
+                                    <tr>
+                                        <th className="td-date">Fecha</th>
+                                        <th className="td-desc">Descripción</th>
+                                        <th>Categoría</th>
+                                        <th>Método</th>
+                                        <th className="td-amount">Monto</th>
+                                        <th className="text-center">Tipo</th>
+                                        <th className="td-actions">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {movimientosFiltrados.map((mov) => (
+                                        <tr key={mov.id}>
+                                            <td className="td-date">{formatDate(mov.fecha)}</td>
+                                            <td className="td-desc">{mov.descripcion}</td>
+                                            <td>
+                                                <span className="category-tag-small">
+                                                    {mov.categorias?.nombre || 'Sin categoría'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className="method-tag-small">
+                                                    {mov.metodos_pago?.nombre || 'N/A'}
+                                                </span>
+                                            </td>
+                                            <td className="td-amount">-${formatCurrency(mov.monto)}</td>
+                                            <td className="text-center">
+                                                {mov.es_fijo ? (
+                                                    <span className="type-tag-small type-tag-fijo">FIJO</span>
+                                                ) : (
+                                                    <span className="type-tag-small type-tag-variable">VARIABLE</span>
+                                                )}
+                                            </td>
+                                            <td className="td-actions">
+                                                <div className="action-buttons-group">
+                                                    <button type="button" onClick={() => handleEditarClick(mov)} className="action-btn edit" title="Editar">
+                                                        <span className="material-symbols-outlined">edit</span>
+                                                    </button>
+                                                    <button type="button" onClick={() => handleEliminarClick(mov)} className="action-btn delete" title="Eliminar">
+                                                        <span className="material-symbols-outlined">delete</span>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Vista cards — mobile */}
+                        <div className="movements-cards-mobile">
+                            {movimientosFiltrados.map((mov) => (
+                                <div key={mov.id} className="mov-card">
+                                    <div className="mov-card-row">
+                                        <span className="mov-card-desc">{mov.descripcion}</span>
+                                        <span className="mov-card-amount">-${formatCurrency(mov.monto)}</span>
+                                    </div>
+                                    <div className="mov-card-row mov-card-meta">
+                                        <div className="mov-card-tags">
+                                            <span className="category-tag-small">{mov.categorias?.nombre || 'Sin categoría'}</span>
+                                            <span className="method-tag-small">{mov.metodos_pago?.nombre || 'N/A'}</span>
                                             {mov.es_fijo ? (
                                                 <span className="type-tag-small type-tag-fijo">FIJO</span>
                                             ) : (
                                                 <span className="type-tag-small type-tag-variable">VARIABLE</span>
                                             )}
-                                        </td>
-                                        <td className="td-actions">
-                                            <div className="action-buttons-group">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleEditarClick(mov)}
-                                                    className="action-btn edit"
-                                                    title="Editar"
-                                                >
-                                                    <span className="material-symbols-outlined">edit</span>
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleEliminarClick(mov)}
-                                                    className="action-btn delete"
-                                                    title="Eliminar"
-                                                >
-                                                    <span className="material-symbols-outlined">delete</span>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                        </div>
+                                        <div className="mov-card-actions">
+                                            <span className="mov-card-date">{formatDate(mov.fecha)}</span>
+                                            <button type="button" onClick={() => handleEditarClick(mov)} className="action-btn edit" title="Editar">
+                                                <span className="material-symbols-outlined">edit</span>
+                                            </button>
+                                            <button type="button" onClick={() => handleEliminarClick(mov)} className="action-btn delete" title="Eliminar">
+                                                <span className="material-symbols-outlined">delete</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
                 )}
             </GlassCard>
 

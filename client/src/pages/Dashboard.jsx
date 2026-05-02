@@ -224,10 +224,35 @@ const Dashboard = () => {
             </div>
 
             <div className="summary-grid">
-                <SummaryCard title="Ingresos" amount={stats.ingresoMensual} icon="trending_up" color="success" />
-                <SummaryCard title="Saldo Disponible" amount={stats.saldoDisponible} icon="account_balance_wallet" color="primary" />
-                <SummaryCard title="Gastos Fijos" amount={stats.gastosFijos} icon="lock" color="warning" />
-                <SummaryCard title="Gastos Variables" amount={stats.gastosVariables} icon="payments" color="danger" />
+                <SummaryCard
+                    title="Ingresos"
+                    amount={stats.ingresoMensual}
+                    icon="trending_up"
+                    color="success"
+                    subtitle="Ingreso registrado"
+                />
+                <SummaryCard
+                    title="Saldo Disponible"
+                    amount={stats.saldoDisponible}
+                    icon="account_balance_wallet"
+                    color="primary"
+                    dominant
+                    subtitle={stats.saldoDisponible >= 0 ? 'Estás en positivo' : 'Superaste el ingreso'}
+                />
+                <SummaryCard
+                    title="Gastos Fijos"
+                    amount={stats.gastosFijos}
+                    icon="lock"
+                    color="warning"
+                    subtitle="Compromisos del mes"
+                />
+                <SummaryCard
+                    title="Gastos Variables"
+                    amount={stats.gastosVariables}
+                    icon="payments"
+                    color="danger"
+                    subtitle="Gastos discrecionales"
+                />
             </div>
 
             <div className="tables-grid">
