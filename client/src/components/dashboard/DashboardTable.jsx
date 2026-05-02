@@ -2,13 +2,14 @@ import React from 'react';
 import GlassCard from '../GlassCard';
 import { formatCurrency } from '../../utils/format';
 
+const EMPTY_ICONS = {
+    'Gastos Recientes': 'receipt_long',
+    'Gastos Fijos': 'lock',
+};
+
 /**
  * Tabla de gastos de solo lectura para el Dashboard.
- * Muestra descripción, categoría y monto alineados correctamente.
- * 
- * @param {Object} props
- * @param {string} props.title - Título de la tabla
- * @param {Array} props.expenses - Lista de gastos a mostrar
+ * Muestra descripción, categoría y monto. Estado vacío con ícono contextual.
  */
 const DashboardTable = ({ title, expenses }) => (
     <GlassCard className="expense-table-card">
@@ -16,18 +17,26 @@ const DashboardTable = ({ title, expenses }) => (
             <h3 className="table-title">{title}</h3>
             <span className="category-tag counter">{expenses.length} registros</span>
         </div>
-        <div className="table-responsive">
-            <table className="expense-table">
-                <thead>
-                    <tr>
-                        <th className="text-left">Descripción</th>
-                        <th className="text-center">Categoría</th>
-                        <th className="text-right">Monto</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {expenses.length > 0 ? (
-                        expenses.map((gasto) => (
+
+        {expenses.length === 0 ? (
+            <div className="dashboard-table-empty">
+                <span className="material-symbols-outlined dashboard-table-empty-icon">
+                    {EMPTY_ICONS[title] || 'inbox'}
+                </span>
+                <p>Sin registros todavía</p>
+            </div>
+        ) : (
+            <div className="table-responsive">
+                <table className="expense-table">
+                    <thead>
+                        <tr>
+                            <th className="text-left">Descripción</th>
+                            <th className="text-center">Categoría</th>
+                            <th className="text-right">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {expenses.map((gasto) => (
                             <tr key={gasto.id} className="expense-row">
                                 <td className="cell-desc">
                                     <span style={{ fontWeight: 600 }}>{gasto.descripcion}</span>
@@ -46,17 +55,11 @@ const DashboardTable = ({ title, expenses }) => (
                                     </span>
                                 </td>
                             </tr>
-                        ))
-                    ) : (
-                        <tr>
-                            <td colSpan="3" className="empty-state">
-                                No hay datos registrados aún.
-                            </td>
-                        </tr>
-                    )}
-                </tbody>
-            </table>
-        </div>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        )}
     </GlassCard>
 );
 
