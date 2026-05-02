@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -47,6 +47,9 @@ const Dashboard = () => {
     const [stats, setStats] = useState(ESTADO_INICIAL_STATS);
     const [cargando, setCargando] = useState(true);
     const [errorCarga, setErrorCarga] = useState(null);
+
+    // Contexto del layout: permite que el FAB del bottom nav mobile abra el modal
+    const { showNewExpense, setShowNewExpense } = useOutletContext?.() || {};
 
     // Control de los modales de la UI
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -104,6 +107,14 @@ const Dashboard = () => {
         fetchStats();
         fetchOpciones();
     }, [fetchStats, fetchOpciones]);
+
+    // Cuando el FAB del bottom nav mobile dispara onNewExpense, abrimos el modal
+    useEffect(() => {
+        if (showNewExpense) {
+            setIsModalOpen(true);
+            setShowNewExpense?.(false);
+        }
+    }, [showNewExpense, setShowNewExpense]);
 
     // Mejorar UX de teclado: permite confirmar acciones con Enter en botones
     useEffect(() => {
