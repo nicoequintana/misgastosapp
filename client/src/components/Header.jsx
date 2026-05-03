@@ -32,17 +32,6 @@ const Header = ({ title, toggleSidebar, isMobile }) => {
                 <h2 style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.5px' }}>
                     {title}
                 </h2>
-
-                <div className="search-container">
-                    <span className="material-symbols-outlined" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '20px' }}>
-                        search
-                    </span>
-                    <input
-                        type="text"
-                        placeholder="Buscar movimientos..."
-                        className="search-input"
-                    />
-                </div>
             </div>
 
             <div className="header-right">

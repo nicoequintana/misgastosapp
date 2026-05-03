@@ -1,32 +1,54 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+
+// Contador global para rastrear modales abiertos (evita toggle bugs con múltiples modales)
+let modalOpenCount = 0;
 
 /**
  * Componente de modal genérico con efecto glassmorphism y animaciones de entrada/salida.
  * Utiliza React Portals para renderizarse fuera del flujo principal del DOM.
+ * Maneja correctamente overflow con patrón de contador para múltiples modales simultáneos.
  */
 const Modal = ({ isOpen, onClose, title, subtitle, children }) => {
     const [isVisible, setIsVisible] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
+    const modalCountRef = useRef(null);
 
     /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (isOpen) {
+            // Al abrir: incrementar contador y ocultar scroll del body
+            if (modalOpenCount === 0) {
+                document.body.style.overflow = 'hidden';
+            }
+            modalOpenCount += 1;
+            modalCountRef.current = modalOpenCount;
+
             setIsVisible(true);
             setIsClosing(false);
-            document.body.style.overflow = 'hidden';
         } else if (isVisible) {
+            // Al cerrar: iniciar animación
             setIsClosing(true);
             const timer = setTimeout(() => {
                 setIsVisible(false);
                 setIsClosing(false);
-                document.body.style.overflow = 'auto';
+
+                // Solo restaurar overflow si este es el último modal abierto
+                if (modalCountRef.current === modalOpenCount) {
+                    modalOpenCount -= 1;
+                    if (modalOpenCount === 0) {
+                        document.body.style.overflow = 'auto';
+                    }
+                }
             }, 300);
             return () => clearTimeout(timer);
         }
 
         return () => {
-            document.body.style.overflow = 'auto';
+            // Cleanup: asegurar que no queda overflow oculto
+            if (modalOpenCount === 0) {
+                document.body.style.overflow = 'auto';
+            }
         };
     }, [isOpen, isVisible]);
     /* eslint-enable react-hooks/set-state-in-effect */

@@ -15,14 +15,15 @@ const normalizeAmount = (val) => {
 
 /**
  * Genera huella digital para evitar duplicados exactos el mismo día.
+ * Usa SHA-256 en lugar de MD5 para mayor seguridad criptográfica.
  * 
  * @param {Object} data - Datos del gasto
- * @returns {string} MD5 hash de los datos
+ * @returns {string} SHA-256 hash de los datos
  */
 const generateFingerprint = (data) => {
     const { descripcion, monto, categoria, medioPago, fecha } = data;
     const raw = `${descripcion.trim().toLowerCase()}|${Number(monto).toFixed(2)}|${categoria.trim().toLowerCase()}|${medioPago.trim().toLowerCase()}|${fecha}`;
-    return crypto.createHash('md5').update(raw).digest('hex');
+    return crypto.createHash('sha256').update(raw).digest('hex');
 };
 
 module.exports = {

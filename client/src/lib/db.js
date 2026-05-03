@@ -64,16 +64,28 @@ export const getExpenses = async () => {
  * @param {string} gasto.fecha - Fecha en formato ISO
  * @param {boolean} gasto.es_fijo - Si es un gasto fijo mensual
  * @returns {Object} El gasto creado
+ * @throws {Error} Si el monto no es válido o es ≤ 0
  */
 export const createExpense = async (gasto) => {
     const usuario = await obtenerUsuarioActivo();
+
+    // Validar descripción: debe ser string
+    if (typeof gasto.descripcion !== 'string' || !gasto.descripcion.trim()) {
+        throw new Error('La descripción debe ser un texto válido');
+    }
+
+    // Validar monto: debe ser número positivo
+    const montoNumero = Number(gasto.monto);
+    if (isNaN(montoNumero) || montoNumero <= 0) {
+        throw new Error('El monto debe ser mayor a cero');
+    }
 
     const { data, error } = await supabase
         .from('gastos')
         .insert([{
             user_id: usuario.id,
-            descripcion: (gasto.descripcion || '').trim().toUpperCase(),
-            monto: Number(gasto.monto) || 0,
+            descripcion: gasto.descripcion.trim().toUpperCase(),
+            monto: montoNumero,
             id_categoria: gasto.id_categoria || null,
             id_metodo_pago: gasto.id_metodo_pago || null,
             fecha: gasto.fecha || new Date().toISOString().split('T')[0],
@@ -96,15 +108,24 @@ export const createExpense = async (gasto) => {
  * @param {string} id - ID del gasto a actualizar
  * @param {Object} gasto - Nuevos datos del gasto
  * @returns {Object} El gasto actualizado
+ * @throws {Error} Si el monto no es válido o es ≤ 0
  */
 export const updateExpense = async (id, gasto) => {
+    // Validar monto si se proporciona
+    if (gasto.monto !== undefined) {
+        const montoNumero = Number(gasto.monto);
+        if (isNaN(montoNumero) || montoNumero <= 0) {
+            throw new Error('El monto debe ser mayor a cero');
+        }
+    }
+
     const { data, error } = await supabase
         .from('gastos')
         .update({
-            descripcion: (gasto.descripcion || '').trim().toUpperCase(),
-            monto: Number(gasto.monto) || 0,
-            id_categoria: gasto.id_categoria || null,
-            id_metodo_pago: gasto.id_metodo_pago || null,
+            descripcion: gasto.descripcion ? gasto.descripcion.trim().toUpperCase() : undefined,
+            monto: gasto.monto !== undefined ? Number(gasto.monto) : undefined,
+            id_categoria: gasto.id_categoria !== undefined ? gasto.id_categoria : undefined,
+            id_metodo_pago: gasto.id_metodo_pago !== undefined ? gasto.id_metodo_pago : undefined,
             fecha: gasto.fecha,
             es_fijo: Boolean(gasto.es_fijo)
         })
@@ -222,42 +243,52 @@ export const getIncome = async () => {
 
 /**
  * Guarda el ingreso del usuario.
- * Si ya existe un registro, lo actualiza. Si no, lo crea.
- * La fecha de actualización la gestiona Supabase automáticamente.
+ * Intenta actualizar primero; si no afecta filas, crea uno nuevo.
+ * Garantiza que cada usuario tenga exactamente un registro de ingreso.
+ * 
+ * @param {number} monto - Monto del ingreso
+ * @returns {Object} El registro de ingreso (creado o actualizado)
+ * @throws {Error} Si el monto no es válido o es ≤ 0
  */
 export const saveIncome = async (monto) => {
     const usuario = await obtenerUsuarioActivo();
-    const montoLimpio = Number(monto) || 0;
-
-    const { data: existente, error: errorBusqueda } = await supabase
-        .from('ingresos')
-        .select('id')
-        .eq('user_id', usuario.id)
-        .limit(1)
-        .maybeSingle();
-
-    if (errorBusqueda) throw errorBusqueda;
-
-    if (existente) {
-        const { data, error } = await supabase
-            .from('ingresos')
-            .update({ monto: montoLimpio, fecha_actualizacion: new Date().toISOString() })
-            .eq('id', existente.id)
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data;
+    
+    // Validar que el monto sea un número positivo
+    const montoLimpio = Number(monto);
+    if (isNaN(montoLimpio) || montoLimpio <= 0) {
+        throw new Error('El ingreso debe ser mayor a cero');
     }
 
-    const { data, error } = await supabase
+    // Estrategia: intentar actualizar primero. Si no hay filas afectadas, insertar.
+    const { data: actualizado, error: errorUpdate } = await supabase
         .from('ingresos')
-        .insert([{ user_id: usuario.id, monto: montoLimpio }])
+        .update({ monto: montoLimpio, fecha_actualizacion: new Date().toISOString() })
+        .eq('user_id', usuario.id)
+        .select()
+        .maybeSingle();
+
+    // Si la actualización funcionó, retornar el resultado
+    if (actualizado) {
+        return actualizado;
+    }
+
+    // Si no hay filas (usuario nuevo), insertar
+    const { data: insertado, error: errorInsert } = await supabase
+        .from('ingresos')
+        .insert([{ 
+            user_id: usuario.id, 
+            monto: montoLimpio,
+            fecha_actualizacion: new Date().toISOString()
+        }])
         .select()
         .single();
 
-    if (error) throw error;
-    return data;
+    if (errorInsert) {
+        console.error('❌ Error en saveIncome (insert):', errorInsert);
+        throw errorInsert;
+    }
+
+    return insertado;
 };
 
 // ==================== PERFIL DE USUARIO ====================

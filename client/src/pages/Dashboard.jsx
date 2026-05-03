@@ -133,9 +133,32 @@ const Dashboard = () => {
     /**
      * Guarda un nuevo gasto o actualiza uno existente.
      * Después de guardar, recarga las estadísticas y limpia el formulario.
+     * Valida todos los campos requeridos antes de procesar.
      */
     const handleSubmitExpense = async (e) => {
         e.preventDefault();
+        
+        // Validar que todos los campos requeridos estén completos
+        if (!expenseForm.descripcion || !expenseForm.descripcion.trim()) {
+            alert('Por favor, ingresá una descripción para el gasto.');
+            return;
+        }
+
+        if (!expenseForm.monto || Number(expenseForm.monto) <= 0) {
+            alert('El monto debe ser mayor a cero.');
+            return;
+        }
+
+        if (!expenseForm.id_categoria) {
+            alert('Por favor, seleccioná una categoría.');
+            return;
+        }
+
+        if (!expenseForm.id_metodo_pago) {
+            alert('Por favor, seleccioná un método de pago.');
+            return;
+        }
+
         try {
             await db.createExpense(expenseForm);
             console.log('✅ Gasto creado correctamente');
@@ -144,7 +167,7 @@ const Dashboard = () => {
             setExpenseForm(ESTADO_INICIAL_GASTO);
         } catch (err) {
             console.error('❌ Error al guardar gasto:', err);
-            alert('Error al guardar el gasto. Por favor, intentá de nuevo.');
+            alert(`Error al guardar el gasto: ${err.message || 'Por favor, intentá de nuevo.'}`);
         }
     };
 
