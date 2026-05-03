@@ -1,54 +1,35 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-
-// Contador global para rastrear modales abiertos (evita toggle bugs con múltiples modales)
-let modalOpenCount = 0;
 
 /**
  * Componente de modal genérico con efecto glassmorphism y animaciones de entrada/salida.
  * Utiliza React Portals para renderizarse fuera del flujo principal del DOM.
- * Maneja correctamente overflow con patrón de contador para múltiples modales simultáneos.
+ * El overflow del body se restaura en el cleanup del effect, no en un setTimeout,
+ * para garantizar que se ejecute aunque el componente se desmonte antes de que termine la animación.
  */
-const Modal = ({ isOpen, onClose, title, subtitle, children }) => {
+const Modal = ({ isOpen, onClose, title, subtitle, children, disableClose = false }) => {
+    const handleClose = (!disableClose && onClose) ? onClose : undefined;
     const [isVisible, setIsVisible] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
-    const modalCountRef = useRef(null);
 
     /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (isOpen) {
-            // Al abrir: incrementar contador y ocultar scroll del body
-            if (modalOpenCount === 0) {
-                document.body.style.overflow = 'hidden';
-            }
-            modalOpenCount += 1;
-            modalCountRef.current = modalOpenCount;
-
+            document.body.style.overflow = 'hidden';
             setIsVisible(true);
             setIsClosing(false);
         } else if (isVisible) {
-            // Al cerrar: iniciar animación
             setIsClosing(true);
             const timer = setTimeout(() => {
                 setIsVisible(false);
                 setIsClosing(false);
-
-                // Solo restaurar overflow si este es el último modal abierto
-                if (modalCountRef.current === modalOpenCount) {
-                    modalOpenCount -= 1;
-                    if (modalOpenCount === 0) {
-                        document.body.style.overflow = 'auto';
-                    }
-                }
             }, 300);
             return () => clearTimeout(timer);
         }
-
+        // Cleanup: restaurar overflow cuando el modal se cierra o se desmonta,
+        // sin importar si el timer llegó a ejecutarse o no.
         return () => {
-            // Cleanup: asegurar que no queda overflow oculto
-            if (modalOpenCount === 0) {
-                document.body.style.overflow = 'auto';
-            }
+            document.body.style.overflow = '';
         };
     }, [isOpen, isVisible]);
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -59,16 +40,18 @@ const Modal = ({ isOpen, onClose, title, subtitle, children }) => {
     const contentClass = isClosing ? 'modal-content glass-card closing' : 'modal-content glass-card';
 
     const modalContent = (
-        <div className={overlayClass} onClick={onClose}>
+        <div className={overlayClass} onClick={handleClose}>
             <div className={contentClass} onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <div>
                         {title && <h3 className="modal-title">{title}</h3>}
                         {subtitle && <p className="modal-subtitle">{subtitle}</p>}
                     </div>
-                    <button className="modal-close" onClick={onClose}>
-                        <span className="material-symbols-outlined">close</span>
-                    </button>
+                    {handleClose && (
+                        <button className="modal-close" onClick={handleClose}>
+                            <span className="material-symbols-outlined">close</span>
+                        </button>
+                    )}
                 </div>
                 <div className="modal-body">
                     {children}

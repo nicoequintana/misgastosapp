@@ -9,20 +9,21 @@ import Modal from './Modal';
  * @param {string} title - Título del modal.
  * @param {string} message - Mensaje descriptivo de la acción a confirmar.
  */
-const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
+const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, loading = false }) => {
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={title}>
+        <Modal isOpen={isOpen} onClose={onClose} disableClose={loading} title={title}>
             <div className="modal-body-centered">
                 <p className="modal-message">{message}</p>
                 <div className="modal-actions">
-                    <button onClick={onClose} className="btn btn-secondary">
+                    <button onClick={onClose} disabled={loading} className="btn btn-secondary">
                         Cancelar
                     </button>
                     <button
                         onClick={onConfirm}
+                        disabled={loading}
                         className="btn btn-danger-gradient"
                     >
-                        Eliminar
+                        {loading ? 'Eliminando...' : 'Eliminar'}
                     </button>
                 </div>
             </div>

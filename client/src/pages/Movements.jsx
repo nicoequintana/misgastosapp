@@ -20,9 +20,12 @@ const Movements = () => {
 
     const [gastoEditando, setGastoEditando] = useState(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [guardando, setGuardando] = useState(false);
+    const [errorEdicion, setErrorEdicion] = useState('');
 
     const [gastoEliminando, setGastoEliminando] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [eliminando, setEliminando] = useState(false);
 
     const [categories, setCategories] = useState([]);
     const [paymentMethods, setPaymentMethods] = useState([]);
@@ -69,57 +72,74 @@ const Movements = () => {
     };
 
     const handleCerrarEliminar = () => {
+        if (eliminando) return;
         setIsDeleteModalOpen(false);
         setTimeout(() => setGastoEliminando(null), 300);
     };
 
     /**
      * Confirma y ejecuta la eliminación de un gasto.
+     * Cierra el modal primero para evitar congelamiento de la UI durante la recarga.
      */
     const confirmarEliminar = async () => {
-        if (!gastoEliminando) return;
+        if (!gastoEliminando || eliminando) return;
+        setEliminando(true);
+        const idAEliminar = gastoEliminando.id;
         try {
-            await db.deleteExpense(gastoEliminando.id);
-            console.log('✅ Gasto eliminado correctamente');
-            handleCerrarEliminar();
+            await db.deleteExpense(idAEliminar);
+            // Cerramos el modal antes de recargar para que la animación de cierre no compita con el re-render
+            setIsDeleteModalOpen(false);
+            setTimeout(() => setGastoEliminando(null), 300);
             await fetchMovimientos();
         } catch (err) {
             console.error('❌ Error al eliminar el gasto:', err);
+        } finally {
+            setEliminando(false);
         }
     };
 
     const handleEditarClick = (gasto) => {
+        setErrorEdicion('');
         setGastoEditando({ ...gasto });
         setIsEditModalOpen(true);
     };
 
     const handleCerrarEdicion = () => {
+        if (guardando) return;
         setIsEditModalOpen(false);
+        setErrorEdicion('');
         setTimeout(() => setGastoEditando(null), 300);
     };
 
     /**
      * Guarda los cambios de la edición de un gasto.
+     * Cierra el modal antes de recargar la lista para evitar que el re-render congele la UI.
      */
     const handleGuardarEdicion = async (e) => {
         e.preventDefault();
-        if (!gastoEditando) return;
+        if (!gastoEditando || guardando) return;
 
+        setGuardando(true);
+        setErrorEdicion('');
+        const payload = {
+            descripcion: gastoEditando.descripcion,
+            monto: gastoEditando.monto,
+            id_categoria: gastoEditando.id_categoria,
+            id_metodo_pago: gastoEditando.id_metodo_pago,
+            fecha: gastoEditando.fecha,
+            es_fijo: gastoEditando.es_fijo
+        };
         try {
-            await db.updateExpense(gastoEditando.id, {
-                descripcion: gastoEditando.descripcion,
-                monto: gastoEditando.monto,
-                id_categoria: gastoEditando.id_categoria,
-                id_metodo_pago: gastoEditando.id_metodo_pago,
-                fecha: gastoEditando.fecha,
-                es_fijo: gastoEditando.es_fijo
-            });
-            console.log('✅ Gasto actualizado correctamente');
-            handleCerrarEdicion();
+            await db.updateExpense(gastoEditando.id, payload);
+            // Cerramos el modal antes de recargar para que la animación de cierre no compita con el re-render
+            setIsEditModalOpen(false);
+            setTimeout(() => setGastoEditando(null), 300);
             await fetchMovimientos();
         } catch (err) {
             console.error('❌ Error al actualizar el gasto:', err);
-            alert('Error al actualizar el gasto. Por favor, intentá de nuevo.');
+            setErrorEdicion('No se pudo actualizar el gasto. Intentá de nuevo.');
+        } finally {
+            setGuardando(false);
         }
     };
 
@@ -303,6 +323,7 @@ const Movements = () => {
                                 value={gastoEditando.descripcion}
                                 onChange={(e) => setGastoEditando(prev => ({ ...prev, descripcion: e.target.value }))}
                                 required
+                                disabled={guardando}
                                 className="input"
                             />
                         </div>
@@ -311,6 +332,7 @@ const Movements = () => {
                             <CurrencyInput
                                 value={gastoEditando.monto}
                                 onChange={(val) => setGastoEditando(prev => ({ ...prev, monto: val }))}
+                                disabled={guardando}
                             />
                         </div>
                         <div className="form-group">
@@ -319,6 +341,7 @@ const Movements = () => {
                                 value={gastoEditando.id_categoria}
                                 onChange={(e) => setGastoEditando(prev => ({ ...prev, id_categoria: e.target.value }))}
                                 required
+                                disabled={guardando}
                                 className="form-select"
                             >
                                 <option value="">Seleccionar...</option>
@@ -331,6 +354,7 @@ const Movements = () => {
                                 value={gastoEditando.id_metodo_pago}
                                 onChange={(e) => setGastoEditando(prev => ({ ...prev, id_metodo_pago: e.target.value }))}
                                 required
+                                disabled={guardando}
                                 className="form-select"
                             >
                                 <option value="">Seleccionar...</option>
@@ -344,6 +368,7 @@ const Movements = () => {
                                 value={gastoEditando.fecha ? gastoEditando.fecha.split('T')[0] : ''}
                                 onChange={(e) => setGastoEditando(prev => ({ ...prev, fecha: e.target.value }))}
                                 required
+                                disabled={guardando}
                                 className="input"
                             />
                         </div>
@@ -353,12 +378,18 @@ const Movements = () => {
                                 id="es_fijo_edit"
                                 checked={gastoEditando.es_fijo}
                                 onChange={(e) => setGastoEditando(prev => ({ ...prev, es_fijo: e.target.checked }))}
+                                disabled={guardando}
                             />
                             <label htmlFor="es_fijo_edit">Gasto Fijo</label>
                         </div>
+                        {errorEdicion && (
+                            <p className="edit-form-error">{errorEdicion}</p>
+                        )}
                         <div className="form-row mt-4">
-                            <button type="button" onClick={handleCerrarEdicion} className="btn btn-secondary" style={{ flex: 1 }}>Cancelar</button>
-                            <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Actualizar</button>
+                            <button type="button" onClick={handleCerrarEdicion} disabled={guardando} className="btn btn-secondary" style={{ flex: 1 }}>Cancelar</button>
+                            <button type="submit" disabled={guardando} className="btn btn-primary" style={{ flex: 1 }}>
+                                {guardando ? 'Guardando...' : 'Actualizar'}
+                            </button>
                         </div>
                     </form>
                 )}
@@ -371,6 +402,7 @@ const Movements = () => {
                 onConfirm={confirmarEliminar}
                 title="Eliminar Gasto"
                 message={`¿Estás seguro de que deseas eliminar "${gastoEliminando?.descripcion || 'este movimiento'}"? Esta acción no se puede deshacer.`}
+                loading={eliminando}
             />
         </div>
     );

@@ -2717,6 +2717,24 @@ body::after {
 .fs-48 { font-size: 48px; }
 .opacity-30 { opacity: 0.3; }
 
+/* Error inline en formulario de edición */
+.edit-form-error {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+  background: var(--danger-light);
+  border: 1px solid rgba(var(--danger-rgb), 0.2);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* Estado deshabilitado en inputs y selects del formulario */
+.input:disabled,
+.form-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* DashboardTable: tabla expense-table refinements */
 .expense-table th {
   padding: var(--space-3) var(--space-4);

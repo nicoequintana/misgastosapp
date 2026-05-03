@@ -260,7 +260,7 @@ export const saveIncome = async (monto) => {
     }
 
     // Estrategia: intentar actualizar primero. Si no hay filas afectadas, insertar.
-    const { data: actualizado, error: errorUpdate } = await supabase
+    const { data: actualizado } = await supabase
         .from('ingresos')
         .update({ monto: montoLimpio, fecha_actualizacion: new Date().toISOString() })
         .eq('user_id', usuario.id)
