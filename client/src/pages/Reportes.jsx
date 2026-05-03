@@ -109,6 +109,41 @@ const BarraCategoria = ({ nombre, total, porcentaje, color, rank }) => (
     </div>
 );
 
+const ResumenChip = ({ label, value, tone = 'neutral' }) => (
+    <div className={`reportes-chip reportes-chip--${tone}`}>
+        <span className="reportes-chip-label">{label}</span>
+        <span className="reportes-chip-value">{value}</span>
+    </div>
+);
+
+const MovimientoCard = ({ gasto }) => {
+    const fecha = new Date(gasto.fecha).toLocaleDateString('es-AR', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    });
+
+    return (
+        <article className="reporte-movimiento-card">
+            <div className="reporte-movimiento-top">
+                <div>
+                    <p className="reporte-movimiento-fecha">{fecha}</p>
+                    <h4 className="reporte-movimiento-desc">{gasto.descripcion}</h4>
+                </div>
+                <strong className="reporte-movimiento-monto">${formatCurrency(parseFloat(gasto.monto))}</strong>
+            </div>
+
+            <div className="reporte-movimiento-tags">
+                <span className="reporte-tag">{gasto.categorias?.nombre || '—'}</span>
+                <span className="reporte-tag reporte-tag--soft">{gasto.metodos_pago?.nombre || '—'}</span>
+                <span className={`reporte-tipo-badge ${gasto.es_fijo ? 'reporte-tipo-badge--fijo' : 'reporte-tipo-badge--variable'}`}>
+                    {gasto.es_fijo ? 'Fijo' : 'Variable'}
+                </span>
+            </div>
+        </article>
+    );
+};
+
 /**
  * Gráfico de barras verticales simple (CSS puro, sin librería).
  * Muestra evolución de gasto diario/mensual según el rango.
@@ -281,6 +316,12 @@ const TablaMovimientos = ({ gastos }) => {
 
     return (
         <div className="reporte-tabla-wrap">
+            <div className="reportes-movimientos-cards">
+                {slice.map(g => (
+                    <MovimientoCard key={g.id} gasto={g} />
+                ))}
+            </div>
+
             <div className="reporte-tabla-scroll">
                 <table className="reporte-tabla">
                     <thead>
@@ -400,6 +441,14 @@ const Reportes = () => {
         return Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)) + 1);
     }, [rango]);
 
+    const promedioDiario = reporte ? reporte.totalGastos / diasEnRango : 0;
+    const porcentajeFijos = reporte && reporte.totalGastos > 0
+        ? (reporte.gastosFijos / reporte.totalGastos) * 100
+        : 0;
+    const porcentajeVariables = reporte && reporte.totalGastos > 0
+        ? (reporte.gastosVariables / reporte.totalGastos) * 100
+        : 0;
+
     const hayDatos = Boolean(reporte?.gastos?.length);
 
     return (
@@ -407,31 +456,39 @@ const Reportes = () => {
 
             {/* ── ENCABEZADO Y SELECTOR DE PERÍODO ─────────────── */}
             <GlassCard className="reportes-header-card">
-                <div className="reportes-header-top">
-                    <div>
+                <div className="reportes-hero-shell">
+                    <div className="reportes-hero-copy">
+                        <p className="reportes-eyebrow">Atlas financiero</p>
                         <h2 className="reportes-titulo">Reportes</h2>
-                        <p className="reportes-subtitulo">Analizá tus gastos por período</p>
-                    </div>
-                    {reporte && !cargando && (
-                        <div className="reportes-header-badge">
-                            <span className="material-symbols-outlined">receipt_long</span>
-                            {reporte.gastos.length} movimientos
+                        <p className="reportes-subtitulo">
+                            Analizá tus gastos por período con una lectura clara, visual y lista para usar en cualquier pantalla.
+                        </p>
+                        <div className="reportes-chip-row">
+                            <ResumenChip label={labelPeriodo} value={rango.desde && rango.hasta ? `${new Date(`${rango.desde}T12:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })} → ${new Date(`${rango.hasta}T12:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}` : 'Rango activo'} tone="primary" />
+                            <ResumenChip label="Movimientos" value={reporte ? `${reporte.gastos.length}` : '—'} />
+                            <ResumenChip label="Promedio diario" value={`$${formatCurrency(promedioDiario)}`} tone="secondary" />
                         </div>
-                    )}
-                </div>
-
-                {/* Selector de período */}
-                <div className="reportes-periodos">
-                    {PERIODOS.map(p => (
-                        <button
-                            key={p.id}
-                            type="button"
-                            className={`reportes-periodo-btn${periodo === p.id ? ' reportes-periodo-btn--active' : ''}`}
-                            onClick={() => handlePeriodo(p.id)}
-                        >
-                            {p.label}
-                        </button>
-                    ))}
+                    </div>
+                    <div className="reportes-hero-aside">
+                        {reporte && !cargando && (
+                            <div className="reportes-header-badge">
+                                <span className="material-symbols-outlined">receipt_long</span>
+                                {reporte.gastos.length} movimientos
+                            </div>
+                        )}
+                        <div className="reportes-periodos">
+                            {PERIODOS.map(p => (
+                                <button
+                                    key={p.id}
+                                    type="button"
+                                    className={`reportes-periodo-btn${periodo === p.id ? ' reportes-periodo-btn--active' : ''}`}
+                                    onClick={() => handlePeriodo(p.id)}
+                                >
+                                    {p.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Rango personalizado */}
@@ -523,7 +580,7 @@ const Reportes = () => {
                         />
                         <MetricCard
                             label="Promedio diario"
-                            value={reporte.totalGastos / diasEnRango}
+                            value={promedioDiario}
                             icon="today"
                             color="secondary"
                             subtitle={`En ${diasEnRango} día${diasEnRango > 1 ? 's' : ''}`}
@@ -555,6 +612,11 @@ const Reportes = () => {
                             <span className="material-symbols-outlined">leaderboard</span>
                             Ranking de categorías
                         </h3>
+                        <div className="reportes-mini-summary">
+                            <ResumenChip label="Fijos" value={`${porcentajeFijos.toFixed(1)}%`} tone="warning" />
+                            <ResumenChip label="Variables" value={`${porcentajeVariables.toFixed(1)}%`} tone="success" />
+                            <ResumenChip label="Categorías" value={`${topCategorias.length}`} />
+                        </div>
                         {topCategorias.length === 0 ? (
                             <p className="reportes-empty-text">Sin datos en el período.</p>
                         ) : (
@@ -588,6 +650,11 @@ const Reportes = () => {
                             <span className="material-symbols-outlined">table_rows</span>
                             Movimientos del período
                         </h3>
+                        <div className="reportes-tabla-kicker">
+                            <ResumenChip label="Total" value={`${reporte.gastos.length}`} />
+                            <ResumenChip label="Fijos" value={`${reporte.gastos.filter(g => g.es_fijo).length}`} tone="warning" />
+                            <ResumenChip label="Variables" value={`${reporte.gastos.filter(g => !g.es_fijo).length}`} tone="success" />
+                        </div>
                         <TablaMovimientos gastos={reporte.gastos} />
                     </GlassCard>
                 </>
