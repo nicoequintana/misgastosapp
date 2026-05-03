@@ -12,6 +12,7 @@ const Sidebar = ({ isOpen, isMobile, toggleSidebar, onNewExpense }) => {
     const menuItems = [
         { name: 'Resumen', icon: 'dashboard', path: '/' },
         { name: 'Movimientos', icon: 'history', path: '/movimientos' },
+        { name: 'Reportes', icon: 'query_stats', path: '/reportes' },
         { name: 'Presupuestos', icon: 'account_balance_wallet', path: '/presupuestos', soon: true },
         { name: 'Informes', icon: 'bar_chart', path: '/informes', soon: true },
         { name: 'Ahorros', icon: 'savings', path: '/ahorros', soon: true },

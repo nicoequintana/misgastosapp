@@ -389,3 +389,271 @@ export const getStats = async () => {
         porCategoria
     };
 };
+
+/**
+ * Obtiene todos los gastos de un rango de fechas arbitrario.
+ * Base para el módulo de reportes: filtra por desde/hasta inclusive.
+ *
+ * @param {string} desde - Fecha 'YYYY-MM-DD' inicio
+ * @param {string} hasta - Fecha 'YYYY-MM-DD' fin
+ * @returns {Array} Lista de gastos con datos de categoría y método de pago
+ */
+export const getGastosByRango = async (desde, hasta) => {
+    const hastaFin = `${hasta}T23:59:59.999Z`;
+
+    const { data, error } = await supabase
+        .from('gastos')
+        .select(`
+            *,
+            categorias:id_categoria (id, nombre),
+            metodos_pago:id_metodo_pago (id, nombre)
+        `)
+        .gte('fecha', desde)
+        .lte('fecha', hastaFin)
+        .order('fecha', { ascending: false });
+
+    if (error) throw error;
+    return data ?? [];
+};
+
+/**
+ * Calcula estadísticas completas para un rango de fechas.
+ * Incluye totales, desglose por categoría, por método de pago y evolución diaria.
+ * Diseñado para alimentar el módulo de Reportes.
+ *
+ * @param {string} desde - Fecha 'YYYY-MM-DD' inicio
+ * @param {string} hasta - Fecha 'YYYY-MM-DD' fin
+ * @returns {Object} { gastos, totalGastos, gastosFijos, gastosVariables, ingresoMensual, porCategoria, porMetodoPago, porDia }
+ */
+export const getReporteByRango = async (desde, hasta) => {
+    const [gastos, ingreso] = await Promise.all([
+        getGastosByRango(desde, hasta),
+        getIncome(),
+    ]);
+
+    const totalGastos     = gastos.reduce((s, g) => s + parseFloat(g.monto || 0), 0);
+    const gastosFijos     = gastos.filter(g => g.es_fijo).reduce((s, g) => s + parseFloat(g.monto || 0), 0);
+    const gastosVariables = totalGastos - gastosFijos;
+
+    // Desglose por categoría con porcentaje sobre el total
+    const porCategoria = gastos.reduce((acc, g) => {
+        const nombre = g.categorias?.nombre || 'Sin categoría';
+        if (!acc[nombre]) acc[nombre] = { total: 0, cantidad: 0, porcentaje: 0 };
+        acc[nombre].total    += parseFloat(g.monto || 0);
+        acc[nombre].cantidad += 1;
+        return acc;
+    }, {});
+    Object.values(porCategoria).forEach(c => {
+        c.porcentaje = totalGastos > 0 ? (c.total / totalGastos) * 100 : 0;
+    });
+
+    // Desglose por método de pago
+    const porMetodoPago = gastos.reduce((acc, g) => {
+        const nombre = g.metodos_pago?.nombre || 'Sin método';
+        if (!acc[nombre]) acc[nombre] = { total: 0, cantidad: 0 };
+        acc[nombre].total    += parseFloat(g.monto || 0);
+        acc[nombre].cantidad += 1;
+        return acc;
+    }, {});
+
+    // Evolución diaria para el gráfico de barras
+    const porDia = gastos.reduce((acc, g) => {
+        const fecha = (g.fecha || '').split('T')[0];
+        if (!acc[fecha]) acc[fecha] = { total: 0, cantidad: 0 };
+        acc[fecha].total    += parseFloat(g.monto || 0);
+        acc[fecha].cantidad += 1;
+        return acc;
+    }, {});
+
+    return {
+        gastos,
+        totalGastos,
+        gastosFijos,
+        gastosVariables,
+        ingresoMensual: ingreso?.monto || 0,
+        porCategoria,
+        porMetodoPago,
+        porDia,
+    };
+};
+
+/**
+ * Calcula estadísticas de gastos para un mes y año específicos.
+ * Útil para comparar el mes actual contra el anterior en alertas de Fase 4.
+ *
+ * @param {number} year  - Año (ej: 2025)
+ * @param {number} month - Mes 1-indexado (1=enero ... 12=diciembre)
+ * @returns {Object} { totalGastos, gastosFijos, gastosVariables, gastosFijosLista, porCategoria }
+ */
+export const getStatsByMonth = async (year, month) => {
+    // Rango de fechas del mes: desde el día 1 hasta el último día inclusive
+    const desde = new Date(year, month - 1, 1).toISOString();
+    const hasta = new Date(year, month, 1).toISOString();
+
+    const { data, error } = await supabase
+        .from('gastos')
+        .select(`
+            *,
+            categorias:id_categoria (id, nombre)
+        `)
+        .gte('fecha', desde)
+        .lt('fecha', hasta)
+        .order('fecha', { ascending: false });
+
+    if (error) throw error;
+
+    const gastos = data ?? [];
+
+    const totalGastos = gastos.reduce((s, g) => s + parseFloat(g.monto || 0), 0);
+    const gastosFijosLista = gastos.filter(g => g.es_fijo);
+    const gastosFijos = gastosFijosLista.reduce((s, g) => s + parseFloat(g.monto || 0), 0);
+    const gastosVariables = totalGastos - gastosFijos;
+
+    const porCategoria = gastos.reduce((acc, g) => {
+        const nombre = g.categorias?.nombre || 'Sin categoría';
+        if (!acc[nombre]) acc[nombre] = { total: 0, cantidad: 0 };
+        acc[nombre].total += parseFloat(g.monto || 0);
+        acc[nombre].cantidad += 1;
+        return acc;
+    }, {});
+
+    return { totalGastos, gastosFijos, gastosVariables, gastosFijosLista, porCategoria };
+};
+
+// ============================================================
+// NOTIFICACIONES
+// ============================================================
+
+/**
+ * Obtiene las notificaciones del usuario autenticado.
+ * Ordena por fecha descendente y limita a las últimas 50.
+ */
+export const getNotificaciones = async () => {
+    const usuario = await obtenerUsuarioActivo();
+    const { data, error } = await supabase
+        .from('notificaciones')
+        .select('*')
+        .eq('user_id', usuario.id)
+        .order('fecha_creacion', { ascending: false })
+        .limit(50);
+
+    if (error) throw error;
+    return data || [];
+};
+
+/**
+ * Crea una nueva notificación para el usuario autenticado.
+ *
+ * @param {Object} notificacion - { titulo, mensaje, tipo, origen, metadata }
+ * @returns {Object} La notificación creada
+ */
+export const createNotificacion = async (notificacion) => {
+    const usuario = await obtenerUsuarioActivo();
+    const { data, error } = await supabase
+        .from('notificaciones')
+        .insert([{
+            user_id:       usuario.id,
+            titulo:        notificacion.titulo,
+            mensaje:       notificacion.mensaje,
+            tipo:          notificacion.tipo || 'info',
+            origen:        notificacion.origen || 'app',
+            metadata:      notificacion.metadata || null,
+            leida:         false,
+            email_enviado: false,
+        }])
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+};
+
+/**
+ * Marca una notificación específica como leída.
+ *
+ * @param {number} id - ID de la notificación
+ */
+export const marcarLeida = async (id) => {
+    const usuario = await obtenerUsuarioActivo();
+    const { error } = await supabase
+        .from('notificaciones')
+        .update({ leida: true })
+        .eq('id', id)
+        .eq('user_id', usuario.id);
+
+    if (error) throw error;
+};
+
+/**
+ * Marca todas las notificaciones del usuario como leídas.
+ */
+export const marcarTodasLeidas = async () => {
+    const usuario = await obtenerUsuarioActivo();
+    const { error } = await supabase
+        .from('notificaciones')
+        .update({ leida: true })
+        .eq('user_id', usuario.id)
+        .eq('leida', false);
+
+    if (error) throw error;
+};
+
+/**
+ * Actualiza el campo email_enviado y email_error de una notificación.
+ * Se llama después de intentar el envío por email desde el backend.
+ *
+ * @param {number} id - ID de la notificación
+ * @param {boolean} enviado
+ * @param {string|null} errorMsg
+ */
+export const actualizarEstadoEmail = async (id, enviado, errorMsg = null) => {
+    const usuario = await obtenerUsuarioActivo();
+    const { error } = await supabase
+        .from('notificaciones')
+        .update({ email_enviado: enviado, email_error: errorMsg })
+        .eq('id', id)
+        .eq('user_id', usuario.id);
+
+    if (error) throw error;
+};
+
+// ============================================================
+// CONFIGURACIÓN DE NOTIFICACIONES
+// ============================================================
+
+/**
+ * Obtiene la configuración de notificaciones del usuario.
+ * Si no existe, retorna null (el contexto usará defaults).
+ */
+export const getConfigNotificaciones = async () => {
+    const usuario = await obtenerUsuarioActivo();
+    const { data, error } = await supabase
+        .from('configuracion_notificaciones')
+        .select('*')
+        .eq('user_id', usuario.id)
+        .maybeSingle();
+
+    if (error) throw error;
+    return data;
+};
+
+/**
+ * Guarda o actualiza la configuración de notificaciones del usuario (upsert).
+ *
+ * @param {Object} config - Campos a actualizar
+ * @returns {Object} La configuración guardada
+ */
+export const saveConfigNotificaciones = async (config) => {
+    const usuario = await obtenerUsuarioActivo();
+    const { data, error } = await supabase
+        .from('configuracion_notificaciones')
+        .upsert(
+            { ...config, user_id: usuario.id, fecha_actualizacion: new Date().toISOString() },
+            { onConflict: 'user_id' }
+        )
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+};

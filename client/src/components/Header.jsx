@@ -2,15 +2,17 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useNotificaciones } from '../context/NotificacionesContext';
+import NotificacionesPanel from './NotificacionesPanel';
 
 /**
  * Componente de encabezado de la aplicación.
- * Muestra el título de la página actual, barra de búsqueda y perfil de usuario.
- * El toggle de tema alterna entre modo claro y oscuro manteniendo la paleta activa.
+ * Muestra el título de la página actual, toggle de tema, campana de notificaciones y perfil.
  */
 const Header = ({ title, toggleSidebar, isMobile }) => {
     const { user } = useAuth();
     const { currentTheme, applyTheme, themes } = useTheme();
+    const { noLeidas, togglePanel } = useNotificaciones();
     const navigate = useNavigate();
 
     // Alterna entre el tema claro y oscuro equivalente al activo
@@ -28,7 +30,6 @@ const Header = ({ title, toggleSidebar, isMobile }) => {
                         <span className="material-symbols-outlined">menu</span>
                     </button>
                 )}
-
                 <h2 style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.5px' }}>
                     {title}
                 </h2>
@@ -45,14 +46,31 @@ const Header = ({ title, toggleSidebar, isMobile }) => {
                     </span>
                 </button>
 
-                <button className="header-btn" title="Notificaciones">
-                    <span className="material-symbols-outlined">notifications</span>
-                    <span className="notification-dot"></span>
+                {/* Campana de notificaciones con badge de no leídas */}
+                <button
+                    className="header-btn notif-trigger-btn"
+                    onClick={togglePanel}
+                    title="Notificaciones"
+                    aria-label={`Notificaciones${noLeidas > 0 ? `, ${noLeidas} sin leer` : ''}`}
+                >
+                    <span className="material-symbols-outlined">
+                        {noLeidas > 0 ? 'notifications_active' : 'notifications'}
+                    </span>
+                    {noLeidas > 0 && (
+                        <span className="notif-badge">
+                            {noLeidas > 99 ? '99+' : noLeidas}
+                        </span>
+                    )}
                 </button>
 
                 <div className="v-separator"></div>
 
-                <div className="user-profile" onClick={() => navigate('/configuracion')} style={{ cursor: 'pointer' }} title="Ir a Configuración">
+                <div
+                    className="user-profile"
+                    onClick={() => navigate('/configuracion')}
+                    style={{ cursor: 'pointer' }}
+                    title="Ir a Configuración"
+                >
                     <div className="user-info-text">
                         <p className="user-name">{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuario'}</p>
                         <p className="user-role">Cuenta Personal</p>
@@ -66,6 +84,9 @@ const Header = ({ title, toggleSidebar, isMobile }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Panel de notificaciones — renderizado vía portal en modal-root */}
+            <NotificacionesPanel />
         </header>
     );
 };

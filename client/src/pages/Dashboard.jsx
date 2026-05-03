@@ -7,6 +7,8 @@ import CurrencyInput from '../components/CurrencyInput';
 import * as db from '../lib/db';
 import SummaryCard from '../components/dashboard/SummaryCard';
 import DashboardTable from '../components/dashboard/DashboardTable';
+import DashboardSkeleton from '../components/dashboard/DashboardSkeleton';
+import { useNotificaciones } from '../context/NotificacionesContext';
 
 // ==================== ESTADO INICIAL ====================
 
@@ -51,6 +53,18 @@ const Dashboard = () => {
     // Contexto del layout: permite que el FAB del bottom nav mobile abra el modal
     const { showNewExpense, setShowNewExpense } = useOutletContext?.() || {};
 
+    const {
+        agregarNotificacion,
+        verificarAlertasFinancieras,
+        verificarAlertaGastoAlto,
+        verificarAlertasGastosFijos,
+        verificarAlertaConcentracionCategoria,
+        verificarProyecciones,
+    } = useNotificaciones();
+
+    // Gasto diario disponible calculado por verificarProyecciones
+    const [gastoDiarioDisponible, setGastoDiarioDisponible] = useState(null);
+
     // Control de los modales de la UI
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
@@ -72,19 +86,32 @@ const Dashboard = () => {
      * Obtiene las estadísticas y las carga en el estado.
      * Separado de fetchOpciones para poder llamarlos independientemente.
      */
-    const fetchStats = useCallback(async () => {
+    const fetchStats = useCallback(async ({ verificarAlertas = false } = {}) => {
         try {
             setCargando(true);
             setErrorCarga(null);
             const data = await db.getStats();
             setStats(data);
+            if (verificarAlertas) {
+                // Alertas de Fase 2: saldo, porcentaje de ingreso, ingreso no configurado
+                verificarAlertasFinancieras(data);
+                // Alertas de Fase 4: gastos fijos/variables (async, no bloqueante)
+                verificarAlertasGastosFijos(data);
+                verificarAlertaConcentracionCategoria(data);
+                // Proyecciones de Fase 5: gasto diario disponible + alertas
+                verificarProyecciones(data).then(proyeccion => {
+                    if (proyeccion?.gastoDiarioDisponible !== undefined) {
+                        setGastoDiarioDisponible(proyeccion.gastoDiarioDisponible);
+                    }
+                });
+            }
         } catch (err) {
             console.error('❌ Error al obtener estadísticas:', err);
             setErrorCarga('No se pudieron cargar los datos. Intentá recargar la página.');
         } finally {
             setCargando(false);
         }
-    }, []);
+    }, [verificarAlertasFinancieras, verificarAlertasGastosFijos, verificarAlertaConcentracionCategoria, verificarProyecciones]);
 
     /**
      * Obtiene las categorías y métodos de pago disponibles.
@@ -104,7 +131,8 @@ const Dashboard = () => {
     }, []);
 
     useEffect(() => {
-        fetchStats();
+        // Al montar verificamos alertas financieras (ej: ingreso no configurado, saldo bajo)
+        fetchStats({ verificarAlertas: true });
         fetchOpciones();
     }, [fetchStats, fetchOpciones]);
 
@@ -162,9 +190,19 @@ const Dashboard = () => {
         try {
             await db.createExpense(expenseForm);
             console.log('✅ Gasto creado correctamente');
-            await fetchStats();
+            // Primero cerramos y notificamos, luego recargamos stats con verificación de alertas
             setIsModalOpen(false);
+            agregarNotificacion({
+                titulo:  'Gasto registrado',
+                mensaje: `Se registró "${expenseForm.descripcion}" por $${Number(expenseForm.monto).toLocaleString('es-AR')}.`,
+                tipo:    'success',
+                origen:  'manual',
+            });
+            // Verificar si el gasto supera el umbral de gasto alto
+            verificarAlertaGastoAlto({ descripcion: expenseForm.descripcion, monto: expenseForm.monto });
             setExpenseForm(ESTADO_INICIAL_GASTO);
+            // Al recargar stats verificamos alertas de saldo y porcentaje
+            await fetchStats({ verificarAlertas: true });
         } catch (err) {
             console.error('❌ Error al guardar gasto:', err);
             alert(`Error al guardar el gasto: ${err.message || 'Por favor, intentá de nuevo.'}`);
@@ -179,9 +217,15 @@ const Dashboard = () => {
         try {
             await db.saveIncome(incomeAmount);
             console.log('✅ Ingreso guardado correctamente');
-            await fetchStats();
+            await fetchStats({ verificarAlertas: true });
             setIsIncomeModalOpen(false);
             setIncomeAmount('');
+            agregarNotificacion({
+                titulo: 'Ingreso actualizado',
+                mensaje: `Tu ingreso mensual fue actualizado a $${incomeAmount}.`,
+                tipo: 'info',
+                origen: 'ingresos',
+            });
         } catch (err) {
             console.error('❌ Error al guardar ingreso:', err);
             alert('Error al guardar el ingreso. Por favor, intentá de nuevo.');
@@ -196,7 +240,13 @@ const Dashboard = () => {
         try {
             await db.deleteVariableExpenses();
             console.log('✅ Gastos variables eliminados correctamente');
-            await fetchStats();
+            await fetchStats({ verificarAlertas: true });
+            agregarNotificacion({
+                titulo: 'Gastos variables eliminados',
+                mensaje: 'Todos los gastos variables del período fueron eliminados.',
+                tipo: 'warning',
+                origen: 'manual',
+            });
         } catch (err) {
             console.error('❌ Error al eliminar gastos variables:', err);
         } finally {
@@ -218,13 +268,7 @@ const Dashboard = () => {
 
     // ==================== RENDER ====================
 
-    if (cargando) {
-        return (
-            <div className="dashboard-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <p style={{ color: 'var(--text-secondary)' }}>Cargando datos...</p>
-            </div>
-        );
-    }
+    if (cargando) return <DashboardSkeleton />;
 
     if (errorCarga) {
         return (
@@ -287,6 +331,15 @@ const Dashboard = () => {
                     color="danger"
                     subtitle="Gastos discrecionales"
                 />
+                {gastoDiarioDisponible !== null && (
+                    <SummaryCard
+                        title="Disponible por día"
+                        amount={gastoDiarioDisponible}
+                        icon="calendar_today"
+                        color={gastoDiarioDisponible > 0 ? 'primary' : 'danger'}
+                        subtitle="Hasta fin de mes"
+                    />
+                )}
             </div>
 
             <div className="tables-grid">

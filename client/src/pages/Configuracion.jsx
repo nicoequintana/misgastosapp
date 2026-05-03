@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, THEMES } from '../context/ThemeContext';
 import GlassCard from '../components/GlassCard';
+import { useNotificaciones } from '../context/NotificacionesContext';
 
 /**
  * Página de configuración: perfil del usuario y selector de tema visual.
@@ -9,6 +10,43 @@ import GlassCard from '../components/GlassCard';
 const Configuracion = () => {
     const { user } = useAuth();
     const { themeId, applyTheme } = useTheme();
+    const { config, guardarConfig } = useNotificaciones();
+
+    const [guardandoConfig, setGuardandoConfig] = useState(false);
+    const [mensajeConfig, setMensajeConfig] = useState('');
+    // Estado local del formulario de config (copia del contexto para edición)
+    const [formConfig, setFormConfig] = useState(null);
+
+    // Inicializar formConfig cuando el contexto carga la config real
+    React.useEffect(() => {
+        if (config) setFormConfig({ ...config });
+    }, [config]);
+
+    const handleToggle = (campo) => {
+        setFormConfig(prev => ({ ...prev, [campo]: !prev[campo] }));
+    };
+
+    const handleNumero = (campo, valor) => {
+        const num = Number(valor);
+        if (!isNaN(num) && num >= 0) {
+            setFormConfig(prev => ({ ...prev, [campo]: num }));
+        }
+    };
+
+    const handleGuardarConfig = async () => {
+        if (!formConfig) return;
+        setGuardandoConfig(true);
+        setMensajeConfig('');
+        try {
+            await guardarConfig(formConfig);
+            setMensajeConfig('Configuración guardada correctamente.');
+        } catch {
+            setMensajeConfig('Error al guardar. Intentá de nuevo.');
+        } finally {
+            setGuardandoConfig(false);
+            setTimeout(() => setMensajeConfig(''), 3000);
+        }
+    };
 
     const nombre = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuario';
     const email = user?.email || '—';
@@ -84,6 +122,359 @@ const Configuracion = () => {
                     </div>
                 </div>
             </GlassCard>
+
+            {/* ── NOTIFICACIONES ─────────────────────── */}
+            {formConfig && (
+                <GlassCard className="config-section">
+                    <div className="config-section-header">
+                        <span className="material-symbols-outlined config-section-icon">notifications</span>
+                        <h3 className="config-section-title">Notificaciones</h3>
+                    </div>
+
+                    {/* Alertas financieras */}
+                    <div className="notif-config-group">
+                        <p className="notif-config-group-label">Alertas financieras</p>
+
+                        <div className="notif-config-row">
+                            <div className="notif-config-info">
+                                <span className="notif-config-row-title">Saldo disponible bajo</span>
+                                <span className="notif-config-row-desc">Avisar cuando el saldo quede por debajo del umbral</span>
+                            </div>
+                            <button
+                                type="button"
+                                className={`notif-toggle${formConfig.notificar_saldo_bajo ? ' notif-toggle--on' : ''}`}
+                                onClick={() => handleToggle('notificar_saldo_bajo')}
+                                aria-pressed={formConfig.notificar_saldo_bajo}
+                            >
+                                <span className="notif-toggle-thumb" />
+                            </button>
+                        </div>
+
+                        {formConfig.notificar_saldo_bajo && (
+                            <div className="notif-config-sub">
+                                <label className="notif-config-sub-label">Umbral de saldo bajo ($)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={formConfig.umbral_saldo_bajo}
+                                    onChange={(e) => handleNumero('umbral_saldo_bajo', e.target.value)}
+                                    className="input notif-config-input"
+                                />
+                            </div>
+                        )}
+
+                        <div className="notif-config-row">
+                            <div className="notif-config-info">
+                                <span className="notif-config-row-title">Límite de porcentaje del ingreso</span>
+                                <span className="notif-config-row-desc">Avisar cuando los gastos superen un % del ingreso</span>
+                            </div>
+                            <button
+                                type="button"
+                                className={`notif-toggle${formConfig.notificar_porcentaje_ingreso ? ' notif-toggle--on' : ''}`}
+                                onClick={() => handleToggle('notificar_porcentaje_ingreso')}
+                                aria-pressed={formConfig.notificar_porcentaje_ingreso}
+                            >
+                                <span className="notif-toggle-thumb" />
+                            </button>
+                        </div>
+
+                        {formConfig.notificar_porcentaje_ingreso && (
+                            <div className="notif-config-sub">
+                                <label className="notif-config-sub-label">Porcentaje máximo (%)</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="100"
+                                    value={formConfig.porcentaje_maximo_ingreso}
+                                    onChange={(e) => handleNumero('porcentaje_maximo_ingreso', e.target.value)}
+                                    className="input notif-config-input"
+                                />
+                            </div>
+                        )}
+
+                        <div className="notif-config-row">
+                            <div className="notif-config-info">
+                                <span className="notif-config-row-title">Gasto alto</span>
+                                <span className="notif-config-row-desc">Avisar cuando un gasto individual supere el umbral</span>
+                            </div>
+                            <button
+                                type="button"
+                                className={`notif-toggle${formConfig.notificar_gasto_alto ? ' notif-toggle--on' : ''}`}
+                                onClick={() => handleToggle('notificar_gasto_alto')}
+                                aria-pressed={formConfig.notificar_gasto_alto}
+                            >
+                                <span className="notif-toggle-thumb" />
+                            </button>
+                        </div>
+
+                        {formConfig.notificar_gasto_alto && (
+                            <div className="notif-config-sub">
+                                <label className="notif-config-sub-label">Monto de gasto alto ($)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={formConfig.monto_gasto_alto}
+                                    onChange={(e) => handleNumero('monto_gasto_alto', e.target.value)}
+                                    className="input notif-config-input"
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Alertas de gastos fijos y variables (Fase 4) */}
+                    <div className="notif-config-group">
+                        <p className="notif-config-group-label">Gastos fijos y variables</p>
+
+                        <div className="notif-config-row">
+                            <div className="notif-config-info">
+                                <span className="notif-config-row-title">Gastos fijos pendientes</span>
+                                <span className="notif-config-row-desc">Avisar si este mes tenés menos gastos fijos que el anterior</span>
+                            </div>
+                            <button
+                                type="button"
+                                className={`notif-toggle${formConfig.notificar_gastos_fijos_pendientes ? ' notif-toggle--on' : ''}`}
+                                onClick={() => handleToggle('notificar_gastos_fijos_pendientes')}
+                                aria-pressed={formConfig.notificar_gastos_fijos_pendientes}
+                            >
+                                <span className="notif-toggle-thumb" />
+                            </button>
+                        </div>
+
+                        <div className="notif-config-row">
+                            <div className="notif-config-info">
+                                <span className="notif-config-row-title">Gastos fijos elevados</span>
+                                <span className="notif-config-row-desc">Avisar cuando los gastos fijos superen un % del ingreso</span>
+                            </div>
+                            <button
+                                type="button"
+                                className={`notif-toggle${formConfig.notificar_gastos_fijos_exceso ? ' notif-toggle--on' : ''}`}
+                                onClick={() => handleToggle('notificar_gastos_fijos_exceso')}
+                                aria-pressed={formConfig.notificar_gastos_fijos_exceso}
+                            >
+                                <span className="notif-toggle-thumb" />
+                            </button>
+                        </div>
+
+                        {formConfig.notificar_gastos_fijos_exceso && (
+                            <div className="notif-config-sub">
+                                <label className="notif-config-sub-label">Umbral de gastos fijos sobre ingreso (%)</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="100"
+                                    value={formConfig.umbral_fijos_ingreso}
+                                    onChange={(e) => handleNumero('umbral_fijos_ingreso', e.target.value)}
+                                    className="input notif-config-input"
+                                />
+                            </div>
+                        )}
+
+                        <div className="notif-config-row">
+                            <div className="notif-config-info">
+                                <span className="notif-config-row-title">Crecimiento de gastos variables</span>
+                                <span className="notif-config-row-desc">Avisar cuando los variables suban más de lo habitual respecto al mes anterior</span>
+                            </div>
+                            <button
+                                type="button"
+                                className={`notif-toggle${formConfig.notificar_variables_crecimiento ? ' notif-toggle--on' : ''}`}
+                                onClick={() => handleToggle('notificar_variables_crecimiento')}
+                                aria-pressed={formConfig.notificar_variables_crecimiento}
+                            >
+                                <span className="notif-toggle-thumb" />
+                            </button>
+                        </div>
+
+                        {formConfig.notificar_variables_crecimiento && (
+                            <div className="notif-config-sub">
+                                <label className="notif-config-sub-label">Margen de crecimiento aceptable (%)</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="200"
+                                    value={formConfig.margen_crecimiento_variables}
+                                    onChange={(e) => handleNumero('margen_crecimiento_variables', e.target.value)}
+                                    className="input notif-config-input"
+                                />
+                            </div>
+                        )}
+
+                        <div className="notif-config-row">
+                            <div className="notif-config-info">
+                                <span className="notif-config-row-title">Concentración por categoría</span>
+                                <span className="notif-config-row-desc">Avisar cuando una categoría concentra demasiado del gasto total</span>
+                            </div>
+                            <button
+                                type="button"
+                                className={`notif-toggle${formConfig.notificar_concentracion_categoria ? ' notif-toggle--on' : ''}`}
+                                onClick={() => handleToggle('notificar_concentracion_categoria')}
+                                aria-pressed={formConfig.notificar_concentracion_categoria}
+                            >
+                                <span className="notif-toggle-thumb" />
+                            </button>
+                        </div>
+
+                        {formConfig.notificar_concentracion_categoria && (
+                            <div className="notif-config-sub">
+                                <label className="notif-config-sub-label">Porcentaje de concentración máximo (%)</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="100"
+                                    value={formConfig.porcentaje_concentracion_categoria}
+                                    onChange={(e) => handleNumero('porcentaje_concentracion_categoria', e.target.value)}
+                                    className="input notif-config-input"
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Proyecciones y resúmenes (Fase 5) */}
+                    <div className="notif-config-group">
+                        <p className="notif-config-group-label">Proyecciones</p>
+
+                        <div className="notif-config-row">
+                            <div className="notif-config-info">
+                                <span className="notif-config-row-title">Proyecciones financieras</span>
+                                <span className="notif-config-row-desc">Avisar si el saldo proyectado queda negativo o el ahorro está en riesgo</span>
+                            </div>
+                            <button
+                                type="button"
+                                className={`notif-toggle${formConfig.notificar_proyecciones ? ' notif-toggle--on' : ''}`}
+                                onClick={() => handleToggle('notificar_proyecciones')}
+                                aria-pressed={formConfig.notificar_proyecciones}
+                            >
+                                <span className="notif-toggle-thumb" />
+                            </button>
+                        </div>
+
+                        {formConfig.notificar_proyecciones && (
+                            <div className="notif-config-sub">
+                                <label className="notif-config-sub-label">Objetivo de ahorro mensual (%)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={formConfig.objetivo_ahorro_porcentaje}
+                                    onChange={(e) => handleNumero('objetivo_ahorro_porcentaje', e.target.value)}
+                                    className="input notif-config-input"
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Email */}
+                    <div className="notif-config-group">
+                        <p className="notif-config-group-label">Email</p>
+
+                        <div className="notif-config-row">
+                            <div className="notif-config-info">
+                                <span className="notif-config-row-title">Envío de emails habilitado</span>
+                                <span className="notif-config-row-desc">Recibir notificaciones importantes por email</span>
+                            </div>
+                            <button
+                                type="button"
+                                className={`notif-toggle${formConfig.email_habilitado ? ' notif-toggle--on' : ''}`}
+                                onClick={() => handleToggle('email_habilitado')}
+                                aria-pressed={formConfig.email_habilitado}
+                            >
+                                <span className="notif-toggle-thumb" />
+                            </button>
+                        </div>
+
+                        {formConfig.email_habilitado && (
+                            <>
+                                <div className="notif-config-row notif-config-row--sub">
+                                    <span className="notif-config-row-title">Email por saldo bajo</span>
+                                    <button
+                                        type="button"
+                                        className={`notif-toggle notif-toggle--sm${formConfig.email_saldo_bajo ? ' notif-toggle--on' : ''}`}
+                                        onClick={() => handleToggle('email_saldo_bajo')}
+                                    >
+                                        <span className="notif-toggle-thumb" />
+                                    </button>
+                                </div>
+                                <div className="notif-config-row notif-config-row--sub">
+                                    <span className="notif-config-row-title">Email por gasto alto</span>
+                                    <button
+                                        type="button"
+                                        className={`notif-toggle notif-toggle--sm${formConfig.email_gasto_alto ? ' notif-toggle--on' : ''}`}
+                                        onClick={() => handleToggle('email_gasto_alto')}
+                                    >
+                                        <span className="notif-toggle-thumb" />
+                                    </button>
+                                </div>
+                                <div className="notif-config-row notif-config-row--sub">
+                                    <span className="notif-config-row-title">Email por integraciones n8n/WhatsApp</span>
+                                    <button
+                                        type="button"
+                                        className={`notif-toggle notif-toggle--sm${formConfig.email_notificaciones_n8n ? ' notif-toggle--on' : ''}`}
+                                        onClick={() => handleToggle('email_notificaciones_n8n')}
+                                    >
+                                        <span className="notif-toggle-thumb" />
+                                    </button>
+                                </div>
+                                <div className="notif-config-row notif-config-row--sub">
+                                    <span className="notif-config-row-title">Email por alertas de gastos fijos</span>
+                                    <button
+                                        type="button"
+                                        className={`notif-toggle notif-toggle--sm${formConfig.email_alertas_gastos_fijos ? ' notif-toggle--on' : ''}`}
+                                        onClick={() => handleToggle('email_alertas_gastos_fijos')}
+                                    >
+                                        <span className="notif-toggle-thumb" />
+                                    </button>
+                                </div>
+                                <div className="notif-config-row notif-config-row--sub">
+                                    <span className="notif-config-row-title">Email con resumen diario</span>
+                                    <button
+                                        type="button"
+                                        className={`notif-toggle notif-toggle--sm${formConfig.email_resumen_diario ? ' notif-toggle--on' : ''}`}
+                                        onClick={() => handleToggle('email_resumen_diario')}
+                                    >
+                                        <span className="notif-toggle-thumb" />
+                                    </button>
+                                </div>
+                                <div className="notif-config-row notif-config-row--sub">
+                                    <span className="notif-config-row-title">Email con resumen semanal</span>
+                                    <button
+                                        type="button"
+                                        className={`notif-toggle notif-toggle--sm${formConfig.email_resumen_semanal ? ' notif-toggle--on' : ''}`}
+                                        onClick={() => handleToggle('email_resumen_semanal')}
+                                    >
+                                        <span className="notif-toggle-thumb" />
+                                    </button>
+                                </div>
+                                <div className="notif-config-row notif-config-row--sub">
+                                    <span className="notif-config-row-title">Email con resumen mensual</span>
+                                    <button
+                                        type="button"
+                                        className={`notif-toggle notif-toggle--sm${formConfig.email_resumen_mensual ? ' notif-toggle--on' : ''}`}
+                                        onClick={() => handleToggle('email_resumen_mensual')}
+                                    >
+                                        <span className="notif-toggle-thumb" />
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {/* Botón guardar */}
+                    <div className="notif-config-footer">
+                        {mensajeConfig && (
+                            <span className={`notif-config-msg${mensajeConfig.includes('Error') ? ' notif-config-msg--error' : ' notif-config-msg--ok'}`}>
+                                {mensajeConfig}
+                            </span>
+                        )}
+                        <button
+                            type="button"
+                            onClick={handleGuardarConfig}
+                            disabled={guardandoConfig}
+                            className="btn btn-primary"
+                        >
+                            {guardandoConfig ? 'Guardando...' : 'Guardar cambios'}
+                        </button>
+                    </div>
+                </GlassCard>
+            )}
 
         </div>
     );

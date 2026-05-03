@@ -9,32 +9,14 @@ import { useAuth } from '../context/AuthContext';
 const ProtectedRoute = () => {
     const { session, loading } = useAuth();
 
-    // Mostrar loader mientras se verifica la sesión
-    if (loading) {
-        return (
-            <div style={{
-                height: '100vh',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'var(--app-bg)',
-                flexDirection: 'column',
-                gap: '16px'
-            }}>
-                <div className="loader"></div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Verificando sesión...</p>
-            </div>
-        );
-    }
+    // Mientras auth resuelve, el AppLoader ya cubre la pantalla — no renderizar nada
+    if (loading) return null;
 
-    // Si no hay sesión, redirigir a welcome
+    // Sin sesión → redirigir a welcome
     if (!session) {
-        console.log('⚠️ No hay sesión, redirigiendo a /welcome');
         return <Navigate to="/welcome" replace />;
     }
 
-    // Si hay sesión, mostrar el contenido protegido
-    console.log('✅ Sesión válida, mostrando contenido protegido');
     return <Outlet />;
 };
 

@@ -62,6 +62,7 @@ const MainLayout = () => {
         switch (path) {
             case '/': return 'Dashboard';
             case '/movimientos': return 'Movimientos';
+            case '/reportes': return 'Reportes';
             case '/presupuestos': return 'Presupuestos';
             case '/configuracion': return 'Configuración';
             default: return 'Mis Gastos';
@@ -84,6 +85,11 @@ const MainLayout = () => {
                 return {
                     title: 'Configuración - Mis Gastos',
                     description: 'Perfil del usuario y personalización del tema visual.'
+                };
+            case '/reportes':
+                return {
+                    title: 'Reportes - Mis Gastos',
+                    description: 'Analizá tus gastos por período con gráficos y rankings de categorías.'
                 };
             case '/presupuestos':
                 return {

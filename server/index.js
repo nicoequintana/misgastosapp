@@ -4,6 +4,10 @@ const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const { normalizeAmount, generateFingerprint } = require('./utils');
+const notificacionesRouter = require('./routes/notificaciones');
+const { buildNotificacionN8n } = require('./services/notificaciones');
+const { persistirNotificacion, actualizarEstadoEmailDb, getConfigUsuario } = require('./services/notificacionesDb');
+const { procesarEnvioEmail } = require('./services/notificaciones');
 require('dotenv').config();
 
 const app = express();
@@ -49,7 +53,7 @@ const corsOrigin = isProduction
 const corsOptions = {
     origin: corsOrigin,
     methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type', 'x-api-key']
+    allowedHeaders: ['Content-Type', 'x-api-key', 'Authorization']
 };
 
 app.use(cors(corsOptions));
@@ -73,6 +77,44 @@ if (isSupabaseConfigured) {
     );
 }
 
+
+// ==================== HELPERS ====================
+
+/**
+ * Persiste una notificación de n8n en Supabase y envía el email si corresponde.
+ * Es fire-and-forget: nunca interrumpe el flujo principal.
+ *
+ * @param {string} userId - UUID del usuario
+ * @param {'creado'|'duplicado'|'error'} resultado
+ * @param {Object} datos - Datos del gasto o del error
+ * @param {string} [emailUsuario] - Email del usuario para envío
+ */
+const dispararNotificacionN8n = async (userId, resultado, datos, emailUsuario) => {
+    try {
+        const notificacion = buildNotificacionN8n(resultado, datos);
+
+        // Persistir en Supabase via service role
+        const creada = await persistirNotificacion(userId, notificacion);
+        if (!creada) return;
+
+        // Enviar email si el usuario tiene configuración habilitada
+        if (emailUsuario) {
+            const config = await getConfigUsuario(userId);
+            if (config?.email_habilitado && config?.email_notificaciones_n8n) {
+                const { emailEnviado, emailError } = await procesarEnvioEmail(emailUsuario, creada, config);
+                await actualizarEstadoEmailDb(creada.id, emailEnviado, emailError || null);
+            }
+        }
+    } catch (err) {
+        // Nunca interrumpir el flujo principal por un error de notificación
+        console.error('❌ Error en dispararNotificacionN8n:', err.message);
+    }
+};
+
+// ==================== RUTAS ====================
+
+// Rutas de notificaciones (envío de emails)
+app.use('/api/notifications', notificacionesRouter);
 
 // ==================== ENDPOINTS DE INTEGRACIÓN ====================
 
@@ -119,6 +161,15 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
 
     const fingerprint = generateFingerprint(expenseData);
 
+    // Validar que user_id sea un UUID válido antes de consultar Supabase
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(user_id)) {
+        return res.status(400).json({ ok: false, error: 'user_id debe ser un UUID válido' });
+    }
+
+    // email_usuario es opcional — se usa para notificaciones por email
+    const emailUsuario = req.body.email_usuario || null;
+
     try {
         if (isSupabaseConfigured) {
             // Verificar duplicados por fingerprint
@@ -129,43 +180,64 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
                 .maybeSingle();
 
             if (existing) {
-                return res.json({ ok: true, created: false, duplicated: true, message: 'Gasto duplicado detectado' });
-            }
-
-            // Validar que user_id sea un UUID válido
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-            if (!uuidRegex.test(user_id)) {
-                return res.status(400).json({ ok: false, error: 'user_id debe ser un UUID válido' });
+                // Notificar duplicado en segundo plano
+                dispararNotificacionN8n(user_id, 'duplicado', expenseData, emailUsuario);
+                return res.json({
+                    ok: true,
+                    created: false,
+                    duplicated: true,
+                    message: 'Gasto duplicado detectado — no se registró',
+                });
             }
 
             // Insertar en Supabase con fecha consistente
             const { data, error } = await supabase.from('gastos').insert([{
-                user_id: user_id,
-                descripcion: expenseData.descripcion.toUpperCase(),
-                monto: expenseData.monto,
-                id_categoria: categoriaNum,
+                user_id:        user_id,
+                descripcion:    expenseData.descripcion.toUpperCase(),
+                monto:          expenseData.monto,
+                id_categoria:   categoriaNum,
                 id_metodo_pago: mediaNum,
-                fecha: `${fechaActual}T12:00:00Z`,
-                es_fijo: false,
+                fecha:          `${fechaActual}T12:00:00Z`,
+                es_fijo:        false,
                 huella_digital: fingerprint
             }]).select();
 
             if (error) throw error;
-            res.status(201).json({ ok: true, created: true, duplicated: false, expense: data[0] });
+
+            // Notificar éxito en segundo plano
+            dispararNotificacionN8n(user_id, 'creado', {
+                ...expenseData,
+                descripcion: expenseData.descripcion.toUpperCase(),
+            }, emailUsuario);
+
+            return res.status(201).json({
+                ok: true,
+                created: true,
+                duplicated: false,
+                message: 'Gasto registrado correctamente',
+                expense: data[0],
+            });
 
         } else {
             // Modo Desarrollo (Simulado) — solo permitir si NO es producción
             if (isProduction) {
                 return res.status(500).json({ ok: false, error: 'Supabase no configurado en producción' });
             }
-            res.status(201).json({
+            return res.status(201).json({
                 ok: true,
+                created: true,
+                duplicated: false,
                 message: 'Modo Mock: Gasto procesado (No persistido en DB)',
-                data: expenseData
+                data: expenseData,
             });
         }
     } catch (error) {
         console.error('❌ Error en integración n8n:', error);
+        // Notificar error en segundo plano
+        dispararNotificacionN8n(user_id, 'error', {
+            ...expenseData,
+            motivo: error.message,
+        }, emailUsuario);
         res.status(500).json({ ok: false, error: error.message });
     }
 });

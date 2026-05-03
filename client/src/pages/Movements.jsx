@@ -5,6 +5,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import { formatCurrency } from '../utils/format';
 import CurrencyInput from '../components/CurrencyInput';
 import * as db from '../lib/db';
+import { useNotificaciones } from '../context/NotificacionesContext';
 
 /**
  * Página de Movimientos.
@@ -13,6 +14,7 @@ import * as db from '../lib/db';
  */
 
 const Movements = () => {
+    const { agregarNotificacion } = useNotificaciones();
     const [movimientos, setMovimientos] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [busqueda, setBusqueda] = useState('');
@@ -86,11 +88,18 @@ const Movements = () => {
         setEliminando(true);
         const idAEliminar = gastoEliminando.id;
         try {
+            const descEliminado = gastoEliminando.descripcion;
             await db.deleteExpense(idAEliminar);
             // Cerramos el modal antes de recargar para que la animación de cierre no compita con el re-render
             setIsDeleteModalOpen(false);
             setTimeout(() => setGastoEliminando(null), 300);
             await fetchMovimientos();
+            agregarNotificacion({
+                titulo: 'Gasto eliminado',
+                mensaje: `Se eliminó "${descEliminado}".`,
+                tipo: 'warning',
+                origen: 'manual',
+            });
         } catch (err) {
             console.error('❌ Error al eliminar el gasto:', err);
         } finally {
@@ -135,6 +144,12 @@ const Movements = () => {
             setIsEditModalOpen(false);
             setTimeout(() => setGastoEditando(null), 300);
             await fetchMovimientos();
+            agregarNotificacion({
+                titulo: 'Gasto actualizado',
+                mensaje: `Se actualizó "${payload.descripcion}".`,
+                tipo: 'info',
+                origen: 'manual',
+            });
         } catch (err) {
             console.error('❌ Error al actualizar el gasto:', err);
             setErrorEdicion('No se pudo actualizar el gasto. Intentá de nuevo.');
