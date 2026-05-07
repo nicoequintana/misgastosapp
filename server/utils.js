@@ -9,7 +9,9 @@ const crypto = require('crypto');
 const normalizeAmount = (val) => {
     if (typeof val === 'number') return val;
     if (typeof val !== 'string') return NaN;
-    const clean = val.replace(/\s/g, '').replace(',', '.');
+    // Eliminar espacios y puntos usados como separadores de miles (formato AR: 1.500,50).
+    // Luego reemplazar la coma decimal por punto para parseFloat.
+    const clean = val.replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
     return parseFloat(clean);
 };
 

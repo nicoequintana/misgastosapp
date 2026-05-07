@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import {
     getNotificaciones,
     createNotificacion,
@@ -11,7 +11,9 @@ import {
 } from '../lib/db';
 import { useAuth } from './AuthContext';
 
-// Clave de localStorage para el throttle de alertas financieras (evita spam)
+// Clave de localStorage para el throttle de alertas financieras (evita spam).
+// Nota: el throttle es por dispositivo/navegador. En modo incógnito o desde otro dispositivo
+// las alertas pueden repetirse el mismo día — comportamiento aceptado para app personal.
 const THROTTLE_KEY = 'notif_alertas_throttle';
 
 const NotificacionesContext = createContext({});
@@ -55,6 +57,9 @@ export const NotificacionesProvider = ({ children }) => {
     const [config, setConfig]                   = useState(CONFIG_DEFAULT);
     const [cargando, setCargando]               = useState(false);
     const [panelAbierto, setPanelAbierto]       = useState(false);
+
+    // Caché del mes anterior para evitar queries repetidas en cada fetchStats
+    const cacheMesAnterior = useRef({ key: null, data: null });
 
     const noLeidas = notificaciones.filter(n => !n.leida).length;
 
@@ -101,33 +106,10 @@ export const NotificacionesProvider = ({ children }) => {
     }, [user, cargarNotificaciones]);
 
     /**
-     * Crea una nueva notificación en Supabase y, opcionalmente, envía el email.
-     * Si falla el email, la notificación queda creada igualmente.
-     *
-     * @param {Object} datos - { titulo, mensaje, tipo, origen, metadata }
-     */
-    const agregarNotificacion = useCallback(async (datos) => {
-        if (!user) return;
-        try {
-            // 1. Persistir en Supabase
-            const nueva = await createNotificacion(datos);
-
-            // 2. Actualizar estado local inmediatamente para feedback visual
-            setNotificaciones(prev => [nueva, ...prev]);
-
-            // 3. Intentar enviar email si el usuario lo tiene configurado (fire-and-forget)
-            enviarEmailSiCorresponde(nueva);
-
-            return nueva;
-        } catch (err) {
-            console.error('❌ Error al crear notificación:', err.message);
-        }
-    }, [user, config]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    /**
      * Envía el email de la notificación al backend.
      * Si falla, actualiza el campo email_error en Supabase.
      * Nunca interrumpe el flujo principal.
+     * Definida antes de agregarNotificacion para evitar TDZ en el dep array.
      */
     const enviarEmailSiCorresponde = useCallback(async (notificacion) => {
         if (!config?.email_habilitado || !user?.email) return;
@@ -166,6 +148,30 @@ export const NotificacionesProvider = ({ children }) => {
             console.warn('⚠️ No se pudo contactar al backend para envío de email:', err.message);
         }
     }, [session, config, user]);
+
+    /**
+     * Crea una nueva notificación en Supabase y, opcionalmente, envía el email.
+     * Si falla el email, la notificación queda creada igualmente.
+     *
+     * @param {Object} datos - { titulo, mensaje, tipo, origen, metadata }
+     */
+    const agregarNotificacion = useCallback(async (datos) => {
+        if (!user) return;
+        try {
+            // 1. Persistir en Supabase
+            const nueva = await createNotificacion(datos);
+
+            // 2. Actualizar estado local inmediatamente para feedback visual
+            setNotificaciones(prev => [nueva, ...prev]);
+
+            // 3. Intentar enviar email si el usuario lo tiene configurado (fire-and-forget)
+            enviarEmailSiCorresponde(nueva);
+
+            return nueva;
+        } catch (err) {
+            console.error('❌ Error al crear notificación:', err.message);
+        }
+    }, [user, enviarEmailSiCorresponde]);
 
     /**
      * Marca una notificación como leída en Supabase y actualiza el estado local.
@@ -353,7 +359,13 @@ export const NotificacionesProvider = ({ children }) => {
 
         let statsMesAnterior = null;
         try {
-            statsMesAnterior = await getStatsByMonth(anioAnterior, mesAnterior);
+            const cacheKey = `${anioAnterior}-${mesAnterior}`;
+            if (cacheMesAnterior.current.key === cacheKey) {
+                statsMesAnterior = cacheMesAnterior.current.data;
+            } else {
+                statsMesAnterior = await getStatsByMonth(anioAnterior, mesAnterior);
+                cacheMesAnterior.current = { key: cacheKey, data: statsMesAnterior };
+            }
         } catch {
             // Si falla la consulta del mes anterior, no bloqueamos las alertas locales
         }

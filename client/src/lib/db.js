@@ -39,6 +39,8 @@ const obtenerUsuarioActivo = async () => {
  * @returns {Array} Lista de gastos ordenados por fecha descendente
  */
 export const getExpenses = async () => {
+    const usuario = await obtenerUsuarioActivo();
+
     const { data, error } = await supabase
         .from('gastos')
         .select(`
@@ -46,6 +48,7 @@ export const getExpenses = async () => {
             categorias:id_categoria (id, nombre),
             metodos_pago:id_metodo_pago (id, nombre)
         `)
+        .eq('user_id', usuario.id)
         .order('fecha', { ascending: false });
 
     if (error) throw error;
@@ -111,6 +114,8 @@ export const createExpense = async (gasto) => {
  * @throws {Error} Si el monto no es válido o es ≤ 0
  */
 export const updateExpense = async (id, gasto) => {
+    const usuario = await obtenerUsuarioActivo();
+
     // Validar monto si se proporciona
     if (gasto.monto !== undefined) {
         const montoNumero = Number(gasto.monto);
@@ -126,10 +131,12 @@ export const updateExpense = async (id, gasto) => {
             monto: gasto.monto !== undefined ? Number(gasto.monto) : undefined,
             id_categoria: gasto.id_categoria !== undefined ? gasto.id_categoria : undefined,
             id_metodo_pago: gasto.id_metodo_pago !== undefined ? gasto.id_metodo_pago : undefined,
-            fecha: gasto.fecha,
-            es_fijo: Boolean(gasto.es_fijo)
+            ...(gasto.fecha !== undefined ? { fecha: gasto.fecha } : {}),
+            // Solo incluir es_fijo si viene definido explícitamente para no pisar el valor existente
+            ...(gasto.es_fijo !== undefined ? { es_fijo: Boolean(gasto.es_fijo) } : {}),
         })
         .eq('id', id)
+        .eq('user_id', usuario.id)
         .select()
         .single();
 
@@ -146,10 +153,13 @@ export const updateExpense = async (id, gasto) => {
  * @param {string} id - ID del gasto a eliminar
  */
 export const deleteExpense = async (id) => {
+    const usuario = await obtenerUsuarioActivo();
+
     const { error } = await supabase
         .from('gastos')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', usuario.id);
 
     if (error) throw error;
 };
@@ -160,9 +170,12 @@ export const deleteExpense = async (id) => {
  * RLS garantiza que solo se borren los gastos del usuario actual.
  */
 export const deleteVariableExpenses = async () => {
+    const usuario = await obtenerUsuarioActivo();
+
     const { error } = await supabase
         .from('gastos')
         .delete()
+        .eq('user_id', usuario.id)
         .eq('es_fijo', false);
 
     if (error) throw error;
@@ -201,21 +214,6 @@ export const getPaymentMethods = async () => {
     return data ?? [];
 };
 
-/**
- * [DEPRECATED] Los métodos de pago son ahora globales de sistema.
- * Se mantienen por compatibilidad si fueran necesarios, pero no tienen uso en la UI actual.
- */
-// eslint-disable-next-line no-unused-vars
-export const updatePaymentMethod = async (id, nombre) => {
-    console.warn('updatePaymentMethod is deprecated.');
-    return null;
-};
-
-// eslint-disable-next-line no-unused-vars
-export const deletePaymentMethod = async (id) => {
-    console.warn('deletePaymentMethod is deprecated.');
-    return null;
-};
 
 // ==================== INGRESOS ====================
 
@@ -259,36 +257,23 @@ export const saveIncome = async (monto) => {
         throw new Error('El ingreso debe ser mayor a cero');
     }
 
-    // Estrategia: intentar actualizar primero. Si no hay filas afectadas, insertar.
-    const { data: actualizado } = await supabase
+    // Upsert atómico: crea la fila si no existe, actualiza si ya existe.
+    // Evita la race condition del patrón update-then-insert.
+    const { data, error } = await supabase
         .from('ingresos')
-        .update({ monto: montoLimpio, fecha_actualizacion: new Date().toISOString() })
-        .eq('user_id', usuario.id)
-        .select()
-        .maybeSingle();
-
-    // Si la actualización funcionó, retornar el resultado
-    if (actualizado) {
-        return actualizado;
-    }
-
-    // Si no hay filas (usuario nuevo), insertar
-    const { data: insertado, error: errorInsert } = await supabase
-        .from('ingresos')
-        .insert([{ 
-            user_id: usuario.id, 
-            monto: montoLimpio,
-            fecha_actualizacion: new Date().toISOString()
-        }])
+        .upsert(
+            { user_id: usuario.id, monto: montoLimpio, fecha_actualizacion: new Date().toISOString() },
+            { onConflict: 'user_id' }
+        )
         .select()
         .single();
 
-    if (errorInsert) {
-        console.error('❌ Error en saveIncome (insert):', errorInsert);
-        throw errorInsert;
+    if (error) {
+        console.error('❌ Error en saveIncome:', error);
+        throw error;
     }
 
-    return insertado;
+    return data;
 };
 
 // ==================== PERFIL DE USUARIO ====================
@@ -399,7 +384,13 @@ export const getStats = async () => {
  * @returns {Array} Lista de gastos con datos de categoría y método de pago
  */
 export const getGastosByRango = async (desde, hasta) => {
-    const hastaFin = `${hasta}T23:59:59.999Z`;
+    const usuario = await obtenerUsuarioActivo();
+
+    // Comparamos solo la parte de fecha (YYYY-MM-DD) para evitar desfases UTC vs local.
+    // La columna 'fecha' puede tener timestamp — usamos cast a date para comparar correctamente.
+    const diaSigniente = new Date(`${hasta}T00:00:00`);
+    diaSigniente.setDate(diaSigniente.getDate() + 1);
+    const hastaExclusivo = diaSigniente.toISOString().split('T')[0];
 
     const { data, error } = await supabase
         .from('gastos')
@@ -408,8 +399,9 @@ export const getGastosByRango = async (desde, hasta) => {
             categorias:id_categoria (id, nombre),
             metodos_pago:id_metodo_pago (id, nombre)
         `)
+        .eq('user_id', usuario.id)
         .gte('fecha', desde)
-        .lte('fecha', hastaFin)
+        .lt('fecha', hastaExclusivo)
         .order('fecha', { ascending: false });
 
     if (error) throw error;
@@ -486,9 +478,15 @@ export const getReporteByRango = async (desde, hasta) => {
  * @returns {Object} { totalGastos, gastosFijos, gastosVariables, gastosFijosLista, porCategoria }
  */
 export const getStatsByMonth = async (year, month) => {
-    // Rango de fechas del mes: desde el día 1 hasta el último día inclusive
-    const desde = new Date(year, month - 1, 1).toISOString();
-    const hasta = new Date(year, month, 1).toISOString();
+    const usuario = await obtenerUsuarioActivo();
+
+    // Construimos las fechas como strings YYYY-MM-DD para evitar desfases UTC en Argentina (UTC-3).
+    const mesStr = String(month).padStart(2, '0');
+    const mesSiguienteNum = month === 12 ? 1 : month + 1;
+    const anioSiguiente = month === 12 ? year + 1 : year;
+    const mesSiguienteStr = String(mesSiguienteNum).padStart(2, '0');
+    const desde = `${year}-${mesStr}-01`;
+    const hasta = `${anioSiguiente}-${mesSiguienteStr}-01`;
 
     const { data, error } = await supabase
         .from('gastos')
@@ -496,6 +494,7 @@ export const getStatsByMonth = async (year, month) => {
             *,
             categorias:id_categoria (id, nombre)
         `)
+        .eq('user_id', usuario.id)
         .gte('fecha', desde)
         .lt('fecha', hasta)
         .order('fecha', { ascending: false });

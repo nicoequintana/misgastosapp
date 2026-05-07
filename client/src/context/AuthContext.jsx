@@ -14,15 +14,10 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         // 1. Obtener sesión activa al cargar la app
         const initializeAuth = async () => {
-            console.log('🔐 Inicializando autenticación...');
             const { data: { session }, error } = await supabase.auth.getSession();
 
             if (error) {
                 console.error('❌ Error al obtener sesión:', error.message);
-            } else if (session) {
-                console.log('✅ Sesión encontrada:', session.user.email);
-            } else {
-                console.log('ℹ️ No hay sesión activa');
             }
 
             setSession(session);
@@ -33,23 +28,14 @@ export const AuthProvider = ({ children }) => {
         initializeAuth();
 
         // 2. Suscribirse a cambios de estado de autenticación
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log(`🔔 Evento de autenticación: ${event}`);
-
-            if (session) {
-                console.log('✅ Nueva sesión establecida:', session.user.email);
-                console.log('👤 Datos del usuario:', {
-                    nombre: session.user.user_metadata?.full_name,
-                    email: session.user.email,
-                    avatar: session.user.user_metadata?.avatar_url
-                });
-            } else {
-                console.log('ℹ️ Sesión cerrada');
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (import.meta.env.DEV) {
+                console.log(`🔔 Evento de autenticación: ${event}`);
             }
 
             setSession(session);
             setUser(session?.user ?? null);
-            setLoading(false);
+            // loading se setea solo en initializeAuth para evitar parpadeos por TOKEN_REFRESHED, etc.
         });
 
         return () => subscription.unsubscribe();
@@ -57,7 +43,6 @@ export const AuthProvider = ({ children }) => {
 
     // Funciones de conveniencia
     const signInWithGoogle = async () => {
-        console.log('🚀 Iniciando login con Google...');
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
@@ -70,16 +55,14 @@ export const AuthProvider = ({ children }) => {
         });
         if (error) {
             console.error('❌ Error al iniciar sesión con Google:', error.message);
+            throw error;
         }
     };
 
     const signOut = async () => {
-        console.log('👋 Cerrando sesión...');
         const { error } = await supabase.auth.signOut();
         if (error) {
             console.error('❌ Error al cerrar sesión:', error.message);
-        } else {
-            console.log('✅ Sesión cerrada correctamente');
         }
     };
 

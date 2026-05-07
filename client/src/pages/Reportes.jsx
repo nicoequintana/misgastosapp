@@ -117,7 +117,10 @@ const ResumenChip = ({ label, value, tone = 'neutral' }) => (
 );
 
 const MovimientoCard = ({ gasto }) => {
-    const fecha = new Date(gasto.fecha).toLocaleDateString('es-AR', {
+    // Agregamos T12:00:00 para evitar que la fecha cambie de día por desfase UTC en Argentina (UTC-3).
+    const fechaStr = gasto.fecha || '';
+    const fechaDate = fechaStr.includes('T') ? new Date(fechaStr) : new Date(`${fechaStr}T12:00:00`);
+    const fecha = fechaDate.toLocaleDateString('es-AR', {
         day: '2-digit',
         month: 'short',
         year: 'numeric',
@@ -226,25 +229,28 @@ const GraficoDona = ({ datos, titulo }) => {
 
     const total = entradas.reduce((s, [, v]) => s + v.total, 0);
 
-    // Construir segmentos SVG
+    // Construir segmentos SVG acumulando el ángulo via reduce para no mutar variables en el map
     const radio = 80;
     const cx = 100;
     const cy = 100;
-    let angulo = -90;
-    const segmentos = entradas.map(([nombre, datos], i) => {
-        const pct = total > 0 ? datos.total / total : 0;
-        const grados = pct * 360;
-        const rad1 = (angulo * Math.PI) / 180;
-        const rad2 = ((angulo + grados) * Math.PI) / 180;
-        const x1 = cx + radio * Math.cos(rad1);
-        const y1 = cy + radio * Math.sin(rad1);
-        const x2 = cx + radio * Math.cos(rad2);
-        const y2 = cy + radio * Math.sin(rad2);
-        const largeArc = grados > 180 ? 1 : 0;
-        const path = `M ${cx} ${cy} L ${x1} ${y1} A ${radio} ${radio} 0 ${largeArc} 1 ${x2} ${y2} Z`;
-        angulo += grados;
-        return { nombre, total: datos.total, pct: pct * 100, path, color: COLORES[i % COLORES.length] };
-    });
+    const { segmentos } = entradas.reduce(
+        (acc, [nombre, datosEntry], i) => {
+            const pct = total > 0 ? datosEntry.total / total : 0;
+            const grados = pct * 360;
+            const rad1 = (acc.angulo * Math.PI) / 180;
+            const rad2 = ((acc.angulo + grados) * Math.PI) / 180;
+            const x1 = cx + radio * Math.cos(rad1);
+            const y1 = cy + radio * Math.sin(rad1);
+            const x2 = cx + radio * Math.cos(rad2);
+            const y2 = cy + radio * Math.sin(rad2);
+            const largeArc = grados > 180 ? 1 : 0;
+            const path = `M ${cx} ${cy} L ${x1} ${y1} A ${radio} ${radio} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+            acc.segmentos.push({ nombre, total: datosEntry.total, pct: pct * 100, path, color: COLORES[i % COLORES.length] });
+            acc.angulo += grados;
+            return acc;
+        },
+        { segmentos: [], angulo: -90 }
+    );
 
     if (entradas.length === 0) {
         return (
@@ -293,17 +299,10 @@ const TablaMovimientos = ({ gastos }) => {
     const POR_PAGINA = 15;
     const total = gastos.length;
     const totalPaginas = Math.ceil(total / POR_PAGINA);
-    const slice = gastos.slice(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA);
 
-    useEffect(() => {
-        setPagina(0);
-    }, [gastos]);
-
-    useEffect(() => {
-        if (totalPaginas > 0 && pagina > totalPaginas - 1) {
-            setPagina(totalPaginas - 1);
-        }
-    }, [pagina, totalPaginas]);
+    // Clampear la página actual sin useEffect para evitar renders en cascada
+    const paginaActual = Math.min(pagina, Math.max(0, totalPaginas - 1));
+    const slice = gastos.slice(paginaActual * POR_PAGINA, (paginaActual + 1) * POR_PAGINA);
 
     if (total === 0) {
         return (
@@ -338,7 +337,7 @@ const TablaMovimientos = ({ gastos }) => {
                         {slice.map(g => (
                             <tr key={g.id}>
                                 <td className="reporte-tabla-fecha">
-                                    {new Date(g.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                    {new Date(g.fecha?.includes('T') ? g.fecha : `${g.fecha}T12:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                                 </td>
                                 <td className="reporte-tabla-desc">{g.descripcion}</td>
                                 <td>
@@ -363,18 +362,18 @@ const TablaMovimientos = ({ gastos }) => {
                 <div className="reporte-tabla-paginacion">
                     <button
                         className="btn btn-secondary reporte-pag-btn"
-                        disabled={pagina === 0}
-                        onClick={() => setPagina(p => p - 1)}
+                        disabled={paginaActual === 0}
+                        onClick={() => setPagina(p => Math.max(0, p - 1))}
                     >
                         <span className="material-symbols-outlined">chevron_left</span>
                     </button>
                     <span className="reporte-pag-info">
-                        {pagina + 1} / {totalPaginas} — {total} movimientos
+                        {paginaActual + 1} / {totalPaginas} — {total} movimientos
                     </span>
                     <button
                         className="btn btn-secondary reporte-pag-btn"
-                        disabled={pagina >= totalPaginas - 1}
-                        onClick={() => setPagina(p => p + 1)}
+                        disabled={paginaActual >= totalPaginas - 1}
+                        onClick={() => setPagina(p => Math.min(totalPaginas - 1, p + 1))}
                     >
                         <span className="material-symbols-outlined">chevron_right</span>
                     </button>

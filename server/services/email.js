@@ -25,6 +25,19 @@ const crearTransporter = () => {
 };
 
 /**
+ * Escapa caracteres HTML para evitar inyección en el cuerpo del email.
+ */
+const escapeHtml = (val) => {
+    if (val === null || val === undefined) return '';
+    return String(val)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
+/**
  * Construye el HTML del email con la información de la notificación.
  */
 const buildEmailHtml = (notificacion) => {
@@ -62,9 +75,9 @@ const buildEmailHtml = (notificacion) => {
             .map(([k, v]) => `
                 <tr>
                     <td style="padding:6px 12px;font-size:13px;color:#64748b;font-weight:600;text-transform:capitalize;">
-                        ${k.replace(/_/g, ' ')}
+                        ${escapeHtml(k.replace(/_/g, ' '))}
                     </td>
-                    <td style="padding:6px 12px;font-size:13px;color:#0f172a;">${v}</td>
+                    <td style="padding:6px 12px;font-size:13px;color:#0f172a;">${escapeHtml(v)}</td>
                 </tr>`)
             .join('');
 
@@ -97,7 +110,7 @@ const buildEmailHtml = (notificacion) => {
                                 MisGastosApp
                             </p>
                             <h1 style="margin:8px 0 0;font-size:22px;font-weight:800;color:#ffffff;line-height:1.3;">
-                                ${icono} ${titulo}
+                                ${icono} ${escapeHtml(titulo)}
                             </h1>
                         </td>
                     </tr>
@@ -106,18 +119,18 @@ const buildEmailHtml = (notificacion) => {
                     <tr>
                         <td style="padding:28px 32px;">
                             <p style="margin:0 0 20px;font-size:16px;color:#0f172a;line-height:1.6;">
-                                ${mensaje}
+                                ${escapeHtml(mensaje)}
                             </p>
 
                             <!-- Metadatos básicos -->
                             <table style="width:100%;border-collapse:collapse;">
                                 <tr>
                                     <td style="padding:6px 0;font-size:12px;color:#64748b;font-weight:600;width:40%;">Tipo</td>
-                                    <td style="padding:6px 0;font-size:12px;color:#0f172a;text-transform:capitalize;">${tipo}</td>
+                                    <td style="padding:6px 0;font-size:12px;color:#0f172a;text-transform:capitalize;">${escapeHtml(tipo)}</td>
                                 </tr>
                                 <tr>
                                     <td style="padding:6px 0;font-size:12px;color:#64748b;font-weight:600;">Origen</td>
-                                    <td style="padding:6px 0;font-size:12px;color:#0f172a;text-transform:capitalize;">${origen}</td>
+                                    <td style="padding:6px 0;font-size:12px;color:#0f172a;text-transform:capitalize;">${escapeHtml(origen)}</td>
                                 </tr>
                                 <tr>
                                     <td style="padding:6px 0;font-size:12px;color:#64748b;font-weight:600;">Fecha</td>

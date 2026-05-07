@@ -102,6 +102,7 @@ const Movements = () => {
             });
         } catch (err) {
             console.error('❌ Error al eliminar el gasto:', err);
+            alert('No se pudo eliminar el gasto. Por favor, intentá de nuevo.');
         } finally {
             setEliminando(false);
         }

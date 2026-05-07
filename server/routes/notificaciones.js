@@ -61,7 +61,7 @@ router.post('/email', async (req, res) => {
     } catch (err) {
         // Error inesperado del servidor — nunca debe romper el flujo del cliente
         console.error('❌ Error inesperado en endpoint de email:', err.message);
-        return res.status(500).json({ ok: false, error: err.message });
+        return res.status(500).json({ ok: false, error: 'Error interno al procesar la solicitud' });
     }
 });
 

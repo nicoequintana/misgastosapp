@@ -132,12 +132,9 @@ const CurrencyInput = ({ value, onChange, placeholder, className = 'input', requ
             autoComplete="off"
             inputMode="decimal"
             onKeyDown={(e) => {
-                // Prevenir envío del formulario al presionar Enter si se desea
-                // El usuario dijo "a veces se cierra solo". Podrían ser envíos no deseados.
                 if (e.key === 'Enter') {
-                    e.preventDefault();
-                    // ¿Deberíamos activar el envío manualmente? 
-                    // Generalmente el envío implícito está bien, pero si se cierra inesperadamente, ¿quizás e.target.blur()?
+                    // Delegamos el submit al formulario padre para no romper el comportamiento nativo.
+                    e.target.closest('form')?.requestSubmit();
                 }
             }}
         />

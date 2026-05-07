@@ -44,10 +44,14 @@ const validateApiKey = (req, res, next) => {
     next();
 };
 
-// En producción Express sirve el frontend desde /public,
-// así que el origen del CORS es el propio servidor.
+// En producción, FRONTEND_URL es obligatorio. Un fallback a true abriría CORS a cualquier origen.
+if (isProduction && !process.env.FRONTEND_URL) {
+    console.error('❌ CRÍTICO: FRONTEND_URL no configurada en producción. El servidor no puede iniciarse de forma segura.');
+    process.exit(1);
+}
+
 const corsOrigin = isProduction
-    ? (process.env.FRONTEND_URL || true)
+    ? process.env.FRONTEND_URL
     : (process.env.FRONTEND_URL || 'http://localhost:5173');
 
 const corsOptions = {
@@ -172,6 +176,18 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
 
     try {
         if (isSupabaseConfigured) {
+            // Verificar que el user_id existe en auth.users antes de insertar.
+            // Esto evita que alguien con la API key inyecte gastos para cualquier UUID.
+            const { data: usuarioExiste, error: errorUser } = await supabase
+                .from('usuarios')
+                .select('id')
+                .eq('id', user_id)
+                .maybeSingle();
+
+            if (errorUser || !usuarioExiste) {
+                return res.status(400).json({ ok: false, error: 'user_id no corresponde a un usuario registrado' });
+            }
+
             // Verificar duplicados por fingerprint
             const { data: existing } = await supabase
                 .from('gastos')
@@ -233,12 +249,12 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
         }
     } catch (error) {
         console.error('❌ Error en integración n8n:', error);
-        // Notificar error en segundo plano
+        // Notificar error en segundo plano (el motivo interno no se expone al cliente)
         dispararNotificacionN8n(user_id, 'error', {
             ...expenseData,
             motivo: error.message,
         }, emailUsuario);
-        res.status(500).json({ ok: false, error: error.message });
+        res.status(500).json({ ok: false, error: 'Error interno al procesar el gasto' });
     }
 });
 

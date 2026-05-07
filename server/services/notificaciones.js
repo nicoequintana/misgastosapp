@@ -68,8 +68,8 @@ const determinarSiEnviarEmail = (notificacion, config) => {
                 metadata?.categoria !== undefined ||
                 metadata?.porcentaje_fijos !== undefined
             ) return !!config.email_alertas_gastos_fijos;
-            // Alerta de porcentaje de ingreso
-            return !!config.email_saldo_bajo;
+            // Alerta de porcentaje de ingreso — usa su propio toggle, no el de saldo bajo
+            return !!(config.email_alertas_gastos_fijos || config.email_saldo_bajo);
         }
 
         case 'proyeccion':

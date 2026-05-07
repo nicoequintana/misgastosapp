@@ -249,6 +249,7 @@ const Dashboard = () => {
             });
         } catch (err) {
             console.error('❌ Error al eliminar gastos variables:', err);
+            alert('No se pudieron eliminar los gastos variables. Por favor, intentá de nuevo.');
         } finally {
             setConfirmDeleteAll(false);
         }
