@@ -66,7 +66,7 @@ const InvitarMiembroModal = ({ grupoId, isOpen, onClose, onExito }) => {
                 return;
             }
 
-            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
             const response = await fetch(
                 `${backendUrl}/api/grupos/${grupoId}/usuarios/buscar?email=${encodeURIComponent(emailNormalizado)}`,
                 {
@@ -133,7 +133,7 @@ const InvitarMiembroModal = ({ grupoId, isOpen, onClose, onExito }) => {
                 return;
             }
 
-            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
             const response = await fetch(`${backendUrl}/api/grupos/${grupoId}/invitaciones`, {
                 method: 'POST',
                 headers: {
@@ -185,7 +185,7 @@ const InvitarMiembroModal = ({ grupoId, isOpen, onClose, onExito }) => {
                 return;
             }
 
-            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
             const response = await fetch(`${backendUrl}/api/grupos/${grupoId}/invitaciones/registro`, {
                 method: 'POST',
                 headers: {

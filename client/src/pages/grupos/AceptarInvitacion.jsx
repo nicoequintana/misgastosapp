@@ -41,7 +41,7 @@ const AceptarInvitacion = () => {
 
             // 2. Con sesión → aceptar en el backend
             try {
-                const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+                const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
                 const response = await fetch(`${backendUrl}/api/grupos/invitaciones/aceptar`, {
                     method: 'POST',
                     headers: {

@@ -928,7 +928,7 @@ export const obtenerMiembrosDelGrupo = async (grupoId) => {
         const token = sessionData?.session?.access_token;
         if (!token) return miembros;
 
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
         const response = await fetch(`${backendUrl}/api/grupos/${grupoId}/miembros/perfiles`, {
             headers: {
                 Authorization: `Bearer ${token}`,
