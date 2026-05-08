@@ -55,6 +55,10 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
     // Estado del modal de invitación
     const [mostrarInvitar, setMostrarInvitar] = useState(false);
 
+    // Estado de invitaciones pendientes (tab Miembros)
+    const [invitacionesPendientes, setInvitacionesPendientes] = useState([]);
+    const [cargandoInvitaciones, setCargandoInvitaciones] = useState(false);
+
     // Estado para eliminar grupo
     const [mostrarEliminar, setMostrarEliminar] = useState(false);
     const [eliminandoGrupo, setEliminandoGrupo] = useState(false);
@@ -109,6 +113,26 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
     useEffect(() => {
         if (tabActivo === 'gastos') {
             cargarGastos();
+        }
+    }, [tabActivo, id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Carga invitaciones pendientes cuando se activa el tab Miembros
+    const cargarInvitaciones = useCallback(async () => {
+        if (!id) return;
+        try {
+            setCargandoInvitaciones(true);
+            const data = await db.obtenerInvitacionesPendientes(id);
+            setInvitacionesPendientes(data || []);
+        } catch (err) {
+            console.error('Error al cargar invitaciones pendientes:', err);
+        } finally {
+            setCargandoInvitaciones(false);
+        }
+    }, [id]);
+
+    useEffect(() => {
+        if (tabActivo === 'miembros') {
+            cargarInvitaciones();
         }
     }, [tabActivo, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -397,6 +421,31 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                         )}
                     </div>
 
+                    {/* Invitaciones pendientes */}
+                    {!cargandoInvitaciones && invitacionesPendientes.length > 0 && (
+                        <div className="glass-card">
+                            <h2 className="grupo-detalle__subtitulo">
+                                Invitaciones pendientes ({invitacionesPendientes.length})
+                            </h2>
+                            <ul className="grupo-detalle__miembros-lista">
+                                {invitacionesPendientes.map((inv) => (
+                                    <li key={inv.id} className="grupo-detalle__miembro-item">
+                                        <div className="miembro-chip">
+                                            <div className="miembro-chip__avatar miembro-chip__avatar--pendiente">
+                                                {inv.email_invitado.charAt(0).toUpperCase()}
+                                            </div>
+                                            <span className="miembro-chip__nombre">{inv.email_invitado}</span>
+                                            <span className="miembro-chip__badge miembro-chip__badge--pendiente">Pendiente</span>
+                                        </div>
+                                        <span className="grupo-detalle__miembro-fecha">
+                                            Vence {formatearFecha(inv.fecha_expiracion)}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
                     {/* Modal de invitación — solo se monta si el usuario es admin */}
                     {esAdmin && (
                         <InvitarMiembroModal
@@ -406,6 +455,7 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                             onExito={() => {
                                 setMostrarInvitar(false);
                                 cargarDatos();
+                                cargarInvitaciones();
                             }}
                         />
                     )}

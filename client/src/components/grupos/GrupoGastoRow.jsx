@@ -1,45 +1,47 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ConfirmModal from '../ConfirmModal';
+import Modal from '../Modal';
+import * as db from '../../lib/db';
 
 /**
  * Fila que representa un gasto dentro de un grupo de gastos compartidos.
- * Muestra descripción, monto, pagador, fecha y estado.
- * El botón "Anular" solo es visible para el creador del gasto o un admin del grupo,
- * y solo cuando el gasto está activo.
+ * - Todos los miembros pueden ver el detalle (participantes y montos).
+ * - Solo el creador puede editar.
+ * - El creador o un admin pueden anular.
  *
  * @param {Object}   props
- * @param {Object}   props.gasto       - Datos del gasto: { id, descripcion, monto, pagado_por, fecha, estado, creado_por }
- * @param {Array}    props.miembros    - Lista de miembros del grupo para resolver alias del pagador
- * @param {string}   props.userId      - user_id del usuario autenticado actualmente
+ * @param {Object}   props.gasto       - { id, descripcion, monto, pagado_por, fecha, estado, creado_por }
+ * @param {Array}    props.miembros    - Lista de miembros del grupo para resolver nombres
+ * @param {string}   props.userId      - user_id del usuario autenticado
  * @param {boolean}  props.esAdmin     - true si el usuario actual es admin del grupo
  * @param {Function} props.onAnular    - Callback que recibe el gastoId al confirmar la anulación
  * @param {string}   props.grupoId     - ID del grupo (para construir la ruta de edición)
  */
 const GrupoGastoRow = ({ gasto, miembros = [], userId, esAdmin = false, onAnular, grupoId }) => {
     const navigate = useNavigate();
-    const [modalAbierto, setModalAbierto] = useState(false);
+    const [modalAnularAbierto, setModalAnularAbierto] = useState(false);
     const [anulando, setAnulando] = useState(false);
 
-    // Determina el nombre visible del pagador sin mostrar IDs.
-    const resolverAliasPagador = (pagadoPor) => {
-        const miembro = miembros.find((m) => m.user_id === pagadoPor);
-        if (miembro?.alias) return miembro.alias;
-        if (miembro?.nombre) return miembro.nombre;
-        return 'Usuario sin nombre';
-        };
+    // Estado del modal de detalle
+    const [modalDetalleAbierto, setModalDetalleAbierto] = useState(false);
+    const [detalle, setDetalle] = useState(null);
+    const [cargandoDetalle, setCargandoDetalle] = useState(false);
+    const [errorDetalle, setErrorDetalle] = useState(null);
 
-    // Formatea el monto con estilo argentino (ej: $ 1.234,56)
+    const resolverNombre = (userId) => {
+        const miembro = miembros.find((m) => m.user_id === userId);
+        return miembro?.alias?.trim() || miembro?.nombre?.trim() || 'Usuario sin nombre';
+    };
+
     const formatearMonto = (monto) =>
         `$ ${Number(monto).toLocaleString('es-AR', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
         })}`;
 
-    // Formatea la fecha en formato legible (ej: 07 de mayo de 2026)
     const formatearFecha = (fecha) => {
         if (!fecha) return '–';
-        // La fecha viene como DATE ('YYYY-MM-DD'): parseamos en UTC para evitar desfase de zona horaria
         const [año, mes, dia] = fecha.split('-');
         return new Date(Date.UTC(año, mes - 1, dia)).toLocaleDateString('es-AR', {
             day: '2-digit',
@@ -49,23 +51,35 @@ const GrupoGastoRow = ({ gasto, miembros = [], userId, esAdmin = false, onAnular
         });
     };
 
-    // Solo el creador puede editar el gasto
     const puedeEditar = gasto.estado === 'activo' && gasto.creado_por === userId;
-    // El creador o un admin pueden anular
     const puedeAnular = gasto.estado === 'activo' && (gasto.creado_por === userId || esAdmin);
+    const anulado = gasto.estado === 'anulado';
 
-    // Confirma y ejecuta la anulación
     const handleConfirmarAnulacion = async () => {
         try {
             setAnulando(true);
             await onAnular(gasto.id);
         } finally {
             setAnulando(false);
-            setModalAbierto(false);
+            setModalAnularAbierto(false);
         }
     };
 
-    const anulado = gasto.estado === 'anulado';
+    const handleAbrirDetalle = async () => {
+        setModalDetalleAbierto(true);
+        if (detalle) return; // Ya cargado anteriormente
+        try {
+            setCargandoDetalle(true);
+            setErrorDetalle(null);
+            const data = await db.obtenerGastoConParticipantes(gasto.id);
+            setDetalle(data);
+        } catch (err) {
+            console.error('Error al cargar detalle del gasto:', err);
+            setErrorDetalle('No se pudo cargar el detalle del gasto.');
+        } finally {
+            setCargandoDetalle(false);
+        }
+    };
 
     return (
         <>
@@ -74,7 +88,7 @@ const GrupoGastoRow = ({ gasto, miembros = [], userId, esAdmin = false, onAnular
                 <div className="grupo-gasto-row__main">
                     <span className="grupo-gasto-row__descripcion">{gasto.descripcion}</span>
                     <span className="grupo-gasto-row__pagador">
-                        Pagó {resolverAliasPagador(gasto.pagado_por)}
+                        Pagó {resolverNombre(gasto.pagado_por)}
                     </span>
                 </div>
 
@@ -89,35 +103,100 @@ const GrupoGastoRow = ({ gasto, miembros = [], userId, esAdmin = false, onAnular
                     )}
                 </div>
 
-                {/* Botones de acción: editar solo para el creador, anular para creador o admin */}
-                {(puedeEditar || puedeAnular) && (
-                    <div className="grupo-gasto-row__acciones">
-                        {puedeEditar && (
-                            <button
-                                className="btn btn-ghost grupo-gasto-row__btn-accion"
-                                onClick={() => navigate(`/grupos/${grupoId}/gastos/${gasto.id}/editar`)}
-                                title="Editar gasto"
-                            >
-                                <span className="material-symbols-outlined">edit</span>
-                            </button>
-                        )}
-                        {puedeAnular && (
-                            <button
-                                className="btn btn-ghost grupo-gasto-row__btn-accion grupo-gasto-row__btn-anular"
-                                onClick={() => setModalAbierto(true)}
-                                title="Anular gasto"
-                            >
-                                <span className="material-symbols-outlined">block</span>
-                            </button>
-                        )}
-                    </div>
-                )}
+                {/* Botones: detalle siempre visible, editar/anular según permisos */}
+                <div className="grupo-gasto-row__acciones">
+                    <button
+                        className="btn btn-ghost grupo-gasto-row__btn-accion"
+                        onClick={handleAbrirDetalle}
+                        title="Ver detalle"
+                    >
+                        <span className="material-symbols-outlined">info</span>
+                    </button>
+                    {puedeEditar && (
+                        <button
+                            className="btn btn-ghost grupo-gasto-row__btn-accion"
+                            onClick={() => navigate(`/grupos/${grupoId}/gastos/${gasto.id}/editar`)}
+                            title="Editar gasto"
+                        >
+                            <span className="material-symbols-outlined">edit</span>
+                        </button>
+                    )}
+                    {puedeAnular && (
+                        <button
+                            className="btn btn-ghost grupo-gasto-row__btn-accion grupo-gasto-row__btn-anular"
+                            onClick={() => setModalAnularAbierto(true)}
+                            title="Anular gasto"
+                        >
+                            <span className="material-symbols-outlined">block</span>
+                        </button>
+                    )}
+                </div>
             </div>
+
+            {/* Modal de detalle del gasto */}
+            <Modal
+                isOpen={modalDetalleAbierto}
+                onClose={() => setModalDetalleAbierto(false)}
+                title={gasto.descripcion}
+                subtitle={`${formatearMonto(gasto.monto)} · Pagó ${resolverNombre(gasto.pagado_por)}`}
+            >
+                <div className="grupo-gasto-detalle">
+                    {cargandoDetalle && (
+                        <div className="grupo-gasto-detalle__loading">
+                            <div className="loading-spinner" />
+                            <p>Cargando detalle...</p>
+                        </div>
+                    )}
+
+                    {errorDetalle && (
+                        <div className="form-banner-error">
+                            <span className="material-symbols-outlined">error_outline</span>
+                            {errorDetalle}
+                        </div>
+                    )}
+
+                    {detalle && !cargandoDetalle && (
+                        <>
+                            {detalle.nota && (
+                                <p className="grupo-gasto-detalle__nota">
+                                    <span className="material-symbols-outlined">note</span>
+                                    {detalle.nota}
+                                </p>
+                            )}
+
+                            <h4 className="grupo-gasto-detalle__titulo-seccion">División del gasto</h4>
+
+                            {detalle.participantes.length === 0 ? (
+                                <p className="grupo-detalle__empty-msg">Sin participantes registrados.</p>
+                            ) : (
+                                <ul className="grupo-gasto-detalle__participantes">
+                                    {detalle.participantes.map((p) => (
+                                        <li key={p.id} className="grupo-gasto-detalle__participante">
+                                            <div className="grupo-gasto-detalle__participante-avatar">
+                                                {resolverNombre(p.user_id).charAt(0).toUpperCase()}
+                                            </div>
+                                            <span className="grupo-gasto-detalle__participante-nombre">
+                                                {resolverNombre(p.user_id)}
+                                                {p.user_id === userId && (
+                                                    <span className="saldo-table__yo-label">Vos</span>
+                                                )}
+                                            </span>
+                                            <span className="grupo-gasto-detalle__participante-monto">
+                                                {formatearMonto(p.monto_asignado)}
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </>
+                    )}
+                </div>
+            </Modal>
 
             {/* Modal de confirmación de anulación */}
             <ConfirmModal
-                isOpen={modalAbierto}
-                onClose={() => setModalAbierto(false)}
+                isOpen={modalAnularAbierto}
+                onClose={() => setModalAnularAbierto(false)}
                 onConfirm={handleConfirmarAnulacion}
                 loading={anulando}
                 title="Anular gasto"
