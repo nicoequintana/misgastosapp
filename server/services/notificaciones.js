@@ -24,8 +24,15 @@ const procesarEnvioEmail = async (emailUsuario, notificacion, config) => {
         return { emailEnviado: false, emailError: null };
     }
 
-    // Si no hay config o email deshabilitado globalmente, no enviar
-    if (!config?.email_habilitado || !emailUsuario) {
+    // Notificaciones transaccionales (grupos) se envían siempre, sin importar config
+    const esTransaccional = notificacion?.origen === 'grupos';
+
+    // Si no hay config o email deshabilitado globalmente, no enviar (salvo transaccionales)
+    if (!esTransaccional && (!config?.email_habilitado || !emailUsuario)) {
+        return { emailEnviado: false, emailError: null };
+    }
+
+    if (!emailUsuario) {
         return { emailEnviado: false, emailError: null };
     }
 
@@ -88,6 +95,9 @@ const determinarSiEnviarEmail = (notificacion, config) => {
             if (metadata?.mes !== undefined) return !!config.email_resumen_mensual;
             return false;
         }
+
+        case 'grupos':
+            return true;
 
         // gastos, app, sistema, manual → no enviar email por defecto
         default:

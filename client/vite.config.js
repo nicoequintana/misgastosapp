@@ -50,6 +50,9 @@ export default defineConfig({
   base: '/',
   server: {
     historyApiFallback: true,
+    proxy: {
+      '/api': 'http://localhost:3001',
+    },
   },
   build: {
     outDir: 'dist',

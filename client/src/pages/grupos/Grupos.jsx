@@ -61,16 +61,18 @@ const Grupos = () => {
 
     return (
         <div className="grupos-page">
-            {/* Encabezado con título y botón de acción */}
+            {/* Encabezado con título y botón solo cuando ya hay grupos */}
             <div className="grupos-page__header">
                 <h1 className="grupos-page__titulo">Grupos</h1>
-                <button
-                    className="btn btn-primary"
-                    onClick={handleNuevoGrupo}
-                >
-                    <span className="material-symbols-outlined">group_add</span>
-                    Nuevo grupo
-                </button>
+                {grupos.length > 0 && (
+                    <button
+                        className="btn btn-primary"
+                        onClick={handleNuevoGrupo}
+                    >
+                        <span className="material-symbols-outlined">group_add</span>
+                        Nuevo grupo
+                    </button>
+                )}
             </div>
 
             {/* Banner de error */}

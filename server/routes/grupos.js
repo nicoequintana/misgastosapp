@@ -1,6 +1,8 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const { enviarEmailInvitacionGrupo, enviarEmailInvitacionRegistro } = require('../services/email');
+const { persistirNotificacion, actualizarEstadoEmailDb, getConfigUsuario } = require('../services/notificacionesDb');
+const { procesarEnvioEmail } = require('../services/notificaciones');
 
 const router = express.Router();
 
@@ -574,12 +576,37 @@ router.post('/invitaciones/aceptar', requireAuth, async (req, res) => {
 router.delete('/:grupoId', requireAuth, async (req, res) => {
     const { grupoId } = req.params;
     const userId = req.user.id;
-
     const supabaseAdmin = req.supabaseAdmin;
 
     try {
-        // Verificar que el solicitante es admin del grupo
-        await validarAdminGrupo(supabaseAdmin, grupoId, userId);
+        // Verificar que el solicitante es miembro activo del grupo
+        const { data: membresia, error: errMembresia } = await supabaseAdmin
+            .from('grupo_miembros')
+            .select('id')
+            .eq('grupo_id', grupoId)
+            .eq('user_id', userId)
+            .eq('estado', 'activo')
+            .maybeSingle();
+
+        if (errMembresia) {
+            console.error('❌ Error al verificar membresía:', errMembresia.message);
+            return res.status(500).json({ ok: false, error: 'Error al verificar membresía' });
+        }
+
+        if (!membresia) {
+            return res.status(403).json({ ok: false, error: 'No sos miembro activo de este grupo' });
+        }
+
+        // Obtener datos del grupo y miembros activos antes de eliminar
+        const [{ data: grupo, error: errGrupo }, { data: miembros, error: errMiembros }] = await Promise.all([
+            supabaseAdmin.from('grupos_gastos').select('id, nombre').eq('id', grupoId).maybeSingle(),
+            supabaseAdmin.from('grupo_miembros').select('user_id').eq('grupo_id', grupoId).eq('estado', 'activo'),
+        ]);
+
+        if (errGrupo || errMiembros) {
+            console.error('❌ Error al obtener datos del grupo:', errGrupo?.message || errMiembros?.message);
+            return res.status(500).json({ ok: false, error: 'Error al obtener datos del grupo' });
+        }
 
         // Verificar que todos los saldos netos son cero
         const { data: saldos, error: errSaldos } = await supabaseAdmin
@@ -600,9 +627,18 @@ router.delete('/:grupoId', requireAuth, async (req, res) => {
             });
         }
 
-        // Eliminar el grupo — RLS y FK CASCADE se encargan del resto
+        // Obtener nombre del usuario que elimina para la notificación
+        let nombreEliminador = null;
+        try {
+            const { data: authData } = await supabaseAdmin.auth.admin.getUserById(userId);
+            nombreEliminador = nombreDesdeAuthUser(authData?.user) || req.user.email?.split('@')[0] || 'Un miembro';
+        } catch {
+            nombreEliminador = 'Un miembro';
+        }
+
+        // Eliminar el grupo — FK CASCADE elimina miembros, gastos, invitaciones
         const { error: errDel } = await supabaseAdmin
-            .from('grupos')
+            .from('grupos_gastos')
             .delete()
             .eq('id', grupoId);
 
@@ -611,12 +647,40 @@ router.delete('/:grupoId', requireAuth, async (req, res) => {
             return res.status(500).json({ ok: false, error: 'No se pudo eliminar el grupo' });
         }
 
+        // Notificar a todos los miembros — fire-and-forget, nunca interrumpe la respuesta
+        const nombreGrupo = grupo?.nombre || 'Grupo eliminado';
+        const notificacion = {
+            titulo:  'Grupo eliminado',
+            mensaje: `El grupo "${nombreGrupo}" fue eliminado por ${nombreEliminador}.`,
+            tipo:    'warning',
+            origen:  'grupos',
+            metadata: { grupo: nombreGrupo, eliminado_por: nombreEliminador },
+        };
+
+        Promise.allSettled((miembros || []).map(async (m) => {
+            const creada = await persistirNotificacion(m.user_id, notificacion);
+            if (!creada) return;
+
+            try {
+                const { data: authData } = await supabaseAdmin.auth.admin.getUserById(m.user_id);
+                const emailMiembro = authData?.user?.email || null;
+                if (!emailMiembro) return;
+
+                const config = await getConfigUsuario(m.user_id);
+                if (!config?.email_habilitado) return;
+
+                const { emailEnviado, emailError } = await procesarEnvioEmail(emailMiembro, creada, config);
+                await actualizarEstadoEmailDb(creada.id, emailEnviado, emailError || null);
+            } catch (err) {
+                console.error(`❌ Error al notificar miembro ${m.user_id}:`, err.message);
+            }
+        })).catch(() => {});
+
         return res.json({ ok: true });
 
     } catch (err) {
-        const status = err.message?.includes('permisos') || err.message?.includes('admin') ? 403 : 500;
         console.error('❌ Error en DELETE /grupos/:grupoId:', err.message);
-        return res.status(status).json({ ok: false, error: err.message || 'Error interno al eliminar el grupo' });
+        return res.status(500).json({ ok: false, error: err.message || 'Error interno al eliminar el grupo' });
     }
 });
 

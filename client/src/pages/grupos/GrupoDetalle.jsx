@@ -156,6 +156,11 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
         [miembros, user?.id]
     );
 
+    const esMiembro = useMemo(
+        () => miembros.some((m) => m.user_id === user?.id && m.estado === 'activo'),
+        [miembros, user?.id]
+    );
+
     // ── Estado de carga ──
     if (cargando) {
         return (
@@ -270,8 +275,8 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                         </div>
                     </div>
 
-                    {/* Zona de peligro: eliminar grupo (solo admin) */}
-                    {esAdmin && (
+                    {/* Zona de peligro: eliminar grupo (cualquier miembro activo) */}
+                    {esMiembro && (
                         <div className="glass-card grupo-detalle__zona-peligro">
                             <h2 className="grupo-detalle__subtitulo grupo-detalle__subtitulo--peligro">
                                 Zona de peligro

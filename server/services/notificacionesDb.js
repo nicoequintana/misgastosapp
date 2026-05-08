@@ -50,11 +50,12 @@ const persistirNotificacion = async (userId, notificacion) => {
 const actualizarEstadoEmailDb = async (notificacionId, enviado, errorMsg = null) => {
     if (!notificacionId) return;
 
-    await supabaseAdmin
+    const { error } = await supabaseAdmin
         .from('notificaciones')
         .update({ email_enviado: enviado, email_error: errorMsg })
-        .eq('id', notificacionId)
-        .catch(err => console.warn('⚠️ No se pudo actualizar estado email:', err.message));
+        .eq('id', notificacionId);
+
+    if (error) console.warn('⚠️ No se pudo actualizar estado email:', error.message);
 };
 
 /**
