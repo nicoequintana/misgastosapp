@@ -1125,9 +1125,6 @@ export const crearGastoGrupal = async ({
     idCategoria,
     participantesUserIds,
 }) => {
-    const usuario = await obtenerUsuarioActivo();
-
-    // Validaciones básicas
     if (!grupoId) throw new Error('ID de grupo requerido');
     if (!descripcion || !descripcion.trim()) throw new Error('La descripción es requerida');
     const montoNum = Number(monto);
@@ -1136,64 +1133,20 @@ export const crearGastoGrupal = async ({
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         throw new Error('Debe haber al menos un participante');
     }
-    // Deduplicar — previene duplicate key constraint en grupo_gasto_participantes
-    const participantesUnicos = [...new Set(participantesUserIds)];
 
-    // Paso 1: INSERT en grupo_gastos
-    const { data: gasto, error: errGasto } = await supabase
-        .from('grupo_gastos')
-        .insert([{
-            grupo_id: grupoId,
-            descripcion: descripcion.trim().toUpperCase(),
-            monto: montoNum,
-            pagado_por: pagadoPor,
-            fecha: fecha || new Date().toISOString().split('T')[0],
-            nota: nota?.trim() || null,
-            id_categoria: idCategoria || null,
-            creado_por: usuario.id,
-        }])
-        .select()
-        .single();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('No hay sesión activa');
 
-    if (errGasto) throw new Error(errGasto.message);
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
+    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/gastos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, nota, idCategoria, participantesUserIds }),
+    });
 
-    // Paso 2: Calcular división igualitaria con ajuste de centavos
-    const n = participantesUnicos.length;
-    // Base redondeada hacia abajo a 2 decimales
-    const base = Math.floor((montoNum / n) * 100) / 100;
-    // La diferencia total de centavos por redondeo
-    const diferencia = Math.round((montoNum - base * n) * 100) / 100;
-
-    // El ajuste de centavos va al pagador si es participante, sino al primer participante
-    const indexAjuste = participantesUnicos.indexOf(pagadoPor) !== -1
-        ? participantesUnicos.indexOf(pagadoPor)
-        : 0;
-
-    const filasParticipantes = participantesUnicos.map((uid, idx) => ({
-        gasto_id: gasto.id,
-        user_id: uid,
-        monto_asignado: idx === indexAjuste
-            ? Math.round((base + diferencia) * 100) / 100
-            : base,
-    }));
-
-    // Paso 3: INSERT batch en grupo_gasto_participantes
-    const { data: participantes, error: errPart } = await supabase
-        .from('grupo_gasto_participantes')
-        .insert(filasParticipantes)
-        .select();
-
-    if (errPart) {
-        // Paso 4: Si falla, anular el gasto (best effort — no relanzar el error de anulación)
-        await supabase
-            .from('grupo_gastos')
-            .update({ estado: 'anulado', anulado_en: new Date().toISOString(), anulado_por: usuario.id })
-            .eq('id', gasto.id);
-
-        throw new Error(`Error al registrar participantes: ${errPart.message}`);
-    }
-
-    return { gasto, participantes };
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Error al crear el gasto');
+    return { gasto: json.gasto, participantes: json.participantes };
 };
 
 /**
@@ -1255,22 +1208,21 @@ export const obtenerGastoConParticipantes = async (gastoId) => {
  *
  * @param {number} gastoId - ID del gasto a anular
  */
-export const anularGastoGrupal = async (gastoId) => {
+export const anularGastoGrupal = async (gastoId, grupoId) => {
     if (!gastoId) throw new Error('ID de gasto inválido');
+    if (!grupoId) throw new Error('ID de grupo inválido');
 
-    const usuario = await obtenerUsuarioActivo();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('No hay sesión activa');
 
-    const { error } = await supabase
-        .from('grupo_gastos')
-        .update({
-            estado: 'anulado',
-            anulado_en: new Date().toISOString(),
-            anulado_por: usuario.id,
-        })
-        .eq('id', gastoId)
-        .eq('estado', 'activo');
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
+    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/gastos/${gastoId}/anular`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    });
 
-    if (error) throw new Error(error.message);
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Error al anular el gasto');
 };
 
 /**
@@ -1282,79 +1234,26 @@ export const anularGastoGrupal = async (gastoId) => {
  * @param {Object} campos - Campos a actualizar: descripcion, monto, pagadoPor, fecha, idCategoria, nota, participantesUserIds
  * @returns {Object} El gasto actualizado con los nuevos participantes
  */
-export const actualizarGastoGrupal = async (gastoId, { descripcion, monto, pagadoPor, fecha, idCategoria, nota, participantesUserIds }) => {
+export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, monto, pagadoPor, fecha, idCategoria, nota, participantesUserIds }) => {
     if (!gastoId) throw new Error('ID de gasto inválido');
+    if (!grupoId) throw new Error('ID de grupo inválido');
     if (!participantesUserIds?.length) throw new Error('Se requiere al menos un participante');
-
-    await obtenerUsuarioActivo();
-
-    // Deduplicar — previene duplicate key constraint en grupo_gasto_participantes
-    const participantesUnicos = [...new Set(participantesUserIds)];
-
     const montoNum = Number(monto);
     if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
 
-    // Paso 1: UPDATE en grupo_gastos
-    const { data: gasto, error: errUpdate } = await supabase
-        .from('grupo_gastos')
-        .update({
-            descripcion: descripcion.trim().toUpperCase(),
-            monto: montoNum,
-            pagado_por: pagadoPor,
-            fecha: fecha || new Date().toISOString().split('T')[0],
-            nota: nota?.trim() || null,
-            id_categoria: idCategoria || null,
-        })
-        .eq('id', gastoId)
-        .eq('estado', 'activo')
-        .select()
-        .maybeSingle();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('No hay sesión activa');
 
-    if (errUpdate) throw new Error(errUpdate.message);
-    if (!gasto) throw new Error('El gasto no existe o ya fue anulado');
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
+    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/gastos/${gastoId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, idCategoria, nota, participantesUserIds }),
+    });
 
-    // Paso 2: Eliminar participantes anteriores (ON DELETE CASCADE los borraría con el gasto,
-    // pero aquí solo queremos remplazar la lista manteniendo el gasto activo)
-    const { error: errDel } = await supabase
-        .from('grupo_gasto_participantes')
-        .delete()
-        .eq('gasto_id', gastoId);
-
-    if (errDel) throw new Error(`Error al limpiar participantes: ${errDel.message}`);
-
-    // Paso 3: Recalcular división igualitaria con ajuste de centavos
-    const n = participantesUnicos.length;
-    const base = Math.floor((montoNum / n) * 100) / 100;
-    const diferencia = Math.round((montoNum - base * n) * 100) / 100;
-    const indexAjuste = participantesUnicos.indexOf(pagadoPor) !== -1
-        ? participantesUnicos.indexOf(pagadoPor)
-        : 0;
-
-    const filasParticipantes = participantesUnicos.map((uid, idx) => ({
-        gasto_id: gasto.id,
-        user_id: uid,
-        monto_asignado: idx === indexAjuste
-            ? Math.round((base + diferencia) * 100) / 100
-            : base,
-    }));
-
-    // Paso 4: INSERT nuevos participantes
-    const { data: participantes, error: errPart } = await supabase
-        .from('grupo_gasto_participantes')
-        .insert(filasParticipantes)
-        .select();
-
-    if (errPart) {
-        // Si el INSERT falla, revertir el UPDATE para no dejar el gasto huérfano.
-        // El error del revert es secundario — se relanza el error original.
-        await supabase
-            .from('grupo_gastos')
-            .update({ estado: 'anulado' })
-            .eq('id', gastoId);
-        throw new Error(`Error al registrar participantes: ${errPart.message}`);
-    }
-
-    return { gasto, participantes };
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Error al actualizar el gasto');
+    return { gasto: json.gasto, participantes: json.participantes };
 };
 
 /**
@@ -1399,31 +1298,25 @@ export const eliminarGrupo = async (grupoId) => {
  * @returns {Object} La liquidación creada
  */
 export const registrarLiquidacion = async ({ grupoId, deUserId, paraUserId, monto, fecha, nota }) => {
-    const usuario = await obtenerUsuarioActivo();
-
     if (!grupoId) throw new Error('ID de grupo requerido');
     if (!deUserId || !paraUserId) throw new Error('deUserId y paraUserId son requeridos');
     if (deUserId === paraUserId) throw new Error('El pagador y el receptor no pueden ser la misma persona');
     const montoNum = Number(monto);
     if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
 
-    const { data, error } = await supabase
-        .from('grupo_liquidaciones')
-        .insert([{
-            grupo_id: grupoId,
-            de_user_id: deUserId,
-            para_user_id: paraUserId,
-            monto: montoNum,
-            fecha: fecha || new Date().toISOString().split('T')[0],
-            nota: nota?.trim() || null,
-            estado: 'confirmada',
-            registrado_por: usuario.id,
-        }])
-        .select()
-        .single();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('No hay sesión activa');
 
-    if (error) throw new Error(error.message);
-    return data;
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
+    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/liquidaciones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ deUserId, paraUserId, monto: montoNum, fecha, nota }),
+    });
+
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Error al registrar la liquidación');
+    return json.liquidacion;
 };
 
 /**
@@ -1452,19 +1345,21 @@ export const obtenerLiquidacionesDelGrupo = async (grupoId) => {
  *
  * @param {number} liquidacionId - ID de la liquidación a anular
  */
-export const anularLiquidacion = async (liquidacionId) => {
+export const anularLiquidacion = async (liquidacionId, grupoId) => {
     if (!liquidacionId) throw new Error('ID de liquidación inválido');
+    if (!grupoId) throw new Error('ID de grupo inválido');
 
-    const { error } = await supabase
-        .from('grupo_liquidaciones')
-        .update({
-            estado: 'anulada',
-            anulada_en: new Date().toISOString(),
-        })
-        .eq('id', liquidacionId)
-        .eq('estado', 'confirmada');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('No hay sesión activa');
 
-    if (error) throw new Error(error.message);
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
+    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/liquidaciones/${liquidacionId}/anular`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    });
+
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Error al anular la liquidación');
 };
 
 // --- 2.6 Saldos ---

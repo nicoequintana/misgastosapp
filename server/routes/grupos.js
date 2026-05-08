@@ -2,7 +2,7 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const { enviarEmailInvitacionGrupo, enviarEmailInvitacionRegistro } = require('../services/email');
 const { persistirNotificacion, actualizarEstadoEmailDb, getConfigUsuario } = require('../services/notificacionesDb');
-const { procesarEnvioEmail } = require('../services/notificaciones');
+const { procesarEnvioEmail, buildNotificacionGrupo } = require('../services/notificaciones');
 
 const router = express.Router();
 
@@ -681,6 +681,370 @@ router.delete('/:grupoId', requireAuth, async (req, res) => {
     } catch (err) {
         console.error('❌ Error en DELETE /grupos/:grupoId:', err.message);
         return res.status(500).json({ ok: false, error: err.message || 'Error interno al eliminar el grupo' });
+    }
+});
+
+// ───────────────────────────────────────────────
+// Helper: notifica a todos los miembros activos de un grupo (fire-and-forget)
+// ───────────────────────────────────────────────
+const notificarMiembros = (supabaseAdmin, grupoId, notificacion, excluirUserId = null) => {
+    Promise.resolve().then(async () => {
+        try {
+            const { data: miembros } = await supabaseAdmin
+                .from('grupo_miembros')
+                .select('user_id')
+                .eq('grupo_id', grupoId)
+                .eq('estado', 'activo');
+
+            await Promise.allSettled((miembros || [])
+                .filter((m) => m.user_id !== excluirUserId)
+                .map(async (m) => {
+                    const creada = await persistirNotificacion(m.user_id, notificacion);
+                    if (!creada) return;
+
+                    const { data: authData } = await supabaseAdmin.auth.admin.getUserById(m.user_id);
+                    const emailMiembro = authData?.user?.email || null;
+                    if (!emailMiembro) return;
+
+                    const config = await getConfigUsuario(m.user_id);
+                    const { emailEnviado, emailError } = await procesarEnvioEmail(emailMiembro, creada, config);
+                    await actualizarEstadoEmailDb(creada.id, emailEnviado, emailError || null);
+                })
+            );
+        } catch (err) {
+            console.error('❌ Error en notificarMiembros:', err.message);
+        }
+    });
+};
+
+// ───────────────────────────────────────────────
+// Helpers de cálculo de división igualitaria
+// ───────────────────────────────────────────────
+const calcularParticipantes = (gastoId, montoNum, pagadoPor, participantesUnicos) => {
+    const n = participantesUnicos.length;
+    const base = Math.floor((montoNum / n) * 100) / 100;
+    const diferencia = Math.round((montoNum - base * n) * 100) / 100;
+    const indexAjuste = participantesUnicos.indexOf(pagadoPor) !== -1
+        ? participantesUnicos.indexOf(pagadoPor)
+        : 0;
+
+    return participantesUnicos.map((uid, idx) => ({
+        gasto_id: gastoId,
+        user_id: uid,
+        monto_asignado: idx === indexAjuste
+            ? Math.round((base + diferencia) * 100) / 100
+            : base,
+    }));
+};
+
+// ─────────────────────────────────────────────
+// POST /api/grupos/:grupoId/gastos — Crea un gasto grupal
+// ─────────────────────────────────────────────
+router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
+    const { grupoId } = req.params;
+    const { supabaseAdmin, user } = req;
+    const { descripcion, monto, pagadoPor, fecha, nota, idCategoria, participantesUserIds } = req.body;
+
+    if (!descripcion?.trim()) return res.status(400).json({ ok: false, error: 'La descripción es requerida' });
+    const montoNum = Number(monto);
+    if (isNaN(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
+    if (!pagadoPor) return res.status(400).json({ ok: false, error: 'El pagador es requerido' });
+    if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
+        return res.status(400).json({ ok: false, error: 'Se requiere al menos un participante' });
+    }
+
+    try {
+        // Verificar membresía activa
+        const { data: membresia } = await supabaseAdmin
+            .from('grupo_miembros').select('id')
+            .eq('grupo_id', grupoId).eq('user_id', user.id).eq('estado', 'activo').maybeSingle();
+        if (!membresia) return res.status(403).json({ ok: false, error: 'No sos miembro activo de este grupo' });
+
+        const participantesUnicos = [...new Set(participantesUserIds)];
+
+        const { data: gasto, error: errGasto } = await supabaseAdmin
+            .from('grupo_gastos')
+            .insert([{
+                grupo_id:     Number(grupoId),
+                descripcion:  descripcion.trim().toUpperCase(),
+                monto:        montoNum,
+                pagado_por:   pagadoPor,
+                fecha:        fecha || new Date().toISOString().split('T')[0],
+                nota:         nota?.trim() || null,
+                id_categoria: idCategoria || null,
+                creado_por:   user.id,
+            }])
+            .select()
+            .single();
+
+        if (errGasto) {
+            console.error('❌ Error al crear gasto grupal:', errGasto.message);
+            return res.status(500).json({ ok: false, error: 'Error al crear el gasto' });
+        }
+
+        const filas = calcularParticipantes(gasto.id, montoNum, pagadoPor, participantesUnicos);
+        const { data: participantes, error: errPart } = await supabaseAdmin
+            .from('grupo_gasto_participantes').insert(filas).select();
+
+        if (errPart) {
+            // Rollback: anular el gasto huérfano
+            await supabaseAdmin.from('grupo_gastos')
+                .update({ estado: 'anulado', anulado_en: new Date().toISOString(), anulado_por: user.id })
+                .eq('id', gasto.id);
+            console.error('❌ Error al insertar participantes:', errPart.message);
+            return res.status(500).json({ ok: false, error: `Error al registrar participantes: ${errPart.message}` });
+        }
+
+        // Obtener datos del grupo y nombre del actor para notificación
+        const [{ data: grupo }, { data: authData }] = await Promise.all([
+            supabaseAdmin.from('grupos_gastos').select('nombre').eq('id', grupoId).maybeSingle(),
+            supabaseAdmin.auth.admin.getUserById(user.id),
+        ]);
+        const actorNombre = nombreDesdeAuthUser(authData?.user) || user.email?.split('@')[0] || 'Un miembro';
+
+        notificarMiembros(supabaseAdmin, grupoId, buildNotificacionGrupo('gasto_creado', {
+            grupoNombre: grupo?.nombre || '',
+            actorNombre,
+            descripcion: gasto.descripcion,
+            monto:       gasto.monto,
+        }), user.id);
+
+        return res.status(201).json({ ok: true, gasto, participantes });
+    } catch (err) {
+        console.error('❌ Error en POST /gastos:', err.message);
+        return res.status(500).json({ ok: false, error: err.message || 'Error interno' });
+    }
+});
+
+// ─────────────────────────────────────────────
+// PUT /api/grupos/:grupoId/gastos/:gastoId — Edita un gasto grupal
+// ─────────────────────────────────────────────
+router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
+    const { grupoId, gastoId } = req.params;
+    const { supabaseAdmin, user } = req;
+    const { descripcion, monto, pagadoPor, fecha, nota, idCategoria, participantesUserIds } = req.body;
+
+    if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
+        return res.status(400).json({ ok: false, error: 'Se requiere al menos un participante' });
+    }
+    const montoNum = Number(monto);
+    if (isNaN(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
+
+    try {
+        // Solo el creador puede editar (RLS + validación explícita)
+        const { data: gastoActual } = await supabaseAdmin
+            .from('grupo_gastos').select('id, creado_por, descripcion, monto')
+            .eq('id', gastoId).eq('estado', 'activo').maybeSingle();
+        if (!gastoActual) return res.status(404).json({ ok: false, error: 'Gasto no encontrado o ya anulado' });
+        if (gastoActual.creado_por !== user.id) return res.status(403).json({ ok: false, error: 'Solo quien cargó el gasto puede editarlo' });
+
+        const participantesUnicos = [...new Set(participantesUserIds)];
+
+        const { data: gasto, error: errUpdate } = await supabaseAdmin
+            .from('grupo_gastos')
+            .update({
+                descripcion:  descripcion.trim().toUpperCase(),
+                monto:        montoNum,
+                pagado_por:   pagadoPor,
+                fecha:        fecha || new Date().toISOString().split('T')[0],
+                nota:         nota?.trim() || null,
+                id_categoria: idCategoria || null,
+            })
+            .eq('id', gastoId)
+            .eq('estado', 'activo')
+            .select()
+            .maybeSingle();
+
+        if (errUpdate) return res.status(500).json({ ok: false, error: errUpdate.message });
+        if (!gasto) return res.status(404).json({ ok: false, error: 'El gasto no existe o ya fue anulado' });
+
+        const { error: errDel } = await supabaseAdmin
+            .from('grupo_gasto_participantes').delete().eq('gasto_id', gastoId);
+        if (errDel) return res.status(500).json({ ok: false, error: `Error al limpiar participantes: ${errDel.message}` });
+
+        const filas = calcularParticipantes(gasto.id, montoNum, pagadoPor, participantesUnicos);
+        const { data: participantes, error: errPart } = await supabaseAdmin
+            .from('grupo_gasto_participantes').insert(filas).select();
+
+        if (errPart) {
+            await supabaseAdmin.from('grupo_gastos')
+                .update({ estado: 'anulado' }).eq('id', gastoId);
+            return res.status(500).json({ ok: false, error: `Error al registrar participantes: ${errPart.message}` });
+        }
+
+        const [{ data: grupo }, { data: authData }] = await Promise.all([
+            supabaseAdmin.from('grupos_gastos').select('nombre').eq('id', grupoId).maybeSingle(),
+            supabaseAdmin.auth.admin.getUserById(user.id),
+        ]);
+        const actorNombre = nombreDesdeAuthUser(authData?.user) || user.email?.split('@')[0] || 'Un miembro';
+
+        notificarMiembros(supabaseAdmin, grupoId, buildNotificacionGrupo('gasto_editado', {
+            grupoNombre: grupo?.nombre || '',
+            actorNombre,
+            descripcion: gasto.descripcion,
+            monto:       gasto.monto,
+        }), user.id);
+
+        return res.json({ ok: true, gasto, participantes });
+    } catch (err) {
+        console.error('❌ Error en PUT /gastos/:gastoId:', err.message);
+        return res.status(500).json({ ok: false, error: err.message || 'Error interno' });
+    }
+});
+
+// ─────────────────────────────────────────────
+// PATCH /api/grupos/:grupoId/gastos/:gastoId/anular — Anula un gasto grupal
+// ─────────────────────────────────────────────
+router.patch('/:grupoId/gastos/:gastoId/anular', requireAuth, async (req, res) => {
+    const { grupoId, gastoId } = req.params;
+    const { supabaseAdmin, user } = req;
+
+    try {
+        // Verificar que existe y obtener datos para la notificación
+        const { data: gastoActual } = await supabaseAdmin
+            .from('grupo_gastos').select('id, creado_por, descripcion, monto, estado')
+            .eq('id', gastoId).maybeSingle();
+        if (!gastoActual) return res.status(404).json({ ok: false, error: 'Gasto no encontrado' });
+        if (gastoActual.estado !== 'activo') return res.status(409).json({ ok: false, error: 'El gasto ya está anulado' });
+
+        // Verificar permisos: creador o admin del grupo
+        const esAdmin = await validarAdminGrupo(supabaseAdmin, grupoId, user.id);
+        if (gastoActual.creado_por !== user.id && !esAdmin) {
+            return res.status(403).json({ ok: false, error: 'Solo quien cargó el gasto o un admin puede anularlo' });
+        }
+
+        const { error: errAnular } = await supabaseAdmin
+            .from('grupo_gastos')
+            .update({ estado: 'anulado', anulado_en: new Date().toISOString(), anulado_por: user.id })
+            .eq('id', gastoId)
+            .eq('estado', 'activo');
+
+        if (errAnular) return res.status(500).json({ ok: false, error: errAnular.message });
+
+        const [{ data: grupo }, { data: authData }] = await Promise.all([
+            supabaseAdmin.from('grupos_gastos').select('nombre').eq('id', grupoId).maybeSingle(),
+            supabaseAdmin.auth.admin.getUserById(user.id),
+        ]);
+        const actorNombre = nombreDesdeAuthUser(authData?.user) || user.email?.split('@')[0] || 'Un miembro';
+
+        notificarMiembros(supabaseAdmin, grupoId, buildNotificacionGrupo('gasto_anulado', {
+            grupoNombre: grupo?.nombre || '',
+            actorNombre,
+            descripcion: gastoActual.descripcion,
+            monto:       gastoActual.monto,
+        }), user.id);
+
+        return res.json({ ok: true });
+    } catch (err) {
+        console.error('❌ Error en PATCH /gastos/:gastoId/anular:', err.message);
+        return res.status(500).json({ ok: false, error: err.message || 'Error interno' });
+    }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/grupos/:grupoId/liquidaciones — Registra una liquidación
+// ─────────────────────────────────────────────
+router.post('/:grupoId/liquidaciones', requireAuth, async (req, res) => {
+    const { grupoId } = req.params;
+    const { supabaseAdmin, user } = req;
+    const { deUserId, paraUserId, monto, fecha, nota } = req.body;
+
+    if (!deUserId || !paraUserId) return res.status(400).json({ ok: false, error: 'deUserId y paraUserId son requeridos' });
+    if (deUserId === paraUserId) return res.status(400).json({ ok: false, error: 'El pagador y el receptor no pueden ser la misma persona' });
+    const montoNum = Number(monto);
+    if (isNaN(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
+
+    try {
+        // Verificar membresía activa
+        const { data: membresia } = await supabaseAdmin
+            .from('grupo_miembros').select('id')
+            .eq('grupo_id', grupoId).eq('user_id', user.id).eq('estado', 'activo').maybeSingle();
+        if (!membresia) return res.status(403).json({ ok: false, error: 'No sos miembro activo de este grupo' });
+
+        const { data: liquidacion, error: errLiq } = await supabaseAdmin
+            .from('grupo_liquidaciones')
+            .insert([{
+                grupo_id:      Number(grupoId),
+                de_user_id:    deUserId,
+                para_user_id:  paraUserId,
+                monto:         montoNum,
+                fecha:         fecha || new Date().toISOString().split('T')[0],
+                nota:          nota?.trim() || null,
+                estado:        'confirmada',
+                registrado_por: user.id,
+            }])
+            .select()
+            .single();
+
+        if (errLiq) {
+            console.error('❌ Error al registrar liquidación:', errLiq.message);
+            return res.status(500).json({ ok: false, error: errLiq.message });
+        }
+
+        const [{ data: grupo }, { data: authData }] = await Promise.all([
+            supabaseAdmin.from('grupos_gastos').select('nombre').eq('id', grupoId).maybeSingle(),
+            supabaseAdmin.auth.admin.getUserById(user.id),
+        ]);
+        const actorNombre = nombreDesdeAuthUser(authData?.user) || user.email?.split('@')[0] || 'Un miembro';
+
+        notificarMiembros(supabaseAdmin, grupoId, buildNotificacionGrupo('liquidacion_registrada', {
+            grupoNombre: grupo?.nombre || '',
+            actorNombre,
+            monto:       montoNum,
+            de_user_id:  deUserId,
+            para_user_id: paraUserId,
+        }), user.id);
+
+        return res.status(201).json({ ok: true, liquidacion });
+    } catch (err) {
+        console.error('❌ Error en POST /liquidaciones:', err.message);
+        return res.status(500).json({ ok: false, error: err.message || 'Error interno' });
+    }
+});
+
+// ─────────────────────────────────────────────
+// PATCH /api/grupos/:grupoId/liquidaciones/:liqId/anular — Anula una liquidación
+// ─────────────────────────────────────────────
+router.patch('/:grupoId/liquidaciones/:liqId/anular', requireAuth, async (req, res) => {
+    const { grupoId, liqId } = req.params;
+    const { supabaseAdmin, user } = req;
+
+    try {
+        const { data: liq } = await supabaseAdmin
+            .from('grupo_liquidaciones').select('id, registrado_por, monto, estado')
+            .eq('id', liqId).maybeSingle();
+        if (!liq) return res.status(404).json({ ok: false, error: 'Liquidación no encontrada' });
+        if (liq.estado !== 'confirmada') return res.status(409).json({ ok: false, error: 'La liquidación ya está anulada' });
+
+        const esAdmin = await validarAdminGrupo(supabaseAdmin, grupoId, user.id);
+        if (liq.registrado_por !== user.id && !esAdmin) {
+            return res.status(403).json({ ok: false, error: 'Solo quien registró la liquidación o un admin puede anularla' });
+        }
+
+        const { error: errAnular } = await supabaseAdmin
+            .from('grupo_liquidaciones')
+            .update({ estado: 'anulada', anulada_en: new Date().toISOString() })
+            .eq('id', liqId)
+            .eq('estado', 'confirmada');
+
+        if (errAnular) return res.status(500).json({ ok: false, error: errAnular.message });
+
+        const [{ data: grupo }, { data: authData }] = await Promise.all([
+            supabaseAdmin.from('grupos_gastos').select('nombre').eq('id', grupoId).maybeSingle(),
+            supabaseAdmin.auth.admin.getUserById(user.id),
+        ]);
+        const actorNombre = nombreDesdeAuthUser(authData?.user) || user.email?.split('@')[0] || 'Un miembro';
+
+        notificarMiembros(supabaseAdmin, grupoId, buildNotificacionGrupo('liquidacion_anulada', {
+            grupoNombre: grupo?.nombre || '',
+            actorNombre,
+            monto:       liq.monto,
+        }), user.id);
+
+        return res.json({ ok: true });
+    } catch (err) {
+        console.error('❌ Error en PATCH /liquidaciones/:liqId/anular:', err.message);
+        return res.status(500).json({ ok: false, error: err.message || 'Error interno' });
     }
 });
 

@@ -171,7 +171,7 @@ const GrupoSaldos = ({ grupoId, miembros = [] }) => {
         if (!confirmAnularId) return;
         try {
             setAnulando(true);
-            await db.anularLiquidacion(confirmAnularId);
+            await db.anularLiquidacion(confirmAnularId, grupoId);
             setConfirmAnularId(null);
             await cargarDatos();
         } catch (err) {

@@ -211,9 +211,68 @@ const buildNotificacionN8n = (resultado, datos = {}) => {
     };
 };
 
+/**
+ * Construye el objeto de notificación para operaciones dentro de un grupo compartido.
+ * Estas notificaciones son transaccionales (origen = 'grupos') → se envían siempre por email.
+ *
+ * @param {'gasto_creado'|'gasto_editado'|'gasto_anulado'|'liquidacion_registrada'|'liquidacion_anulada'|'miembro_unido'} evento
+ * @param {Object} datos - Datos específicos del evento
+ * @returns {Object}
+ */
+const buildNotificacionGrupo = (evento, datos = {}) => {
+    const grupoNombre = datos.grupoNombre || 'el grupo';
+    const actor = datos.actorNombre || 'Un miembro';
+
+    const mapa = {
+        gasto_creado: {
+            titulo:  'Nuevo gasto en el grupo',
+            mensaje: `${actor} registró el gasto "${datos.descripcion || ''}" por $${Number(datos.monto || 0).toLocaleString('es-AR')} en "${grupoNombre}".`,
+            tipo:    'info',
+        },
+        gasto_editado: {
+            titulo:  'Gasto modificado en el grupo',
+            mensaje: `${actor} editó el gasto "${datos.descripcion || ''}" en "${grupoNombre}". Nuevo monto: $${Number(datos.monto || 0).toLocaleString('es-AR')}.`,
+            tipo:    'info',
+        },
+        gasto_anulado: {
+            titulo:  'Gasto anulado en el grupo',
+            mensaje: `${actor} anuló el gasto "${datos.descripcion || ''}" de $${Number(datos.monto || 0).toLocaleString('es-AR')} en "${grupoNombre}".`,
+            tipo:    'warning',
+        },
+        liquidacion_registrada: {
+            titulo:  'Liquidación registrada',
+            mensaje: `${actor} registró un pago de $${Number(datos.monto || 0).toLocaleString('es-AR')} en "${grupoNombre}".`,
+            tipo:    'success',
+        },
+        liquidacion_anulada: {
+            titulo:  'Liquidación anulada',
+            mensaje: `${actor} anuló un pago de $${Number(datos.monto || 0).toLocaleString('es-AR')} en "${grupoNombre}".`,
+            tipo:    'warning',
+        },
+        miembro_unido: {
+            titulo:  'Nuevo miembro en el grupo',
+            mensaje: `${actor} se unió al grupo "${grupoNombre}".`,
+            tipo:    'info',
+        },
+    };
+
+    const base = mapa[evento] || {
+        titulo:  'Actividad en el grupo',
+        mensaje: `Hubo actividad en el grupo "${grupoNombre}".`,
+        tipo:    'info',
+    };
+
+    return {
+        ...base,
+        origen:   'grupos',
+        metadata: { ...datos },
+    };
+};
+
 module.exports = {
     procesarEnvioEmail,
     buildNotificacionGasto,
     buildNotificacionN8n,
+    buildNotificacionGrupo,
     determinarSiEnviarEmail,
 };

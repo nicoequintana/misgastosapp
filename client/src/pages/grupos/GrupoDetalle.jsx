@@ -138,7 +138,7 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
 
     // Anula un gasto grupal y recarga la lista
     const handleAnular = async (gastoId) => {
-        await db.anularGastoGrupal(gastoId);
+        await db.anularGastoGrupal(gastoId, id);
         // Recargamos los gastos para reflejar el cambio de estado
         await cargarGastos();
     };

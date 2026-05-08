@@ -113,6 +113,7 @@ const GrupoGastoEditar = () => {
         try {
             setGuardando(true);
             await db.actualizarGastoGrupal(gastoId, {
+                grupoId,
                 descripcion,
                 monto,
                 pagadoPor,
