@@ -1308,9 +1308,10 @@ export const actualizarGastoGrupal = async (gastoId, { descripcion, monto, pagad
         .eq('id', gastoId)
         .eq('estado', 'activo')
         .select()
-        .single();
+        .maybeSingle();
 
     if (errUpdate) throw new Error(errUpdate.message);
+    if (!gasto) throw new Error('El gasto no existe o ya fue anulado');
 
     // Paso 2: Eliminar participantes anteriores (ON DELETE CASCADE los borraría con el gasto,
     // pero aquí solo queremos remplazar la lista manteniendo el gasto activo)

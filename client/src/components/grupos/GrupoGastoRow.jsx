@@ -49,10 +49,10 @@ const GrupoGastoRow = ({ gasto, miembros = [], userId, esAdmin = false, onAnular
         });
     };
 
-    // Puede editar/anular si: gasto activo Y (es el creador O es admin del grupo)
-    const puedeOperar =
-        gasto.estado === 'activo' &&
-        (gasto.creado_por === userId || esAdmin);
+    // Solo el creador puede editar el gasto
+    const puedeEditar = gasto.estado === 'activo' && gasto.creado_por === userId;
+    // El creador o un admin pueden anular
+    const puedeAnular = gasto.estado === 'activo' && (gasto.creado_por === userId || esAdmin);
 
     // Confirma y ejecuta la anulación
     const handleConfirmarAnulacion = async () => {
@@ -89,23 +89,27 @@ const GrupoGastoRow = ({ gasto, miembros = [], userId, esAdmin = false, onAnular
                     )}
                 </div>
 
-                {/* Botones de acción: solo visibles si el usuario tiene permiso */}
-                {puedeOperar && (
+                {/* Botones de acción: editar solo para el creador, anular para creador o admin */}
+                {(puedeEditar || puedeAnular) && (
                     <div className="grupo-gasto-row__acciones">
-                        <button
-                            className="btn btn-ghost grupo-gasto-row__btn-accion"
-                            onClick={() => navigate(`/grupos/${grupoId}/gastos/${gasto.id}/editar`)}
-                            title="Editar gasto"
-                        >
-                            <span className="material-symbols-outlined">edit</span>
-                        </button>
-                        <button
-                            className="btn btn-ghost grupo-gasto-row__btn-accion grupo-gasto-row__btn-anular"
-                            onClick={() => setModalAbierto(true)}
-                            title="Anular gasto"
-                        >
-                            <span className="material-symbols-outlined">block</span>
-                        </button>
+                        {puedeEditar && (
+                            <button
+                                className="btn btn-ghost grupo-gasto-row__btn-accion"
+                                onClick={() => navigate(`/grupos/${grupoId}/gastos/${gasto.id}/editar`)}
+                                title="Editar gasto"
+                            >
+                                <span className="material-symbols-outlined">edit</span>
+                            </button>
+                        )}
+                        {puedeAnular && (
+                            <button
+                                className="btn btn-ghost grupo-gasto-row__btn-accion grupo-gasto-row__btn-anular"
+                                onClick={() => setModalAbierto(true)}
+                                title="Anular gasto"
+                            >
+                                <span className="material-symbols-outlined">block</span>
+                            </button>
+                        )}
                     </div>
                 )}
             </div>

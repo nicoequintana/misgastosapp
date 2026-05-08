@@ -25,13 +25,19 @@ const SaldoTable = ({ saldos = [], miembros = [], userId }) => {
         return miembro?.nombre?.trim() || miembro?.alias?.trim() || saldo.alias?.trim() || 'Usuario sin nombre';
     };
 
-    // Determina la clase y el texto descriptivo según el signo del saldo
-    const obtenerEstado = (saldoNeto) => {
+    // Determina la clase y el texto descriptivo según el signo del saldo y si es el usuario propio
+    const obtenerEstado = (saldoNeto, esMiUsuario) => {
         if (saldoNeto > 0.01) {
-            return { clase: 'saldo-table__estado--favor', texto: 'Te deben' };
+            return {
+                clase: 'saldo-table__estado--favor',
+                texto: esMiUsuario ? 'Te deben' : 'Le deben',
+            };
         }
         if (saldoNeto < -0.01) {
-            return { clase: 'saldo-table__estado--deuda', texto: 'Debés' };
+            return {
+                clase: 'saldo-table__estado--deuda',
+                texto: esMiUsuario ? 'Debés' : 'Debe',
+            };
         }
         return { clase: 'saldo-table__estado--saldado', texto: 'Saldado' };
     };
@@ -46,7 +52,7 @@ const SaldoTable = ({ saldos = [], miembros = [], userId }) => {
         <div className="saldo-table">
             {saldos.map((saldo) => {
                 const esMiUsuario = saldo.user_id === userId;
-                const { clase, texto } = obtenerEstado(saldo.saldo_neto);
+                const { clase, texto } = obtenerEstado(saldo.saldo_neto, esMiUsuario);
                 const esNeutro = Math.abs(saldo.saldo_neto) <= 0.01;
 
                 return (
