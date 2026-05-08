@@ -831,12 +831,12 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
     if (isNaN(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
 
     try {
-        // Solo el creador puede editar (RLS + validación explícita)
+        // Solo quien pagó puede editar
         const { data: gastoActual } = await supabaseAdmin
-            .from('grupo_gastos').select('id, creado_por, descripcion, monto')
+            .from('grupo_gastos').select('id, pagado_por, descripcion, monto')
             .eq('id', gastoId).eq('estado', 'activo').maybeSingle();
         if (!gastoActual) return res.status(404).json({ ok: false, error: 'Gasto no encontrado o ya anulado' });
-        if (gastoActual.creado_por !== user.id) return res.status(403).json({ ok: false, error: 'Solo quien cargó el gasto puede editarlo' });
+        if (gastoActual.pagado_por !== user.id) return res.status(403).json({ ok: false, error: 'Solo quien pagó el gasto puede editarlo' });
 
         const participantesUnicos = [...new Set(participantesUserIds)];
 
@@ -902,15 +902,14 @@ router.patch('/:grupoId/gastos/:gastoId/anular', requireAuth, async (req, res) =
     try {
         // Verificar que existe y obtener datos para la notificación
         const { data: gastoActual } = await supabaseAdmin
-            .from('grupo_gastos').select('id, creado_por, descripcion, monto, estado')
+            .from('grupo_gastos').select('id, pagado_por, descripcion, monto, estado')
             .eq('id', gastoId).maybeSingle();
         if (!gastoActual) return res.status(404).json({ ok: false, error: 'Gasto no encontrado' });
         if (gastoActual.estado !== 'activo') return res.status(409).json({ ok: false, error: 'El gasto ya está anulado' });
 
-        // Verificar permisos: creador o admin del grupo
-        const esAdmin = await validarAdminGrupo(supabaseAdmin, grupoId, user.id);
-        if (gastoActual.creado_por !== user.id && !esAdmin) {
-            return res.status(403).json({ ok: false, error: 'Solo quien cargó el gasto o un admin puede anularlo' });
+        // Solo quien pagó puede anular — ni el admin puede anular gastos ajenos
+        if (gastoActual.pagado_por !== user.id) {
+            return res.status(403).json({ ok: false, error: 'Solo quien pagó el gasto puede anularlo' });
         }
 
         const { error: errAnular } = await supabaseAdmin

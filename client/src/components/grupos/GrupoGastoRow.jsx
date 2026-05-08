@@ -51,8 +51,8 @@ const GrupoGastoRow = ({ gasto, miembros = [], userId, esAdmin = false, onAnular
         });
     };
 
-    const puedeEditar = gasto.estado === 'activo' && gasto.creado_por === userId;
-    const puedeAnular = gasto.estado === 'activo' && (gasto.creado_por === userId || esAdmin);
+    const puedeEditar = gasto.estado === 'activo' && gasto.pagado_por === userId;
+    const puedeAnular = gasto.estado === 'activo' && gasto.pagado_por === userId;
     const anulado = gasto.estado === 'anulado';
 
     const handleConfirmarAnulacion = async () => {
