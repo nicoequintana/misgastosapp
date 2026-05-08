@@ -1136,6 +1136,8 @@ export const crearGastoGrupal = async ({
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         throw new Error('Debe haber al menos un participante');
     }
+    // Deduplicar — previene duplicate key constraint en grupo_gasto_participantes
+    const participantesUnicos = [...new Set(participantesUserIds)];
 
     // Paso 1: INSERT en grupo_gastos
     const { data: gasto, error: errGasto } = await supabase
@@ -1156,18 +1158,18 @@ export const crearGastoGrupal = async ({
     if (errGasto) throw new Error(errGasto.message);
 
     // Paso 2: Calcular división igualitaria con ajuste de centavos
-    const n = participantesUserIds.length;
+    const n = participantesUnicos.length;
     // Base redondeada hacia abajo a 2 decimales
     const base = Math.floor((montoNum / n) * 100) / 100;
     // La diferencia total de centavos por redondeo
     const diferencia = Math.round((montoNum - base * n) * 100) / 100;
 
     // El ajuste de centavos va al pagador si es participante, sino al primer participante
-    const indexAjuste = participantesUserIds.indexOf(pagadoPor) !== -1
-        ? participantesUserIds.indexOf(pagadoPor)
+    const indexAjuste = participantesUnicos.indexOf(pagadoPor) !== -1
+        ? participantesUnicos.indexOf(pagadoPor)
         : 0;
 
-    const filasParticipantes = participantesUserIds.map((uid, idx) => ({
+    const filasParticipantes = participantesUnicos.map((uid, idx) => ({
         gasto_id: gasto.id,
         user_id: uid,
         monto_asignado: idx === indexAjuste
@@ -1286,6 +1288,9 @@ export const actualizarGastoGrupal = async (gastoId, { descripcion, monto, pagad
 
     await obtenerUsuarioActivo();
 
+    // Deduplicar — previene duplicate key constraint en grupo_gasto_participantes
+    const participantesUnicos = [...new Set(participantesUserIds)];
+
     const montoNum = Number(monto);
     if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
 
@@ -1317,14 +1322,14 @@ export const actualizarGastoGrupal = async (gastoId, { descripcion, monto, pagad
     if (errDel) throw new Error(`Error al limpiar participantes: ${errDel.message}`);
 
     // Paso 3: Recalcular división igualitaria con ajuste de centavos
-    const n = participantesUserIds.length;
+    const n = participantesUnicos.length;
     const base = Math.floor((montoNum / n) * 100) / 100;
     const diferencia = Math.round((montoNum - base * n) * 100) / 100;
-    const indexAjuste = participantesUserIds.indexOf(pagadoPor) !== -1
-        ? participantesUserIds.indexOf(pagadoPor)
+    const indexAjuste = participantesUnicos.indexOf(pagadoPor) !== -1
+        ? participantesUnicos.indexOf(pagadoPor)
         : 0;
 
-    const filasParticipantes = participantesUserIds.map((uid, idx) => ({
+    const filasParticipantes = participantesUnicos.map((uid, idx) => ({
         gasto_id: gasto.id,
         user_id: uid,
         monto_asignado: idx === indexAjuste
@@ -1338,7 +1343,15 @@ export const actualizarGastoGrupal = async (gastoId, { descripcion, monto, pagad
         .insert(filasParticipantes)
         .select();
 
-    if (errPart) throw new Error(`Error al registrar participantes: ${errPart.message}`);
+    if (errPart) {
+        // Si el INSERT falla, revertir el UPDATE para no dejar el gasto huérfano.
+        // El error del revert es secundario — se relanza el error original.
+        await supabase
+            .from('grupo_gastos')
+            .update({ estado: 'anulado' })
+            .eq('id', gastoId);
+        throw new Error(`Error al registrar participantes: ${errPart.message}`);
+    }
 
     return { gasto, participantes };
 };
