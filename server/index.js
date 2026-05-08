@@ -5,10 +5,18 @@ const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const { normalizeAmount, generateFingerprint } = require('./utils');
 const notificacionesRouter = require('./routes/notificaciones');
+const gruposRouter = require('./routes/grupos');
 const { buildNotificacionN8n } = require('./services/notificaciones');
 const { persistirNotificacion, actualizarEstadoEmailDb, getConfigUsuario } = require('./services/notificacionesDb');
 const { procesarEnvioEmail } = require('./services/notificaciones');
 require('dotenv').config();
+
+// En local, si NODE_ENV no está seteado, usar development por defecto.
+// En despliegues reales debe definirse explícitamente.
+if (!process.env.NODE_ENV) {
+    console.warn('⚠️ NODE_ENV no está seteado — asumiendo development para entorno local');
+    process.env.NODE_ENV = 'development';
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -25,20 +33,14 @@ const validateApiKey = (req, res, next) => {
     const apiKey = req.headers['x-api-key'];
     const expectedKey = process.env.N8N_API_KEY;
 
-    // En producción, la API Key es obligatoria
-    if (isProduction && !expectedKey) {
-        console.error('❌ CRÍTICO: N8N_API_KEY no configurada en producción');
+    // API Key siempre requerida — sin excepciones por entorno
+    if (!expectedKey) {
+        console.error('❌ CRÍTICO: N8N_API_KEY no configurada');
         return res.status(500).json({ ok: false, error: 'Servidor: API Key no configurada' });
     }
 
-    // Si hay una API Key configurada, validarla
-    if (expectedKey && apiKey !== expectedKey) {
-        return res.status(401).json({ ok: false, error: 'No autorizado: API Key inválida o ausente' });
-    }
-
-    // En desarrollo sin API Key configurada, permitir (log de advertencia)
-    if (!expectedKey && !isProduction) {
-        console.warn('⚠️ N8N_API_KEY no configurada en desarrollo. Saltando validación.');
+    if (apiKey !== expectedKey) {
+        return res.status(401).json({ ok: false, error: 'No autorizado' });
     }
 
     next();
@@ -61,7 +63,8 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json());
+// Límite estricto de payload — el endpoint n8n nunca necesita más de 10kb
+app.use(express.json({ limit: '10kb' }));
 
 // En producción, Express sirve el build estático del frontend
 if (isProduction) {
@@ -120,6 +123,9 @@ const dispararNotificacionN8n = async (userId, resultado, datos, emailUsuario) =
 // Rutas de notificaciones (envío de emails)
 app.use('/api/notifications', notificacionesRouter);
 
+// Rutas del módulo de grupos de gastos compartidos
+app.use('/api/grupos', gruposRouter);
+
 // ==================== ENDPOINTS DE INTEGRACIÓN ====================
 
 /**
@@ -130,7 +136,7 @@ app.use('/api/notifications', notificacionesRouter);
 app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
     const { descripcion, monto, categoria, medioPago, user_id } = req.body;
 
-    // 1. Validaciones básicas
+    // 1. Validaciones básicas de presencia
     if (!descripcion || monto === undefined || !categoria || !medioPago || !user_id) {
         return res.status(400).json({
             ok: false,
@@ -138,21 +144,40 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
         });
     }
 
-    // 2. Validar que monto sea un número válido y mayor a cero
+    // 2. Validar longitud de descripcion — previene DoS por strings masivos
+    if (typeof descripcion !== 'string' || descripcion.trim().length === 0 || descripcion.length > 500) {
+        return res.status(400).json({ ok: false, error: 'descripcion debe tener entre 1 y 500 caracteres' });
+    }
+
+    // 3. Validar que monto sea un número válido, positivo y finito
     const normalizedMonto = normalizeAmount(monto);
-    if (isNaN(normalizedMonto) || normalizedMonto <= 0) {
+    if (isNaN(normalizedMonto) || !isFinite(normalizedMonto) || normalizedMonto <= 0) {
         return res.status(400).json({ ok: false, error: 'Monto debe ser mayor a cero' });
     }
 
-    // 3. Validar que categoria y medioPago sean números enteros válidos
+    // 4. Validar que categoria y medioPago sean números enteros válidos
     const categoriaNum = Number(categoria);
     const mediaNum = Number(medioPago);
     if (!Number.isInteger(categoriaNum) || !Number.isInteger(mediaNum) || categoriaNum <= 0 || mediaNum <= 0) {
-        return res.status(400).json({ 
-            ok: false, 
-            error: 'categoria y medioPago deben ser IDs numéricos válidos y mayores a cero' 
+        return res.status(400).json({
+            ok: false,
+            error: 'categoria y medioPago deben ser IDs numéricos válidos y mayores a cero'
         });
     }
+
+    // 5. Validar que user_id sea un UUID válido antes de consultar Supabase
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(user_id)) {
+        return res.status(400).json({ ok: false, error: 'Datos de usuario inválidos' });
+    }
+
+    // 6. Validar email_usuario si viene — previene email header injection
+    const emailRaw = req.body.email_usuario || null;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (emailRaw && !emailRegex.test(emailRaw)) {
+        return res.status(400).json({ ok: false, error: 'email_usuario inválido' });
+    }
+    const emailUsuario = emailRaw;
 
     const fechaActual = new Date().toISOString().split('T')[0];
     const expenseData = {
@@ -165,19 +190,10 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
 
     const fingerprint = generateFingerprint(expenseData);
 
-    // Validar que user_id sea un UUID válido antes de consultar Supabase
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(user_id)) {
-        return res.status(400).json({ ok: false, error: 'user_id debe ser un UUID válido' });
-    }
-
-    // email_usuario es opcional — se usa para notificaciones por email
-    const emailUsuario = req.body.email_usuario || null;
-
     try {
         if (isSupabaseConfigured) {
             // Verificar que el user_id existe en auth.users antes de insertar.
-            // Esto evita que alguien con la API key inyecte gastos para cualquier UUID.
+            // Mensaje genérico para no confirmar existencia de UUIDs (evita user enumeration).
             const { data: usuarioExiste, error: errorUser } = await supabase
                 .from('usuarios')
                 .select('id')
@@ -185,7 +201,7 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
                 .maybeSingle();
 
             if (errorUser || !usuarioExiste) {
-                return res.status(400).json({ ok: false, error: 'user_id no corresponde a un usuario registrado' });
+                return res.status(400).json({ ok: false, error: 'Datos de usuario inválidos' });
             }
 
             // Verificar duplicados por fingerprint
@@ -244,7 +260,6 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
                 created: true,
                 duplicated: false,
                 message: 'Modo Mock: Gasto procesado (No persistido en DB)',
-                data: expenseData,
             });
         }
     } catch (error) {

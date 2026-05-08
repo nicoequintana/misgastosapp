@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
+import WelcomeTour from '../components/WelcomeTour';
 import { setSeo } from '../utils/seo';
 
 /**
@@ -12,7 +13,7 @@ import { setSeo } from '../utils/seo';
 const MainLayout = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const [isMobile, setIsMobile] = React.useState(window.innerWidth <= 640);
+    const [isMobile, setIsMobile] = React.useState(window.innerWidth <= 1024);
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(!isMobile);
     const [showNewExpense, setShowNewExpense] = React.useState(false);
 
@@ -31,7 +32,7 @@ const MainLayout = () => {
     React.useEffect(() => {
         const handleResize = () => {
             // Mobile estricto: <= 640px activa el bottom nav
-            const mobile = window.innerWidth <= 640;
+            const mobile = window.innerWidth <= 1024;
             setIsMobile(mobile);
             if (!mobile) {
                 setIsSidebarOpen(true);
@@ -65,7 +66,7 @@ const MainLayout = () => {
             case '/reportes': return 'Reportes';
             case '/presupuestos': return 'Presupuestos';
             case '/configuracion': return 'Configuración';
-            default: return 'Mis Gastos';
+            default: return 'Tus Gastos';
         }
     };
 
@@ -73,42 +74,42 @@ const MainLayout = () => {
         switch (path) {
             case '/':
                 return {
-                    title: 'Dashboard - Mis Gastos',
+                    title: 'Dashboard - Tus Gastos',
                     description: 'Resumen financiero, ingresos y gastos fijos/variables en un solo lugar.'
                 };
             case '/movimientos':
                 return {
-                    title: 'Movimientos - Mis Gastos',
+                    title: 'Movimientos - Tus Gastos',
                     description: 'Historial completo de gastos con búsqueda y filtros por categoría.'
                 };
             case '/configuracion':
                 return {
-                    title: 'Configuración - Mis Gastos',
+                    title: 'Configuración - Tus Gastos',
                     description: 'Perfil del usuario y personalización del tema visual.'
                 };
             case '/reportes':
                 return {
-                    title: 'Reportes - Mis Gastos',
+                    title: 'Reportes - Tus Gastos',
                     description: 'Analizá tus gastos por período con gráficos y rankings de categorías.'
                 };
             case '/presupuestos':
                 return {
-                    title: 'Presupuestos - Mis Gastos',
+                    title: 'Presupuestos - Tus Gastos',
                     description: 'Planificá gastos mensuales y mantené el control del presupuesto.'
                 };
             case '/informes':
                 return {
-                    title: 'Informes - Mis Gastos',
+                    title: 'Informes - Tus Gastos',
                     description: 'Informes detallados para analizar tu comportamiento financiero.'
                 };
             case '/ahorros':
                 return {
-                    title: 'Ahorros - Mis Gastos',
+                    title: 'Ahorros - Tus Gastos',
                     description: 'Seguimiento de metas y progreso de ahorro personal.'
                 };
             default:
                 return {
-                    title: 'Mis Gastos - Control Personal',
+                    title: 'Tus Gastos - Control Personal',
                     description: 'Registrá gastos, analizá tus finanzas y tomá decisiones con claridad.'
                 };
         }
@@ -120,6 +121,7 @@ const MainLayout = () => {
 
     return (
         <div className={`main-layout ${isMobile ? 'mobile' : ''} ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
+            <WelcomeTour />
             <Sidebar
                 isOpen={isSidebarOpen}
                 isMobile={isMobile}
@@ -143,7 +145,7 @@ const MainLayout = () => {
                 />
                 {/* Área de contenido con padding inferior en mobile para el bottom nav */}
                 <main className={`content-area ${isMobile ? 'content-area--mobile' : ''}`}>
-                    <Outlet context={{ showNewExpense, setShowNewExpense }} />
+                    <Outlet context={useMemo(() => ({ showNewExpense, setShowNewExpense }), [showNewExpense, setShowNewExpense])} />
                 </main>
             </div>
         </div>

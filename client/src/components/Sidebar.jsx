@@ -12,10 +12,12 @@ const Sidebar = ({ isOpen, isMobile, toggleSidebar, onNewExpense }) => {
     const menuItems = [
         { name: 'Resumen', icon: 'dashboard', path: '/' },
         { name: 'Movimientos', icon: 'history', path: '/movimientos' },
+        // Módulo de grupos: usa icono Lucide (UsersRound)
+        { name: 'Grupos', icon: 'group', path: '/grupos' },
         { name: 'Reportes', icon: 'query_stats', path: '/reportes' },
-        { name: 'Presupuestos', icon: 'account_balance_wallet', path: '/presupuestos', soon: true },
-        { name: 'Informes', icon: 'bar_chart', path: '/informes', soon: true },
-        { name: 'Ahorros', icon: 'savings', path: '/ahorros', soon: true },
+        // { name: 'Presupuestos', icon: 'account_balance_wallet', path: '/presupuestos', soon: true },
+        // { name: 'Informes', icon: 'bar_chart', path: '/informes', soon: true },
+        // { name: 'Ahorros', icon: 'savings', path: '/ahorros', soon: true },
         { name: 'Configuración', icon: 'settings', path: '/configuracion' },
     ];
 
@@ -33,7 +35,7 @@ const Sidebar = ({ isOpen, isMobile, toggleSidebar, onNewExpense }) => {
                     </div>
                     {isOpen && (
                         <div className="sidebar-logo-text">
-                            <h1 className="sidebar-logo-title">Mis Gastos</h1>
+                            <h1 className="sidebar-logo-title">Tus Gastos</h1>
                             <span className="sidebar-logo-sub">Finanzas Personales</span>
                         </div>
                     )}
@@ -46,26 +48,28 @@ const Sidebar = ({ isOpen, isMobile, toggleSidebar, onNewExpense }) => {
                 </div>
 
                 <nav className="sidebar-nav">
-                    {menuItems.map((item) => (
-                        <NavLink
-                            key={item.path}
-                            to={item.path}
-                            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''} ${item.soon ? 'nav-link--soon' : ''}`}
-                            title={!isOpen ? item.name : ''}
-                            onClick={isMobile ? toggleSidebar : undefined}
-                        >
-                            <span className="material-symbols-outlined">{item.icon}</span>
-                            {isOpen && (
-                                <>
-                                    <span className="sidebar-text">{item.name}</span>
-                                    {item.soon
-                                        ? <span className="nav-soon-badge">Pronto</span>
-                                        : <span className="material-symbols-outlined nav-chevron">chevron_right</span>
-                                    }
-                                </>
-                            )}
-                        </NavLink>
-                    ))}
+                    {menuItems.map((item) => {
+                                return (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''} ${item.soon ? 'nav-link--soon' : ''}`}
+                                title={!isOpen ? item.name : ''}
+                                onClick={isMobile ? toggleSidebar : undefined}
+                            >
+                                <span className="material-symbols-outlined">{item.icon}</span>
+                                {isOpen && (
+                                    <>
+                                        <span className="sidebar-text">{item.name}</span>
+                                        {item.soon
+                                            ? <span className="nav-soon-badge">Pronto</span>
+                                            : <span className="material-symbols-outlined nav-chevron">chevron_right</span>
+                                        }
+                                    </>
+                                )}
+                            </NavLink>
+                        );
+                    })}
                 </nav>
 
                 <div className="sidebar-footer">
@@ -84,9 +88,9 @@ const Sidebar = ({ isOpen, isMobile, toggleSidebar, onNewExpense }) => {
                         <p className="credits-text">
                             Creado y desarrollado por
                             <br />
-                            <strong>Nicolás Ezequiel Quintana</strong>
+                            <strong>Quintech Studio</strong>
                             <br />
-                            © 2026 Reservados todos los derechos.
+                            © 2026 Todos los derechos reservados.
                         </p>
                     </div>
                 )}

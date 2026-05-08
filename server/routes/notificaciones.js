@@ -57,7 +57,9 @@ router.post('/email', async (req, res) => {
             config || {}
         );
 
-        return res.json({ ok: true, emailEnviado, emailError });
+        // Nunca exponer mensajes internos de SMTP al cliente
+        if (emailError) console.error('❌ Error SMTP al enviar email:', emailError);
+        return res.json({ ok: true, emailEnviado, emailError: emailError ? 'Error al enviar email' : null });
     } catch (err) {
         // Error inesperado del servidor — nunca debe romper el flujo del cliente
         console.error('❌ Error inesperado en endpoint de email:', err.message);

@@ -1,429 +1,261 @@
-# CLAUDE.md — MisGastosApp
+# CLAUDE.md — TusGastosApp
 
-## 1. Role
-Act as a senior full stack developer for **MisGastosApp**.
-Expected expertise: React + Vite, modern JavaScript, Node.js + Express, Supabase/PostgreSQL, n8n, and pure CSS UX/UI.
-Goal: evolve the app with incremental, clear, safe, and easy-to-test changes.
+> ⚡ **SKILL OBLIGATORIA:** Activar `/caveman` al inicio de toda sesión para minimizar tokens. Sin la skill, aplicar el estilo igual: respuestas cortas, sin relleno, directo al punto.
+> Leer este archivo completo antes de ejecutar cualquier acción.
 
-## 2. Project context
-MisGastosApp is a personal finance web app.
-Main features:
-- Register expenses.
-- Split fixed and variable expenses.
-- Configure monthly income.
-- Show financial dashboard.
-- View movement history.
-- Authenticate with Google using Supabase Auth.
-- Persist data in Supabase.
-- Receive expenses from n8n through the backend.
-Keep the UI modern, clean, and aligned with the **Glassmorphism** style.
+---
 
-## 3. Critical rules
-- Do not create, modify, or commit `.claude/`.
-- If `.claude/` exists in the repo, remove it with `git rm -r .claude`.
-- Add `.claude/` to `.gitignore`.
-- Do not commit `.env`, real keys, tokens, credentials, or secrets.
-- Use `.env.example` with fake values only.
-- Do not change architecture, libraries, or structure without explaining the problem, solution, impact, and test.
-- Do not mix large refactors with small functional changes.
+## 1. ROL Y PROYECTO
 
-## 4. Stack
-Frontend:
-- React 19.
-- Vite.
-- JavaScript.
-- React Router DOM.
-- Supabase JS.
-- Lucide React.
-- Material Symbols.
-- Pure CSS.
-Do not use Tailwind, Bootstrap, Material UI, Shadcn/ui, or Styled Components unless explicitly requested.
+Senior full-stack developer de **TusGastosApp** — app web de finanzas personales.
+Features: registro de gastos, separación fijos/variables, ingreso mensual, dashboard, historial, auth Google, integración n8n/WhatsApp.
+UI: **Glassmorphism** siempre — `backdrop-filter`, fondos translúcidos `rgba`, bordes `1px solid rgba(255,255,255,0.15)`, sombras suaves, animaciones sutiles. No romper identidad visual sin razón aprobada por Nicolás.
 
-Backend:
-- Node.js.
-- Express.
-- CommonJS.
-- Supabase JS.
-- dotenv.
-- cors.
-- crypto.
-- nodemon.
+---
 
-Database:
-- Supabase PostgreSQL.
-- Supabase Auth.
-- Row Level Security.
-- Main tables: `gastos`, `categorias`, `metodos_pago`, `ingresos`.
+## 2. MODELO AGENTICO — SUPERVISOR + AGENTES
 
-## 5. Expected structure
-```txt
-misgastosapp/
-├── client/
-│   ├── src/
-│   │   ├── assets/
-│   │   ├── components/
-│   │   ├── context/
-│   │   ├── layouts/
-│   │   ├── lib/
-│   │   ├── pages/
-│   │   ├── utils/
-│   │   ├── App.jsx
-│   │   ├── App.css
-│   │   ├── index.css
-│   │   └── main.jsx
-│   ├── .env.example
-│   └── package.json
-├── server/
-│   ├── db/schema.sql
-│   ├── .env.example
-│   ├── index.js
-│   ├── utils.js
-│   └── package.json
-├── .gitignore
-├── README.md
-├── package.json
-└── CLAUDE.md
+### Los tres actores
+
+| Actor | Dónde abre el chat | Responsabilidades |
+|---|---|---|
+| **Nicolás** | Decide | Qué hacer, aprobar merges, probar en browser. No escribe código ni toca git. |
+| **Supervisor** | Carpeta raíz (`main`) | Schema SQL, migrations, `server/index.js`, `CLAUDE.md`, `README.md`, `package.json` raíz, merges a main, rebase de worktrees, helpers compartidos, refactors cross-módulo. |
+| **Agente** | Carpeta `wt-<modulo>/` (`feat/<modulo>`) | UI + lógica + bugfix dentro de su módulo. Commit y push a su rama. |
+
+**Supervisor NO escribe features de módulo. Agente NO mergea a main. Agente NO toca schema SQL.**
+
+### Flujo obligatorio: Supervisor → Agente → Supervisor
+
+```
+1. [Supervisor] Schema/infra → commit → push → rebase worktree del módulo
+2. [Agente]     Feature/fix → lint → build → commit → push (NO merge)
+3. [Supervisor] Verificar diff → merge feat/<modulo> a main → push → rebase demás worktrees
 ```
 
-## 6. Commands
-From the root:
-```bash
-npm run install-all
-npm run dev
+---
+
+## 3. WORKTREES
+
 ```
-Frontend:
+tusgastosapp/                  ← main (supervisor)
+tusgastosapp/wt-dashboard/     ← feat/dashboard
+tusgastosapp/wt-gastos/        ← feat/gastos
+tusgastosapp/wt-movimientos/   ← feat/movimientos
+tusgastosapp/wt-auth/          ← feat/auth
+tusgastosapp/wt-n8n/           ← feat/n8n
+tusgastosapp/wt-categorias/    ← feat/categorias
+tusgastosapp/wt-ingresos/      ← feat/ingresos
+```
+
+**Crear worktree nuevo** (supervisor lo hace automáticamente si la tarea lo requiere, avisa a Nicolás antes):
 ```bash
-npm run client
-npm --prefix client run dev
-npm --prefix client run build
+git worktree add ./wt-<modulo> -b feat/<modulo>
+git worktree list
+```
+
+### Scope por módulo
+
+| Módulo | Puede tocar | Nunca toca |
+|---|---|---|
+| `dashboard` | `pages/Dashboard.jsx`, `components/SummaryCard*`, `components/DashboardTable*` | Otras páginas, `server/` |
+| `gastos` | `pages/` (formularios), `components/Modal*`, `components/ConfirmModal*`, funciones de gastos en `db.js` | Dashboard, Movements, `server/` |
+| `movimientos` | `pages/Movements.jsx`, componentes de historial/filtros | Dashboard, formularios, `server/` |
+| `auth` | `context/AuthContext.jsx`, `pages/Welcome.jsx`, `components/ProtectedRoute*` | Páginas de negocio, `server/` |
+| `n8n` | `server/index.js` (solo bloque n8n), `server/utils.js` | Frontend, schema, CORS |
+| `categorias` | Componentes y lógica de categorías/colores | Tablas de gastos, server, schema |
+| `ingresos` | Funciones de ingreso en `db.js`, componentes de ingreso | Schema, server, otros módulos |
+
+**Archivos que solo toca el supervisor:** `server/db/schema.sql`, `CLAUDE.md`, `README.md`, `package.json` raíz, `.gitignore`.
+
+---
+
+## 4. AUTO-RUTINA DE INICIO DE SESIÓN
+
+### Supervisor (carpeta raíz) — ejecutar automáticamente al abrir sesión
+```bash
+git status && git log --oneline -5
+git worktree list
+for m in dashboard gastos movimientos auth n8n categorias ingresos; do
+  echo "=== $m ===" && git log main..feat/$m --oneline 2>/dev/null | head -3
+done
+```
+Reportar en ≤10 líneas:
+```
+🟢 SUPERVISOR | main | Último commit: <msg>
+Worktrees: <lista>
+Pendientes de merge: <ramas o "ninguna">
+Sin rebase: <ramas o "ninguna">
+```
+
+### Agente (carpeta wt-<modulo>) — ejecutar automáticamente al abrir sesión
+```bash
+git branch --show-current && git log --oneline -3 && git status
+```
+Anunciar: `🔧 AGENTE: <modulo> | feat/<modulo> | Listo.`
+
+---
+
+## 5. STACK TECNOLÓGICO
+
+**Frontend:** React 19, Vite, JavaScript (sin TypeScript), React Router DOM, Supabase JS, Lucide React, Material Symbols, CSS puro.
+Sin Tailwind / Bootstrap / MUI / ShadCN / Styled Components salvo pedido explícito.
+
+**Backend:** Node.js, Express, CommonJS, Supabase JS, dotenv, cors, crypto, nodemon.
+
+**DB:** Supabase PostgreSQL + Auth (Google) + RLS obligatorio en toda tabla.
+Tablas: `gastos`, `categorias`, `metodos_pago`, `ingresos`.
+
+---
+
+## 6. ESTRUCTURA Y COMANDOS
+
+```
+tusgastosapp/
+├── client/src/{assets,components,context,layouts,lib/db.js,pages,utils,App.jsx,index.css}
+├── server/{db/schema.sql,db/migrations/,index.js,utils.js}
+└── package.json / .gitignore / README.md / CLAUDE.md
+```
+
+```bash
+npm run install-all           # instala todo
+npm run dev                   # cliente :5173 + servidor :3001
 npm --prefix client run lint
-```
-Backend:
-```bash
-npm run server
+npm --prefix client run build
 npm --prefix server run dev
-```
-Healthcheck:
-```http
 GET http://localhost:3001/health
 ```
 
-## 7. Environment variables
-Frontend `client/.env`:
-```env
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key-here
+**Variables de entorno:**
 ```
-Backend `server/.env`:
-```env
-PORT=3001
-SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_KEY=your-service-role-key-here
-N8N_API_KEY=generate-a-secure-token-here
-FRONTEND_URL=http://localhost:5173
+client/.env  →  VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+server/.env  →  PORT=3001, SUPABASE_URL, SUPABASE_KEY (service role), N8N_API_KEY, FRONTEND_URL
 ```
-Rules:
-- Frontend must only use the anon key.
-- Never use the service role key in the frontend.
-- Every `VITE_` variable is exposed to the browser.
-- Do not print secrets.
-- Do not return secrets over HTTP.
-- In production, `N8N_API_KEY` must be required.
+Frontend solo usa `anon key`. `VITE_*` queda expuesto al browser. Nunca commitear `.env` real.
 
-## 8. Frontend
-Visual style:
-- Keep Glassmorphism, rounded borders, translucent cards, soft shadows, good spacing, responsive design, subtle animations, and a coherent palette.
-- Do not replace the visual identity without a clear reason.
+---
 
-CSS:
-- Use pure CSS.
-- Prefer CSS variables, reusable classes, Flexbox, Grid, and media queries.
-- Avoid unnecessary inline CSS, duplicated styles, and CSS frameworks.
+## 7. SEGURIDAD Y RLS — OBLIGATORIO
 
-Components:
-- Keep components small and clear.
-- Extract components when a screen grows.
-- Do not mix heavy business logic inside JSX.
-- Use descriptive names.
-- Avoid premature abstractions.
-- Relevant components: `GlassCard`, `Modal`, `ConfirmModal`, `CurrencyInput`, `ProtectedRoute`, `Header`, `Sidebar`, `SummaryCard`, `DashboardTable`.
-
-State and routes:
-- Use `useState`, `useEffect`, `useCallback`, and Context API.
-- Do not add Redux, Zustand, or another state library unless explicitly requested.
-- Main routes: `/welcome`, `/`, `/movements`.
-- Every protected route must go through `ProtectedRoute`.
-
-## 9. Authentication
-File: `client/src/context/AuthContext.jsx`.
-Responsibilities:
-- Get the active session.
-- Listen to session changes.
-- Expose `user`, `session`, `loading`, `signInWithGoogle`, and `signOut`.
-- Redirect unauthenticated users with `ProtectedRoute`.
-Rules:
-- Do not duplicate auth logic in pages.
-- Use `useAuth` when appropriate.
-- Keep Google Login as the main method.
-- Handle Supabase Auth redirects carefully.
-
-## 10. Frontend data layer
-File: `client/src/lib/db.js`.
-Responsibilities:
-- Get, create, update, and delete expenses.
-- Delete variable expenses.
-- Get categories and payment methods.
-- Get, create, and update income.
-- Calculate statistics.
-Rules:
-- Pages should use `db.js` functions.
-- Do not repeat Supabase queries in components if a function already exists.
-- If a new DB operation is added, create a clear function in `db.js`.
-- Throw errors in the data layer and catch them in the UI.
-
-## 11. Backend
-Main file: `server/index.js`.
-Responsibilities:
-- Start Express.
-- Configure CORS.
-- Validate n8n API key.
-- Initialize Supabase.
-- Expose n8n integration.
-- Expose healthcheck.
-
-Endpoints:
-```http
-GET /health
-POST /api/integrations/n8n/gasto
-```
-Validate in n8n endpoint:
-- `x-api-key`
-- `descripcion`
-- `monto`
-- `categoria`
-- `medioPago`
-- `user_id`
-
-Expected n8n payload:
-```json
-{
-  "descripcion": "Cafe",
-  "monto": "1500,50",
-  "categoria": "1",
-  "medioPago": "2",
-  "user_id": "user-uuid"
-}
-```
-Rules:
-- In production, do not allow inserts without API key.
-- Do not log sensitive data.
-- Return clear JSON errors.
-- Validate body before processing.
-- `categoria` is used as `id_categoria`.
-- `medioPago` is used as `id_metodo_pago`.
-- If n8n sends text names, implement mapping before inserting.
-
-## 12. Idempotency
-File: `server/utils.js`.
-Functions:
-- `normalizeAmount`.
-- `generateFingerprint`.
-The fingerprint uses description, normalized amount, category, payment method, and date.
-Rules:
-- Do not remove idempotency.
-- If duplicate criteria change, document the reason.
-- Keep predictable behavior for n8n retries or repeated messages.
-
-## 13. Database
-File: `server/db/schema.sql`.
-Table `gastos`:
-- `id`
-- `user_id`
-- `descripcion`
-- `monto`
-- `id_categoria`
-- `id_metodo_pago`
-- `fecha`
-- `es_fijo`
-- `fecha_creacion`
-The backend may depend on `huella_digital`. If it does not exist, create a migration before using it.
-Before changing `categorias` or `metodos_pago`, confirm whether they are global or user-specific.
-Rules:
-- Respect RLS.
-- Do not disable RLS.
-- Do not use the service role key from the frontend.
-- Do not query without user filters unless tables are explicitly global.
-
-## 14. Business rules
-Expense:
-- Must include description, amount, category, payment method, date, and fixed/variable type.
-- Description is normalized to uppercase.
-- Amount must be a valid number.
-- Date must be compatible with Supabase.
-- `es_fijo = true` for recurring expenses.
-- `es_fijo = false` for variable expenses.
-
-Variable expenses:
-- Deleting variable expenses is destructive and requires confirmation.
-- Do not delete fixed expenses.
-- Do not delete another user's data.
-- Reload statistics after changes.
-
-Monthly income:
-- Used for total expenses, fixed expenses, variable expenses, available balance, and statistics.
-- If it does not exist, it may be created as zero.
-- Validate amount.
-- Avoid duplicates per user.
-
-## 15. UX and errors
-The app must be clear, simple, modern, fast, responsive, and safe.
-UX rules:
-- Show loaders.
-- Show understandable errors.
-- Do not leave blank screens.
-- Confirm destructive actions.
-- Keep forms simple.
-- Use clear labels.
-- Do not show unnecessary technical information to users.
-
-Errors:
-- Catch Supabase errors.
-- Log technical errors only in development.
-- Do not show stack traces to users.
-- Do not hide errors silently.
-
-Backend error response:
-```json
-{ "ok": false, "error": "Error message" }
-```
-Backend success response:
-```json
-{ "ok": true }
+```sql
+-- Toda tabla nueva debe tener:
+ALTER TABLE nueva_tabla ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "user_isolation" ON nueva_tabla FOR ALL USING (user_id = auth.uid());
 ```
 
-## 16. Code conventions
-JavaScript:
-- Use `const` by default.
-- Use `let` only when the value changes.
-- Do not use `var`.
-- Use descriptive names.
-- Avoid huge functions.
-- Avoid duplication.
-- Validate inputs before processing.
-- Keep imports ordered.
+| Regla | Detalle |
+|---|---|
+| RLS siempre | Sin RLS el anon key lee/escribe sin restricciones |
+| Cliente correcto | Frontend → anon key. Service role → solo backend, solo ops de auth, nunca queries de datos |
+| Sanitizar inputs | `const safe = input.replace(/[%_\\]/g, '\\$&')` antes de `.ilike` o `.or()` |
+| Auth primero en API | `const { data: { user } } = await supabase.auth.getUser(); if (!user) return 401` |
 
-React:
-- Use functional components.
-- Place hooks at the top.
-- Use clear handler names.
-- Do not mutate state directly.
-- Split render, handlers, and helpers when a screen grows.
+---
 
-Backend:
-- Validate body before processing.
-- Validate security headers.
-- Centralize reusable helpers in `utils.js`.
-- Keep endpoints small.
-- Move logic to services if files grow too much.
+## 8. BASE DE DATOS Y MIGRACIONES
 
-Comments:
-- Code comments must always be clear, explanatory, and written in Spanish.
-- Comments should explain intent, business rules, important validations, and non-obvious decisions.
-- Avoid obvious comments that repeat the code literally.
+**Solo el supervisor toca el schema.** Flujo:
+1. Actualizar `server/db/schema.sql` (estado completo siempre vigente).
+2. Crear `server/db/migrations/YYYYMMDD_descripcion.sql` con el cambio incremental.
+3. Entregar SQL a Nicolás para ejecutar en Supabase → SQL Editor.
+4. No asumir ejecutado hasta que Nicolás confirme.
 
-Correct example:
-```js
-// Validamos que el monto sea mayor a cero antes de guardar el gasto.
-if (amount <= 0) {
-  throw new Error('El monto debe ser mayor a cero');
-}
+```sql
+-- migrations/YYYYMMDD_descripcion.sql
+-- Descripción: qué cambia y por qué
+ALTER TABLE gastos ADD COLUMN etiqueta TEXT;
+-- Verificar: SELECT column_name FROM information_schema.columns WHERE table_name = 'gastos';
 ```
 
-## 17. Pre-completion checks
-Before finishing a change, try:
+**Tabla `gastos`:** `id` (uuid PK), `user_id` (uuid FK), `descripcion` (text, mayúsculas), `monto` (numeric), `id_categoria`, `id_metodo_pago`, `fecha` (date), `es_fijo` (boolean), `fecha_creacion` (timestamptz), `huella_digital` (text).
+
+`categorias` y `metodos_pago` — confirmar si son globales o por usuario antes de modificar.
+`ingresos` — un registro por usuario por mes.
+
+---
+
+## 9. FRONTEND — REGLAS
+
+**`client/src/lib/db.js`** es la única capa de acceso a Supabase desde el frontend. Páginas y componentes usan solo sus funciones, nunca queries directas. Errores se lanzan en `db.js`, se capturan en la UI.
+
+**Auth:** `context/AuthContext.jsx` expone `user`, `session`, `loading`, `signInWithGoogle`, `signOut`. No duplicar en páginas. `ProtectedRoute` es el único guardián. Manejar redirects de Supabase con cuidado.
+
+**Componentes clave:** `GlassCard`, `Modal`, `ConfirmModal`, `CurrencyInput`, `ProtectedRoute`, `Header`, `Sidebar`, `SummaryCard`, `DashboardTable`.
+
+**Estado:** `useState`, `useEffect`, `useCallback`, Context API. Sin Redux/Zustand salvo pedido.
+**Rutas:** `/welcome`, `/`, `/movements`. Toda ruta privada pasa por `ProtectedRoute`.
+
+**UX:** loaders en async, errores comprensibles (sin stack traces), `ConfirmModal` para destructivas, no dejar pantallas en blanco.
+
+---
+
+## 10. BACKEND Y N8N
+
+**`server/index.js`:** Express + CORS (orígenes explícitos) + validación API key + Supabase server-side.
+
+**Endpoints:** `GET /health` · `POST /api/integrations/n8n/gasto`
+**Respuestas:** `{ "ok": true }` / `{ "ok": false, "error": "mensaje" }`
+
+**Endpoint n8n — validar siempre:** header `x-api-key`, body `{ descripcion, monto, categoria, medioPago, user_id }`. `categoria` → `id_categoria`, `medioPago` → `id_metodo_pago`. Monto acepta coma (`normalizeAmount`). En producción: rechazar sin API key, no loguear payload.
+
+**Idempotencia (`server/utils.js`):** `normalizeAmount` + `generateFingerprint` → SHA en `huella_digital`. Verificar duplicado antes de insertar. **No eliminar jamás.**
+
+---
+
+## 11. REGLAS DE NEGOCIO
+
+- Gasto requiere: descripción, monto > 0, categoría, método de pago, fecha, tipo fijo/variable.
+- `descripcion` → MAYÚSCULAS antes de guardar.
+- `es_fijo = true` → fijo (recurrente). `es_fijo = false` → variable (espontáneo).
+- Eliminar gasto: solo variables, requiere `ConfirmModal`, recargar estadísticas después. Nunca fijos ni datos de otro usuario.
+- Ingresos: 1 por usuario/mes. Si no existe, crear en 0. Base para saldo disponible y ahorro estimado (20%).
+
+---
+
+## 12. CÓDIGO Y COMMITS
+
+**JS:** `const` por defecto, `let` si cambia, nunca `var`. Nombres descriptivos. Imports ordenados. Funciones pequeñas. Validar inputs antes de procesar.
+**React:** Componentes funcionales. Hooks al inicio. Handlers: `handleGuardar`, `handleEliminar`. No mutar estado.
+**Comentarios:** Siempre en español. Explicar intención y regla de negocio, no repetir el código.
+
+```javascript
+// ✅ Normalizamos a mayúsculas para evitar duplicados por capitalización.
+// ❌ // Convertimos a mayúsculas
+```
+
+**Commits:** `tipo(modulo): descripción` — ej: `feat(gastos): add campo etiqueta`
+
+---
+
+## 13. PRE-COMPLETADO, PROHIBICIONES Y DONE
+
+**Antes de terminar cualquier tarea:**
 ```bash
-npm --prefix client run lint
-npm --prefix client run build
-```
-If backend was changed:
-```bash
-npm --prefix server run dev
-```
-Test:
-```http
-GET http://localhost:3001/health
-```
-If n8n was changed, test the endpoint with a valid payload.
-
-## 18. Work order
-Follow this order:
-1. Understand the current flow.
-2. Identify affected files.
-3. Make the smallest possible change.
-4. Verify existing routes are not broken.
-5. Run lint/build when applicable.
-6. Explain what changed.
-7. Explain how to test it.
-
-## 19. Suggested technical roadmap
-Priorities:
-1. Remove `.claude` from the repo.
-2. Add `.claude/` to `.gitignore`.
-3. Review SQL schema consistency.
-4. Confirm whether categories and payment methods are global or user-specific.
-5. Add `huella_digital` if the backend depends on it.
-6. Improve n8n endpoint to map names to IDs if needed.
-7. Add tests for `normalizeAmount` and `generateFingerprint`.
-8. Split backend into routes, middleware, and services if it grows.
-9. Improve installation and deployment docs.
-10. Add real monthly period handling.
-
-## 20. What not to do
-Do not:
-- Create `.claude/`.
-- Commit `.env`.
-- Commit real keys.
-- Replace pure CSS with a framework.
-- Break Supabase Auth.
-- Disable RLS.
-- Remove n8n idempotency.
-- Mix big visual changes with business logic.
-- Assume category names are IDs without checking.
-- Use service role key in the frontend.
-- Change the whole structure without need.
-
-## 21. Working style with Nicolás
-When explaining changes:
-- Go step by step.
-- Be clear and concrete.
-- Explain which file to edit.
-- Explain why.
-- Give exact commands.
-- Separate diagnosis, solution, and test.
-- Prefer simple and robust solutions.
-
-Recommended format:
-```md
-## Diagnosis
-...
-## Proposed change
-...
-## Files to edit
-...
-## Step 1
-...
-## How to test
-...
+npm --prefix client run lint && npm --prefix client run build
+# Si tocó backend: npm --prefix server run dev → GET /health
 ```
 
-## 22. Definition of done
-A task is done when:
-- It meets the functional goal.
-- It does not break authentication.
-- It does not break dashboard.
-- It does not break movements.
-- It does not expose secrets.
-- It respects the app's visual style.
-- It keeps clear Spanish comments when appropriate.
-- It passes lint/build or explains why they could not be run.
-- It includes test instructions.
+**Prohibido absolutamente:**
+❌ Crear `.claude/` — si existe: `git rm -r .claude` + agregar a `.gitignore`
+❌ Commitear `.env` real, tokens, API keys o secrets
+❌ Service role key en frontend · Deshabilitar RLS · Admin client para queries de datos
+❌ Reemplazar CSS puro sin pedido · Romper auth Google · Eliminar idempotencia n8n
+❌ Agente mergeando a main · Features directo en main · Asumir que main se propagó a worktrees
+❌ Mezclar refactor grande con cambio funcional en el mismo commit
+
+**Tarea terminada cuando:**
+✅ Cumple objetivo · No rompe auth/dashboard/movimientos · No expone secrets · Mantiene Glassmorphism · Comentarios en español · Lint + build OK · Instrucciones de test incluidas · Commit con formato correcto · Si hubo schema: migración `.sql` generada y entregada a Nicolás.
+
+---
+
+## 14. FORMATO DE RESPUESTA CON NICOLÁS
+
+```
+## Diagnóstico      → qué pasa y por qué
+## Cambio propuesto → qué se hace y por qué esta solución
+## Archivos         → archivo + razón
+## Paso 1 / 2 ...  → comandos exactos
+## Cómo probar      → instrucciones concretas
+```
+
+Paso a paso. Concreto. Soluciones simples y robustas sobre elegantes y frágiles.

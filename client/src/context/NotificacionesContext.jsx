@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
     getNotificaciones,
     createNotificacion,
@@ -18,8 +18,8 @@ const THROTTLE_KEY = 'notif_alertas_throttle';
 
 const NotificacionesContext = createContext({});
 
-// URL base del backend para el endpoint de email
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+// URL base del backend para el endpoint de email — obligatoria en producción
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
 
 // Configuración de notificaciones por defecto si el usuario no tiene una guardada
 const CONFIG_DEFAULT = {
@@ -61,7 +61,7 @@ export const NotificacionesProvider = ({ children }) => {
     // Caché del mes anterior para evitar queries repetidas en cada fetchStats
     const cacheMesAnterior = useRef({ key: null, data: null });
 
-    const noLeidas = notificaciones.filter(n => !n.leida).length;
+    const noLeidas = useMemo(() => notificaciones.filter(n => !n.leida).length, [notificaciones]);
 
     /**
      * Carga las notificaciones y la configuración del usuario desde Supabase.
@@ -93,17 +93,21 @@ export const NotificacionesProvider = ({ children }) => {
     }, [user, cargarNotificaciones]);
 
     // Refrescar notificaciones cuando el usuario vuelve a la pestaña.
-    // Permite ver notificaciones insertadas por n8n/backend sin recargar la página.
+    // Usamos ref para acceder siempre a la versión más reciente de cargarNotificaciones
+    // sin re-registrar el listener cada vez que la función se recrea.
+    const cargarNotificacionesRef = useRef(cargarNotificaciones);
+    useEffect(() => { cargarNotificacionesRef.current = cargarNotificaciones; }, [cargarNotificaciones]);
+
     useEffect(() => {
         if (!user) return;
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
-                cargarNotificaciones();
+                cargarNotificacionesRef.current();
             }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, [user, cargarNotificaciones]);
+    }, [user]);
 
     /**
      * Envía el email de la notificación al backend.
@@ -230,7 +234,17 @@ export const NotificacionesProvider = ({ children }) => {
     const puedeDispararAlerta = useCallback((tipoAlerta) => {
         try {
             const hoy = new Date().toISOString().split('T')[0];
-            const throttle = JSON.parse(localStorage.getItem(THROTTLE_KEY) || '{}');
+            const raw = localStorage.getItem(THROTTLE_KEY);
+            let throttle = {};
+            try {
+                const parsed = JSON.parse(raw || '{}');
+                // Validar que sea un objeto plano — previene prototype pollution
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.getPrototypeOf(parsed) === Object.prototype) {
+                    throttle = parsed;
+                }
+            } catch {
+                // Mantener throttle vacío si el JSON está corrupto
+            }
             if (throttle[tipoAlerta] === hoy) return false;
             throttle[tipoAlerta] = hoy;
             localStorage.setItem(THROTTLE_KEY, JSON.stringify(throttle));
@@ -687,30 +701,42 @@ export const NotificacionesProvider = ({ children }) => {
         });
     }, [user, agregarNotificacion]);
 
+    // Memoizar el value para que los subscribers solo se re-rendericen
+    // cuando cambia algo que realmente les importa, no en cada render del provider.
+    const contextValue = useMemo(() => ({
+        notificaciones,
+        noLeidas,
+        config,
+        setConfig,
+        cargando,
+        panelAbierto,
+        togglePanel,
+        cerrarPanel,
+        agregarNotificacion,
+        leerNotificacion,
+        leerTodas,
+        cargarNotificaciones,
+        guardarConfig,
+        verificarAlertasFinancieras,
+        verificarAlertaGastoAlto,
+        verificarAlertasGastosFijos,
+        verificarAlertaConcentracionCategoria,
+        verificarProyecciones,
+        generarResumenDiario,
+        generarResumenSemanal,
+        generarResumenMensual,
+    }), [
+        notificaciones, noLeidas, config, cargando, panelAbierto,
+        togglePanel, cerrarPanel, agregarNotificacion, leerNotificacion,
+        leerTodas, cargarNotificaciones, guardarConfig,
+        verificarAlertasFinancieras, verificarAlertaGastoAlto,
+        verificarAlertasGastosFijos, verificarAlertaConcentracionCategoria,
+        verificarProyecciones, generarResumenDiario, generarResumenSemanal,
+        generarResumenMensual,
+    ]);
+
     return (
-        <NotificacionesContext.Provider value={{
-            notificaciones,
-            noLeidas,
-            config,
-            setConfig,
-            cargando,
-            panelAbierto,
-            togglePanel,
-            cerrarPanel,
-            agregarNotificacion,
-            leerNotificacion,
-            leerTodas,
-            cargarNotificaciones,
-            guardarConfig,
-            verificarAlertasFinancieras,
-            verificarAlertaGastoAlto,
-            verificarAlertasGastosFijos,
-            verificarAlertaConcentracionCategoria,
-            verificarProyecciones,
-            generarResumenDiario,
-            generarResumenSemanal,
-            generarResumenMensual,
-        }}>
+        <NotificacionesContext.Provider value={contextValue}>
             {children}
         </NotificacionesContext.Provider>
     );

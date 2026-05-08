@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import GlassCard from '../components/GlassCard';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -159,14 +159,19 @@ const Movements = () => {
         }
     };
 
-    // Filtrado y búsqueda sobre los movimientos cargados
-    const movimientosFiltrados = movimientos.filter((mov) => {
-        const coincideBusqueda = (mov.descripcion || '').toLowerCase().includes(busqueda.toLowerCase());
-        const coincideCategoria = filtroCategoria === 'Todas' || mov.categorias?.nombre === filtroCategoria;
-        return coincideBusqueda && coincideCategoria;
-    });
+    const movimientosFiltrados = useMemo(() =>
+        movimientos.filter((mov) => {
+            const coincideBusqueda = (mov.descripcion || '').toLowerCase().includes(busqueda.toLowerCase());
+            const coincideCategoria = filtroCategoria === 'Todas' || mov.categorias?.nombre === filtroCategoria;
+            return coincideBusqueda && coincideCategoria;
+        }),
+        [movimientos, busqueda, filtroCategoria]
+    );
 
-    const categoriasUnicas = ['Todas', ...new Set(movimientos.map(m => m.categorias?.nombre).filter(Boolean))];
+    const categoriasUnicas = useMemo(() =>
+        ['Todas', ...new Set(movimientos.map(m => m.categorias?.nombre).filter(Boolean))],
+        [movimientos]
+    );
 
     /**
      * Formatea una fecha de manera robusta para evitar "Invalid Date".

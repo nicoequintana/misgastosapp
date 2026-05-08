@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
 import Modal from '../components/Modal';
@@ -9,6 +9,7 @@ import SummaryCard from '../components/dashboard/SummaryCard';
 import DashboardTable from '../components/dashboard/DashboardTable';
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton';
 import { useNotificaciones } from '../context/NotificacionesContext';
+import { useAppReady } from '../context/AppReadyContext';
 
 // ==================== ESTADO INICIAL ====================
 
@@ -50,6 +51,10 @@ const Dashboard = () => {
     const [cargando, setCargando] = useState(true);
     const [errorCarga, setErrorCarga] = useState(null);
 
+    const { setAppReady } = useAppReady();
+    // Solo notificamos appReady en el primer fetch para no re-triggerear el loader
+    const primeraVez = useRef(true);
+
     // Contexto del layout: permite que el FAB del bottom nav mobile abra el modal
     const { showNewExpense, setShowNewExpense } = useOutletContext?.() || {};
 
@@ -61,6 +66,19 @@ const Dashboard = () => {
         verificarAlertaConcentracionCategoria,
         verificarProyecciones,
     } = useNotificaciones();
+
+    // Refs estables para las funciones de verificación: fetchStats no se recrea
+    // aunque el contexto de notificaciones se actualice entre renders.
+    const verificarAlertasFinancierasRef       = useRef(verificarAlertasFinancieras);
+    const verificarAlertasGastosFijosRef       = useRef(verificarAlertasGastosFijos);
+    const verificarAlertaConcentracionRef      = useRef(verificarAlertaConcentracionCategoria);
+    const verificarProyeccionesRef             = useRef(verificarProyecciones);
+    useEffect(() => {
+        verificarAlertasFinancierasRef.current      = verificarAlertasFinancieras;
+        verificarAlertasGastosFijosRef.current      = verificarAlertasGastosFijos;
+        verificarAlertaConcentracionRef.current     = verificarAlertaConcentracionCategoria;
+        verificarProyeccionesRef.current            = verificarProyecciones;
+    }, [verificarAlertasFinancieras, verificarAlertasGastosFijos, verificarAlertaConcentracionCategoria, verificarProyecciones]);
 
     // Gasto diario disponible calculado por verificarProyecciones
     const [gastoDiarioDisponible, setGastoDiarioDisponible] = useState(null);
@@ -93,13 +111,10 @@ const Dashboard = () => {
             const data = await db.getStats();
             setStats(data);
             if (verificarAlertas) {
-                // Alertas de Fase 2: saldo, porcentaje de ingreso, ingreso no configurado
-                verificarAlertasFinancieras(data);
-                // Alertas de Fase 4: gastos fijos/variables (async, no bloqueante)
-                verificarAlertasGastosFijos(data);
-                verificarAlertaConcentracionCategoria(data);
-                // Proyecciones de Fase 5: gasto diario disponible + alertas
-                verificarProyecciones(data).then(proyeccion => {
+                verificarAlertasFinancierasRef.current(data);
+                verificarAlertasGastosFijosRef.current(data);
+                verificarAlertaConcentracionRef.current(data);
+                verificarProyeccionesRef.current(data).then(proyeccion => {
                     if (proyeccion?.gastoDiarioDisponible !== undefined) {
                         setGastoDiarioDisponible(proyeccion.gastoDiarioDisponible);
                     }
@@ -110,8 +125,12 @@ const Dashboard = () => {
             setErrorCarga('No se pudieron cargar los datos. Intentá recargar la página.');
         } finally {
             setCargando(false);
+            if (primeraVez.current) {
+                primeraVez.current = false;
+                setAppReady(true);
+            }
         }
-    }, [verificarAlertasFinancieras, verificarAlertasGastosFijos, verificarAlertaConcentracionCategoria, verificarProyecciones]);
+    }, [setAppReady]);
 
     /**
      * Obtiene las categorías y métodos de pago disponibles.

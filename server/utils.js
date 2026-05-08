@@ -7,12 +7,15 @@ const crypto = require('crypto');
  * @returns {number} Monto normalizado o NaN
  */
 const normalizeAmount = (val) => {
-    if (typeof val === 'number') return val;
+    if (typeof val === 'number') {
+        return isFinite(val) ? val : NaN;
+    }
     if (typeof val !== 'string') return NaN;
     // Eliminar espacios y puntos usados como separadores de miles (formato AR: 1.500,50).
     // Luego reemplazar la coma decimal por punto para parseFloat.
     const clean = val.replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
-    return parseFloat(clean);
+    const parsed = parseFloat(clean);
+    return isFinite(parsed) ? parsed : NaN;
 };
 
 /**

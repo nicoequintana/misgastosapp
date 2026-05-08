@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.svg', 'icon-512.svg'],
       manifest: {
-        name: 'Mis Gastos - Control Personal',
-        short_name: 'Mis Gastos',
+        name: 'Tus Gastos - Control Personal',
+        short_name: 'Tus Gastos',
         description: 'Registrá y controlá tus gastos personales',
         theme_color: '#1a1a2e',
         background_color: '#1a1a2e',
@@ -48,8 +48,20 @@ export default defineConfig({
     }),
   ],
   base: '/',
+  server: {
+    historyApiFallback: true,
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+        },
+      },
+    },
   },
 })

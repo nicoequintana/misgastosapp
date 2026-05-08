@@ -1,11 +1,11 @@
-# Mis Gastos - App de Control Financiero Personal 💰
+# Tus Gastos - App de Control Financiero Personal 💰
 
 Una plataforma web premium para la gestión de finanzas personales, diseñada con una estética moderna de **Glassmorphism** y un enfoque en la simplicidad y la experiencia de usuario de alta fidelidad.
 
 ---
 
 ## 🌟 Visión del Proyecto
-**Mis Gastos** nació para ofrecer una herramienta visualmente atractiva y técnicamente robusta que permita a los usuarios tener control absoluto sobre sus flujos de caja mensuales, diferenciando claramente entre compromisos fijos y gastos variables.
+**Tus Gastos** nació para ofrecer una herramienta visualmente atractiva y técnicamente robusta que permita a los usuarios tener control absoluto sobre sus flujos de caja mensuales, diferenciando claramente entre compromisos fijos y gastos variables.
 
 ---
 

@@ -1,5 +1,5 @@
 const DEFAULTS = {
-    title: 'Mis Gastos - Control Personal',
+    title: 'Tus Gastos - Control Personal',
     description: 'Registrá gastos, analizá tus finanzas y tomá decisiones con claridad.',
     image: '/icon-192.svg'
 };

@@ -1,4 +1,4 @@
-const { enviarEmailNotificacion } = require('./email');
+const { enviarEmailNotificacion, isSmtpConfigured } = require('./email');
 
 /**
  * Servicio central de notificaciones.
@@ -19,6 +19,11 @@ const { enviarEmailNotificacion } = require('./email');
  * @returns {Promise<{emailEnviado: boolean, emailError: string|null}>}
  */
 const procesarEnvioEmail = async (emailUsuario, notificacion, config) => {
+    // Si SMTP no configurado, salir silenciosamente — no persistir error en DB
+    if (!isSmtpConfigured()) {
+        return { emailEnviado: false, emailError: null };
+    }
+
     // Si no hay config o email deshabilitado globalmente, no enviar
     if (!config?.email_habilitado || !emailUsuario) {
         return { emailEnviado: false, emailError: null };
@@ -68,8 +73,8 @@ const determinarSiEnviarEmail = (notificacion, config) => {
                 metadata?.categoria !== undefined ||
                 metadata?.porcentaje_fijos !== undefined
             ) return !!config.email_alertas_gastos_fijos;
-            // Alerta de porcentaje de ingreso — usa su propio toggle, no el de saldo bajo
-            return !!(config.email_alertas_gastos_fijos || config.email_saldo_bajo);
+            // Sub-tipo no identificable — no enviar para evitar falsos positivos
+            return false;
         }
 
         case 'proyeccion':

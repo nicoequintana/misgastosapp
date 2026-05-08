@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-const AuthContext = createContext({});
+// eslint-disable-next-line react-refresh/only-export-components
+export const AuthContext = createContext({});
 
 /**
  * Proveedor de contexto para manejar la sesión de usuario de Supabase.
@@ -12,22 +13,30 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // 1. Obtener sesión activa al cargar la app
+        // 1. Verificar sesión activa contra el servidor — detecta tokens revocados
         const initializeAuth = async () => {
-            const { data: { session }, error } = await supabase.auth.getSession();
+            const { data: { user }, error } = await supabase.auth.getUser();
 
             if (error) {
                 console.error('❌ Error al obtener sesión:', error.message);
             }
 
-            setSession(session);
-            setUser(session?.user ?? null);
+            setUser(user ?? null);
+            // Sincronizar session desde getSession para tener el access_token disponible
+            if (user) {
+                const { data: { session } } = await supabase.auth.getSession();
+                setSession(session);
+            }
             setLoading(false);
         };
 
         initializeAuth();
 
         // 2. Suscribirse a cambios de estado de autenticación
+        // invitacionRedirigida evita que el hook SIGNED_IN (que Supabase puede disparar
+        // múltiples veces por refrescos de token) ejecute la redirección más de una vez.
+        let invitacionRedirigida = false;
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (import.meta.env.DEV) {
                 console.log(`🔔 Evento de autenticación: ${event}`);
@@ -36,6 +45,18 @@ export const AuthProvider = ({ children }) => {
             setSession(session);
             setUser(session?.user ?? null);
             // loading se setea solo en initializeAuth para evitar parpadeos por TOKEN_REFRESHED, etc.
+
+            // Hook post-login: si hay una invitación pendiente, redirigir al link de aceptación.
+            // AuthProvider vive fuera del Router, por lo que usamos window.location en lugar de useNavigate.
+            // La bandera invitacionRedirigida evita el loop cuando Supabase re-emite SIGNED_IN.
+            if (event === 'SIGNED_IN' && !invitacionRedirigida) {
+                const tokenPendiente = localStorage.getItem('pending_invitation_token');
+                if (tokenPendiente) {
+                    invitacionRedirigida = true;
+                    localStorage.removeItem('pending_invitation_token');
+                    window.location.replace(`/grupos/invitaciones/${tokenPendiente}`);
+                }
+            }
         });
 
         return () => subscription.unsubscribe();
@@ -61,7 +82,10 @@ export const AuthProvider = ({ children }) => {
 
     const signOut = async () => {
         const { error } = await supabase.auth.signOut();
-        if (error) {
+        if (!error) {
+            setUser(null);
+            setSession(null);
+        } else {
             console.error('❌ Error al cerrar sesión:', error.message);
         }
     };

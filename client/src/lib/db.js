@@ -21,9 +21,13 @@ import { supabase } from './supabase';
  * @throws {Error} Si no hay sesión activa
  */
 const obtenerUsuarioActivo = async () => {
-    const { data: { user }, error } = await supabase.auth.getUser();
+    // getSession() lee desde caché local (sin request HTTP).
+    // getUser() valida contra el servidor cada vez — innecesario aquí
+    // porque RLS en Supabase valida el JWT en cada query de todas formas.
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
 
-    if (error || !user) {
+    if (!user) {
         throw new Error('No hay sesión de usuario activa. Por favor, iniciá sesión nuevamente.');
     }
 
@@ -114,6 +118,10 @@ export const createExpense = async (gasto) => {
  * @throws {Error} Si el monto no es válido o es ≤ 0
  */
 export const updateExpense = async (id, gasto) => {
+    if (!id || (typeof id !== 'string' && typeof id !== 'number')) {
+        throw new Error('ID de gasto inválido');
+    }
+
     const usuario = await obtenerUsuarioActivo();
 
     // Validar monto si se proporciona
@@ -121,6 +129,15 @@ export const updateExpense = async (id, gasto) => {
         const montoNumero = Number(gasto.monto);
         if (isNaN(montoNumero) || montoNumero <= 0) {
             throw new Error('El monto debe ser mayor a cero');
+        }
+    }
+
+    // Validar fecha si se proporciona — previene fechas arbitrarias que corrompen estadísticas
+    if (gasto.fecha !== undefined) {
+        const fechaRegex = /^\d{4}-\d{2}-\d{2}$/;
+        const d = new Date(gasto.fecha);
+        if (!fechaRegex.test(gasto.fecha) || isNaN(d.getTime()) || d.getFullYear() > 2100) {
+            throw new Error('Fecha inválida');
         }
     }
 
@@ -153,6 +170,10 @@ export const updateExpense = async (id, gasto) => {
  * @param {string} id - ID del gasto a eliminar
  */
 export const deleteExpense = async (id) => {
+    if (!id || (typeof id !== 'string' && typeof id !== 'number')) {
+        throw new Error('ID de gasto inválido');
+    }
+
     const usuario = await obtenerUsuarioActivo();
 
     const { error } = await supabase
@@ -184,18 +205,82 @@ export const deleteVariableExpenses = async () => {
 // ==================== CATEGORÍAS ====================
 
 /**
- * Obtiene todas las categorías activas del usuario.
- * 
- * @returns {Array} Lista de categorías ordenadas alfabéticamente
+ * Obtiene las categorías visibles para el usuario:
+ * - Categorías globales (user_id IS NULL)
+ * - Categorías propias del usuario autenticado
+ * Las RLS de Supabase se encargan del filtro — esta consulta trae todo lo permitido.
+ *
+ * @returns {Array} Lista de categorías ordenadas alfabéticamente, con flag `es_propia`
  */
 export const getCategories = async () => {
+    const usuario = await obtenerUsuarioActivo();
+
     const { data, error } = await supabase
         .from('categorias')
         .select('*')
         .order('nombre');
 
     if (error) throw error;
-    return data ?? [];
+
+    // Marcamos cuáles son propias del usuario para que la UI pueda mostrar opciones de borrado
+    return (data ?? []).map(cat => ({
+        ...cat,
+        es_propia: cat.user_id === usuario.id,
+    }));
+};
+
+/**
+ * Crea una nueva categoría personal para el usuario autenticado.
+ * Las categorías personales son visibles solo para ese usuario.
+ *
+ * @param {string} nombre - Nombre de la categoría (se normaliza a mayúsculas)
+ * @returns {Object} La categoría creada
+ * @throws {Error} Si el nombre está vacío o ya existe una categoría con ese nombre
+ */
+export const createCategory = async (nombre) => {
+    const usuario = await obtenerUsuarioActivo();
+
+    if (!nombre || !nombre.trim()) {
+        throw new Error('El nombre de la categoría no puede estar vacío');
+    }
+
+    const nombreNormalizado = nombre.trim().toUpperCase();
+
+    const { data, error } = await supabase
+        .from('categorias')
+        .insert([{ nombre: nombreNormalizado, user_id: usuario.id }])
+        .select()
+        .single();
+
+    if (error) {
+        console.error('❌ Error en createCategory:', error);
+        throw error;
+    }
+
+    return { ...data, es_propia: true };
+};
+
+/**
+ * Elimina una categoría personal del usuario autenticado.
+ * Solo se pueden eliminar categorías propias (user_id = auth.uid()).
+ * Las RLS impiden eliminar categorías globales o de otros usuarios.
+ *
+ * @param {number} id - ID de la categoría a eliminar
+ * @throws {Error} Si la categoría tiene gastos asociados (FK constraint) o no es propia
+ */
+export const deleteCategory = async (id) => {
+    const usuario = await obtenerUsuarioActivo();
+
+    const { error } = await supabase
+        .from('categorias')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', usuario.id);
+
+    if (error) {
+        console.error('❌ Error en deleteCategory:', error);
+        throw error;
+    }
 };
 
 /**
@@ -384,6 +469,11 @@ export const getStats = async () => {
  * @returns {Array} Lista de gastos con datos de categoría y método de pago
  */
 export const getGastosByRango = async (desde, hasta) => {
+    const fechaRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!fechaRegex.test(desde) || !fechaRegex.test(hasta)) {
+        throw new Error('Formato de fecha inválido. Use YYYY-MM-DD');
+    }
+
     const usuario = await obtenerUsuarioActivo();
 
     // Comparamos solo la parte de fecha (YYYY-MM-DD) para evitar desfases UTC vs local.
@@ -655,4 +745,734 @@ export const saveConfigNotificaciones = async (config) => {
 
     if (error) throw error;
     return data;
+};
+
+// ============================================================
+// GRUPOS DE GASTOS COMPARTIDOS
+// ============================================================
+
+// --- 2.1 Grupos (CRUD) ---
+
+/**
+ * Crea un nuevo grupo de gastos compartidos.
+ * El trigger grupos_alta_admin_creador agrega al creador como admin automáticamente.
+ *
+ * @param {Object} params
+ * @param {string} params.nombre - Nombre del grupo (requerido)
+ * @param {string} [params.descripcion] - Descripción opcional
+ * @param {string} [params.moneda='ARS'] - Moneda del grupo
+ * @returns {Object} El grupo creado
+ */
+export const crearGrupo = async ({ nombre, descripcion, moneda = 'ARS' }) => {
+    await obtenerUsuarioActivo();
+
+    if (!nombre || !nombre.trim()) {
+        throw new Error('El nombre del grupo no puede estar vacío');
+    }
+    if (nombre.trim().length > 120) {
+        throw new Error('El nombre del grupo no puede superar los 120 caracteres');
+    }
+
+    const { data: grupoId, error: errorRpc } = await supabase.rpc('crear_grupo_gasto_compartido', {
+        p_nombre: nombre.trim(),
+        p_descripcion: descripcion?.trim() || null,
+        p_moneda: moneda,
+    });
+
+    if (errorRpc) throw new Error(errorRpc.message);
+
+    const { data, error } = await supabase
+        .from('grupos_gastos')
+        .select('*')
+        .eq('id', grupoId)
+        .single();
+
+    if (error) {
+        return {
+            id: grupoId,
+            nombre: nombre.trim(),
+            descripcion: descripcion?.trim() || null,
+            moneda,
+        };
+    }
+
+    return data;
+};
+
+/**
+ * Actualiza los datos editables de un grupo (nombre y/o descripción).
+ * Solo el admin del grupo puede hacer esta operación (RLS lo valida).
+ *
+ * @param {number} grupoId - ID del grupo
+ * @param {Object} cambios - Campos a actualizar: { nombre?, descripcion? }
+ * @returns {Object} El grupo actualizado
+ */
+export const actualizarGrupo = async (grupoId, cambios) => {
+    if (!grupoId) throw new Error('ID de grupo inválido');
+
+    const actualizacion = {};
+    if (cambios.nombre !== undefined) {
+        if (!cambios.nombre.trim()) throw new Error('El nombre no puede estar vacío');
+        actualizacion.nombre = cambios.nombre.trim();
+    }
+    if (cambios.descripcion !== undefined) {
+        actualizacion.descripcion = cambios.descripcion?.trim() || null;
+    }
+
+    const { data, error } = await supabase
+        .from('grupos_gastos')
+        .update(actualizacion)
+        .eq('id', grupoId)
+        .select()
+        .single();
+
+    if (error) throw new Error(error.message);
+    return data;
+};
+
+/**
+ * Archiva un grupo (soft delete: archivado=true).
+ * El grupo ya no aparece en la lista activa pero se preservan los datos.
+ * Solo el admin puede archivar (RLS lo valida).
+ *
+ * @param {number} grupoId - ID del grupo
+ */
+export const archivarGrupo = async (grupoId) => {
+    if (!grupoId) throw new Error('ID de grupo inválido');
+
+    const { error } = await supabase
+        .from('grupos_gastos')
+        .update({ archivado: true })
+        .eq('id', grupoId);
+
+    if (error) throw new Error(error.message);
+};
+
+/**
+ * Obtiene todos los grupos donde el usuario autenticado es miembro activo.
+ * Hace JOIN con grupo_miembros para respetar la política de membresía.
+ *
+ * @returns {Array} Lista de grupos ordenados por fecha de creación descendente
+ */
+export const obtenerGruposDelUsuario = async () => {
+    const usuario = await obtenerUsuarioActivo();
+
+    // Primero obtenemos los IDs de grupos donde el usuario es miembro activo
+    const { data: membresias, error: errMem } = await supabase
+        .from('grupo_miembros')
+        .select('grupo_id')
+        .eq('user_id', usuario.id)
+        .eq('estado', 'activo');
+
+    if (errMem) throw new Error(errMem.message);
+    if (!membresias || membresias.length === 0) return [];
+
+    const grupoIds = membresias.map(m => m.grupo_id);
+
+    const { data, error } = await supabase
+        .from('grupos_gastos')
+        .select('*')
+        .in('id', grupoIds)
+        .order('fecha_creacion', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return data ?? [];
+};
+
+/**
+ * Obtiene un grupo por su ID con la lista básica de miembros activos.
+ * Solo accesible si el usuario es miembro activo (RLS lo valida).
+ *
+ * @param {number} grupoId - ID del grupo
+ * @returns {Object} El grupo con sus miembros activos
+ */
+export const obtenerGrupoPorId = async (grupoId) => {
+    if (!grupoId) throw new Error('ID de grupo inválido');
+
+    const { data, error } = await supabase
+        .from('grupos_gastos')
+        .select('*')
+        .eq('id', grupoId)
+        .single();
+
+    if (error) throw new Error(error.message);
+    return data;
+};
+
+// --- 2.2 Miembros ---
+
+/**
+ * Obtiene los miembros activos de un grupo.
+ * No hace JOIN a auth.users porque el anon key no tiene acceso a esa tabla.
+ * Retorna solo los campos de grupo_miembros.
+ *
+ * @param {number} grupoId - ID del grupo
+ * @returns {Array} Lista de miembros activos con user_id, rol, alias, estado, fecha_alta
+ */
+export const obtenerMiembrosDelGrupo = async (grupoId) => {
+    if (!grupoId) throw new Error('ID de grupo inválido');
+
+    const { data, error } = await supabase
+        .from('grupo_miembros')
+        .select('id, grupo_id, user_id, rol, estado, alias, fecha_alta')
+        .eq('grupo_id', grupoId)
+        .eq('estado', 'activo')
+        .order('fecha_alta', { ascending: true });
+
+    if (error) throw new Error(error.message);
+
+    const miembros = data ?? [];
+
+    try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        if (!token) return miembros;
+
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+        const response = await fetch(`${backendUrl}/api/grupos/${grupoId}/miembros/perfiles`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) return miembros;
+
+        const payload = await response.json();
+        if (!payload?.ok || !Array.isArray(payload.perfiles)) return miembros;
+
+        const perfilesMap = new Map(payload.perfiles.map((p) => [p.user_id, p]));
+
+        return miembros.map((m) => {
+            const perfil = perfilesMap.get(m.user_id);
+            const nombre = perfil?.nombre?.trim();
+            return {
+                ...m,
+                nombre: nombre || m.alias || 'Usuario sin nombre',
+                alias: m.alias || nombre || 'Usuario sin nombre',
+                email: perfil?.email || null,
+            };
+        });
+    } catch {
+        // Si falla el enriquecimiento, devolvemos los miembros base sin bloquear la pantalla.
+        return miembros;
+    }
+};
+
+/**
+ * Cambia el rol de un miembro dentro del grupo.
+ * Solo el admin puede hacer esta operación (RLS lo valida).
+ *
+ * @param {number} grupoId - ID del grupo
+ * @param {string} userId - UUID del miembro a modificar
+ * @param {string} rol - Nuevo rol: 'admin' | 'miembro'
+ */
+export const cambiarRolMiembro = async (grupoId, userId, rol) => {
+    if (!grupoId || !userId) throw new Error('grupoId y userId son requeridos');
+    if (!['admin', 'miembro'].includes(rol)) throw new Error('Rol inválido. Use "admin" o "miembro"');
+
+    const { error } = await supabase
+        .from('grupo_miembros')
+        .update({ rol })
+        .eq('grupo_id', grupoId)
+        .eq('user_id', userId)
+        .eq('estado', 'activo');
+
+    if (error) throw new Error(error.message);
+};
+
+/**
+ * Remueve un miembro del grupo (soft delete: estado='removido').
+ * Solo el admin puede remover miembros (RLS lo valida).
+ *
+ * @param {number} grupoId - ID del grupo
+ * @param {string} userId - UUID del miembro a remover
+ */
+export const removerMiembro = async (grupoId, userId) => {
+    if (!grupoId || !userId) throw new Error('grupoId y userId son requeridos');
+
+    const { error } = await supabase
+        .from('grupo_miembros')
+        .update({ estado: 'removido', fecha_baja: new Date().toISOString() })
+        .eq('grupo_id', grupoId)
+        .eq('user_id', userId)
+        .eq('estado', 'activo');
+
+    if (error) throw new Error(error.message);
+};
+
+/**
+ * El usuario autenticado sale del grupo voluntariamente (auto-baja).
+ * Usa el mismo mecanismo que removerMiembro pero con auth.uid() como target.
+ *
+ * @param {number} grupoId - ID del grupo del que se sale
+ */
+export const salirDelGrupo = async (grupoId) => {
+    const usuario = await obtenerUsuarioActivo();
+    await removerMiembro(grupoId, usuario.id);
+};
+
+// --- 2.3 Invitaciones (lectura/cancelación via Supabase; creación/aceptación via backend) ---
+
+/**
+ * Obtiene las invitaciones pendientes de un grupo.
+ * Solo accesible para el admin del grupo (RLS lo valida).
+ *
+ * @param {number} grupoId - ID del grupo
+ * @returns {Array} Lista de invitaciones con estado='pendiente'
+ */
+export const obtenerInvitacionesPendientes = async (grupoId) => {
+    if (!grupoId) throw new Error('ID de grupo inválido');
+
+    const ahora = new Date().toISOString();
+
+    // Marcamos como expirada cualquier invitación vencida antes de listar.
+    // Así la UI nunca muestra pendientes ya caducadas.
+    const { error: errorExpirar } = await supabase
+        .from('grupo_invitaciones')
+        .update({ estado: 'expirada', fecha_resolucion: ahora })
+        .eq('grupo_id', grupoId)
+        .eq('estado', 'pendiente')
+        .lt('fecha_expiracion', ahora);
+
+    if (errorExpirar) throw new Error(errorExpirar.message);
+
+    const { data, error } = await supabase
+        .from('grupo_invitaciones')
+        .select('id, grupo_id, email_invitado, estado, fecha_expiracion, fecha_creacion')
+        .eq('grupo_id', grupoId)
+        .eq('estado', 'pendiente')
+        .order('fecha_creacion', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return data ?? [];
+};
+
+/**
+ * Obtiene las invitaciones dirigidas al usuario autenticado (match por email del JWT).
+ * La RLS valida que el email del JWT coincida con email_invitado.
+ *
+ * @returns {Array} Invitaciones pendientes para el usuario actual
+ */
+export const obtenerInvitacionesParaMi = async () => {
+    const usuario = await obtenerUsuarioActivo();
+    const ahora = new Date().toISOString();
+
+    // Igual que en las invitaciones del grupo: vencidas pasan a expirada antes de leer.
+    const { error: errorExpirar } = await supabase
+        .from('grupo_invitaciones')
+        .update({ estado: 'expirada', fecha_resolucion: ahora })
+        .eq('estado', 'pendiente')
+        .eq('email_invitado', (usuario.email || '').toLowerCase())
+        .lt('fecha_expiracion', ahora);
+
+    if (errorExpirar) throw new Error(errorExpirar.message);
+
+    // No filtramos por email aquí: la RLS lo hace comparando email_invitado con auth.jwt()->>'email'
+    const { data, error } = await supabase
+        .from('grupo_invitaciones')
+        .select('id, grupo_id, email_invitado, estado, fecha_expiracion, fecha_creacion, invitado_por')
+        .eq('estado', 'pendiente')
+        .eq('email_invitado', (usuario.email || '').toLowerCase())
+        .order('fecha_creacion', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return data ?? [];
+};
+
+/**
+ * Cancela una invitación pendiente.
+ * Solo el admin del grupo puede cancelar invitaciones (RLS lo valida).
+ *
+ * @param {number} invitacionId - ID de la invitación a cancelar
+ */
+export const cancelarInvitacion = async (invitacionId) => {
+    if (!invitacionId) throw new Error('ID de invitación inválido');
+
+    const { error } = await supabase
+        .from('grupo_invitaciones')
+        .update({ estado: 'cancelada', fecha_resolucion: new Date().toISOString() })
+        .eq('id', invitacionId)
+        .eq('estado', 'pendiente');
+
+    if (error) throw new Error(error.message);
+};
+
+// --- 2.4 Gastos grupales ---
+
+/**
+ * Crea un gasto grupal con división igualitaria entre los participantes.
+ * La diferencia de centavos por redondeo se asigna al pagador si participa,
+ * o al primer participante de la lista en caso contrario.
+ *
+ * @param {Object} params
+ * @param {number} params.grupoId - ID del grupo
+ * @param {string} params.descripcion - Descripción del gasto
+ * @param {number} params.monto - Monto total (debe ser > 0)
+ * @param {string} params.pagadoPor - UUID del usuario que pagó
+ * @param {string} params.fecha - Fecha en formato YYYY-MM-DD
+ * @param {string} [params.nota] - Nota opcional
+ * @param {number} [params.idCategoria] - ID de categoría (nullable)
+ * @param {string[]} params.participantesUserIds - Array de UUIDs de participantes (mínimo 1)
+ * @returns {Object} { gasto, participantes }
+ */
+export const crearGastoGrupal = async ({
+    grupoId,
+    descripcion,
+    monto,
+    pagadoPor,
+    fecha,
+    nota,
+    idCategoria,
+    participantesUserIds,
+}) => {
+    const usuario = await obtenerUsuarioActivo();
+
+    // Validaciones básicas
+    if (!grupoId) throw new Error('ID de grupo requerido');
+    if (!descripcion || !descripcion.trim()) throw new Error('La descripción es requerida');
+    const montoNum = Number(monto);
+    if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
+    if (!pagadoPor) throw new Error('El pagador es requerido');
+    if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
+        throw new Error('Debe haber al menos un participante');
+    }
+
+    // Paso 1: INSERT en grupo_gastos
+    const { data: gasto, error: errGasto } = await supabase
+        .from('grupo_gastos')
+        .insert([{
+            grupo_id: grupoId,
+            descripcion: descripcion.trim().toUpperCase(),
+            monto: montoNum,
+            pagado_por: pagadoPor,
+            fecha: fecha || new Date().toISOString().split('T')[0],
+            nota: nota?.trim() || null,
+            id_categoria: idCategoria || null,
+            creado_por: usuario.id,
+        }])
+        .select()
+        .single();
+
+    if (errGasto) throw new Error(errGasto.message);
+
+    // Paso 2: Calcular división igualitaria con ajuste de centavos
+    const n = participantesUserIds.length;
+    // Base redondeada hacia abajo a 2 decimales
+    const base = Math.floor((montoNum / n) * 100) / 100;
+    // La diferencia total de centavos por redondeo
+    const diferencia = Math.round((montoNum - base * n) * 100) / 100;
+
+    // El ajuste de centavos va al pagador si es participante, sino al primer participante
+    const indexAjuste = participantesUserIds.indexOf(pagadoPor) !== -1
+        ? participantesUserIds.indexOf(pagadoPor)
+        : 0;
+
+    const filasParticipantes = participantesUserIds.map((uid, idx) => ({
+        gasto_id: gasto.id,
+        user_id: uid,
+        monto_asignado: idx === indexAjuste
+            ? Math.round((base + diferencia) * 100) / 100
+            : base,
+    }));
+
+    // Paso 3: INSERT batch en grupo_gasto_participantes
+    const { data: participantes, error: errPart } = await supabase
+        .from('grupo_gasto_participantes')
+        .insert(filasParticipantes)
+        .select();
+
+    if (errPart) {
+        // Paso 4: Si falla, anular el gasto (best effort — no relanzar el error de anulación)
+        await supabase
+            .from('grupo_gastos')
+            .update({ estado: 'anulado', anulado_en: new Date().toISOString(), anulado_por: usuario.id })
+            .eq('id', gasto.id);
+
+        throw new Error(`Error al registrar participantes: ${errPart.message}`);
+    }
+
+    return { gasto, participantes };
+};
+
+/**
+ * Obtiene los gastos activos de un grupo con paginación.
+ *
+ * @param {number} grupoId - ID del grupo
+ * @param {Object} [opciones]
+ * @param {number} [opciones.limite=50] - Cantidad máxima de resultados
+ * @param {number} [opciones.offset=0] - Desplazamiento para paginación
+ * @returns {Array} Lista de gastos activos ordenados por fecha descendente
+ */
+export const obtenerGastosDelGrupo = async (grupoId, { limite = 50, offset = 0 } = {}) => {
+    if (!grupoId) throw new Error('ID de grupo inválido');
+
+    const { data, error } = await supabase
+        .from('grupo_gastos')
+        .select('*')
+        .eq('grupo_id', grupoId)
+        .eq('estado', 'activo')
+        .order('fecha', { ascending: false })
+        .range(offset, offset + limite - 1);
+
+    if (error) throw new Error(error.message);
+    return data ?? [];
+};
+
+/**
+ * Obtiene un gasto grupal con el detalle de sus participantes y montos asignados.
+ *
+ * @param {number} gastoId - ID del gasto
+ * @returns {Object} El gasto con array de participantes
+ */
+export const obtenerGastoConParticipantes = async (gastoId) => {
+    if (!gastoId) throw new Error('ID de gasto inválido');
+
+    const { data: gasto, error: errGasto } = await supabase
+        .from('grupo_gastos')
+        .select('*')
+        .eq('id', gastoId)
+        .single();
+
+    if (errGasto) throw new Error(errGasto.message);
+
+    const { data: participantes, error: errPart } = await supabase
+        .from('grupo_gasto_participantes')
+        .select('id, user_id, monto_asignado, porcentaje, fecha_creacion')
+        .eq('gasto_id', gastoId)
+        .order('fecha_creacion', { ascending: true });
+
+    if (errPart) throw new Error(errPart.message);
+
+    return { ...gasto, participantes: participantes ?? [] };
+};
+
+/**
+ * Anula un gasto grupal (soft delete: estado='anulado').
+ * El gasto deja de contar en saldos pero se preserva el historial.
+ * Solo el creador o admin del grupo puede anular (RLS lo valida).
+ *
+ * @param {number} gastoId - ID del gasto a anular
+ */
+export const anularGastoGrupal = async (gastoId) => {
+    if (!gastoId) throw new Error('ID de gasto inválido');
+
+    const usuario = await obtenerUsuarioActivo();
+
+    const { error } = await supabase
+        .from('grupo_gastos')
+        .update({
+            estado: 'anulado',
+            anulado_en: new Date().toISOString(),
+            anulado_por: usuario.id,
+        })
+        .eq('id', gastoId)
+        .eq('estado', 'activo');
+
+    if (error) throw new Error(error.message);
+};
+
+/**
+ * Actualiza los campos de un gasto grupal activo y recalcula la división igualitaria.
+ * Elimina los participantes anteriores (CASCADE) e inserta los nuevos.
+ * Solo el creador o admin puede editar (RLS lo valida).
+ *
+ * @param {string} gastoId - ID del gasto a editar
+ * @param {Object} campos - Campos a actualizar: descripcion, monto, pagadoPor, fecha, idCategoria, nota, participantesUserIds
+ * @returns {Object} El gasto actualizado con los nuevos participantes
+ */
+export const actualizarGastoGrupal = async (gastoId, { descripcion, monto, pagadoPor, fecha, idCategoria, nota, participantesUserIds }) => {
+    if (!gastoId) throw new Error('ID de gasto inválido');
+    if (!participantesUserIds?.length) throw new Error('Se requiere al menos un participante');
+
+    await obtenerUsuarioActivo();
+
+    const montoNum = Number(monto);
+    if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
+
+    // Paso 1: UPDATE en grupo_gastos
+    const { data: gasto, error: errUpdate } = await supabase
+        .from('grupo_gastos')
+        .update({
+            descripcion: descripcion.trim().toUpperCase(),
+            monto: montoNum,
+            pagado_por: pagadoPor,
+            fecha: fecha || new Date().toISOString().split('T')[0],
+            nota: nota?.trim() || null,
+            id_categoria: idCategoria || null,
+        })
+        .eq('id', gastoId)
+        .eq('estado', 'activo')
+        .select()
+        .single();
+
+    if (errUpdate) throw new Error(errUpdate.message);
+
+    // Paso 2: Eliminar participantes anteriores (ON DELETE CASCADE los borraría con el gasto,
+    // pero aquí solo queremos remplazar la lista manteniendo el gasto activo)
+    const { error: errDel } = await supabase
+        .from('grupo_gasto_participantes')
+        .delete()
+        .eq('gasto_id', gastoId);
+
+    if (errDel) throw new Error(`Error al limpiar participantes: ${errDel.message}`);
+
+    // Paso 3: Recalcular división igualitaria con ajuste de centavos
+    const n = participantesUserIds.length;
+    const base = Math.floor((montoNum / n) * 100) / 100;
+    const diferencia = Math.round((montoNum - base * n) * 100) / 100;
+    const indexAjuste = participantesUserIds.indexOf(pagadoPor) !== -1
+        ? participantesUserIds.indexOf(pagadoPor)
+        : 0;
+
+    const filasParticipantes = participantesUserIds.map((uid, idx) => ({
+        gasto_id: gasto.id,
+        user_id: uid,
+        monto_asignado: idx === indexAjuste
+            ? Math.round((base + diferencia) * 100) / 100
+            : base,
+    }));
+
+    // Paso 4: INSERT nuevos participantes
+    const { data: participantes, error: errPart } = await supabase
+        .from('grupo_gasto_participantes')
+        .insert(filasParticipantes)
+        .select();
+
+    if (errPart) throw new Error(`Error al registrar participantes: ${errPart.message}`);
+
+    return { gasto, participantes };
+};
+
+/**
+ * Solicita la eliminación de un grupo al backend.
+ * El backend valida que todos los saldos sean cero antes de eliminar.
+ * Solo admins pueden eliminar (validado en el backend).
+ *
+ * @param {string} grupoId - ID del grupo a eliminar
+ */
+export const eliminarGrupo = async (grupoId) => {
+    if (!grupoId) throw new Error('ID de grupo inválido');
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('No hay sesión activa');
+
+    const res = await fetch(`/api/grupos/${grupoId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+        },
+    });
+
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'No se pudo eliminar el grupo');
+    return json;
+};
+
+// --- 2.5 Liquidaciones ---
+
+/**
+ * Registra una liquidación entre dos miembros del grupo.
+ * Una liquidación representa que un deudor le pagó a un acreedor fuera de la app.
+ *
+ * @param {Object} params
+ * @param {number} params.grupoId - ID del grupo
+ * @param {string} params.deUserId - UUID del usuario que paga la deuda
+ * @param {string} params.paraUserId - UUID del usuario que recibe el pago
+ * @param {number} params.monto - Monto de la liquidación (debe ser > 0)
+ * @param {string} [params.fecha] - Fecha en formato YYYY-MM-DD (default: hoy)
+ * @param {string} [params.nota] - Nota opcional
+ * @returns {Object} La liquidación creada
+ */
+export const registrarLiquidacion = async ({ grupoId, deUserId, paraUserId, monto, fecha, nota }) => {
+    const usuario = await obtenerUsuarioActivo();
+
+    if (!grupoId) throw new Error('ID de grupo requerido');
+    if (!deUserId || !paraUserId) throw new Error('deUserId y paraUserId son requeridos');
+    if (deUserId === paraUserId) throw new Error('El pagador y el receptor no pueden ser la misma persona');
+    const montoNum = Number(monto);
+    if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
+
+    const { data, error } = await supabase
+        .from('grupo_liquidaciones')
+        .insert([{
+            grupo_id: grupoId,
+            de_user_id: deUserId,
+            para_user_id: paraUserId,
+            monto: montoNum,
+            fecha: fecha || new Date().toISOString().split('T')[0],
+            nota: nota?.trim() || null,
+            estado: 'confirmada',
+            registrado_por: usuario.id,
+        }])
+        .select()
+        .single();
+
+    if (error) throw new Error(error.message);
+    return data;
+};
+
+/**
+ * Obtiene las liquidaciones confirmadas de un grupo.
+ *
+ * @param {number} grupoId - ID del grupo
+ * @returns {Array} Lista de liquidaciones confirmadas ordenadas por fecha descendente
+ */
+export const obtenerLiquidacionesDelGrupo = async (grupoId) => {
+    if (!grupoId) throw new Error('ID de grupo inválido');
+
+    const { data, error } = await supabase
+        .from('grupo_liquidaciones')
+        .select('*')
+        .eq('grupo_id', grupoId)
+        .eq('estado', 'confirmada')
+        .order('fecha', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return data ?? [];
+};
+
+/**
+ * Anula una liquidación (soft delete: estado='anulada').
+ * Solo el registrador o admin pueden anular (RLS lo valida).
+ *
+ * @param {number} liquidacionId - ID de la liquidación a anular
+ */
+export const anularLiquidacion = async (liquidacionId) => {
+    if (!liquidacionId) throw new Error('ID de liquidación inválido');
+
+    const { error } = await supabase
+        .from('grupo_liquidaciones')
+        .update({
+            estado: 'anulada',
+            anulada_en: new Date().toISOString(),
+        })
+        .eq('id', liquidacionId)
+        .eq('estado', 'confirmada');
+
+    if (error) throw new Error(error.message);
+};
+
+// --- 2.6 Saldos ---
+
+/**
+ * Obtiene los saldos actuales de todos los miembros activos de un grupo.
+ * Consulta la vista `vw_grupo_saldos` que agrega pagos, asignaciones y liquidaciones.
+ *
+ * Fórmula del saldo_neto (positivo = te deben, negativo = debés):
+ *   pagado + liquidado_enviado − asignado − liquidado_recibido
+ *
+ * @param {number} grupoId - ID del grupo
+ * @returns {Array} [{ user_id, pagado, asignado, liquidado_enviado, liquidado_recibido, saldo_neto }, ...]
+ */
+export const obtenerSaldosDelGrupo = async (grupoId) => {
+    if (!grupoId) throw new Error('ID de grupo inválido');
+
+    const { data, error } = await supabase
+        .from('vw_grupo_saldos')
+        .select('*')
+        .eq('grupo_id', grupoId);
+
+    if (error) throw new Error(error.message);
+    return data ?? [];
 };

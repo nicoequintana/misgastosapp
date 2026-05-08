@@ -12,7 +12,7 @@ const Welcome = () => {
 
     React.useEffect(() => {
         setSeo({
-            title: 'Bienvenido - Mis Gastos',
+            title: 'Bienvenido - Tus Gastos',
             description: 'Ingresá con Google para registrar tus gastos y ordenar tus finanzas.'
         });
     }, []);
@@ -26,7 +26,7 @@ const Welcome = () => {
             <nav className="welcome-navbar">
                 <div className="welcome-navbar-brand">
                     <span className="material-symbols-outlined welcome-navbar-icon">payments</span>
-                    <span className="welcome-navbar-title">Mis Gastos</span>
+                    <span className="welcome-navbar-title">Tus Gastos</span>
                 </div>
             </nav>
 

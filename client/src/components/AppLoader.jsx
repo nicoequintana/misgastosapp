@@ -34,7 +34,7 @@ const AppLoader = ({ loading, children }) => {
                         <div className="app-loader-logo">
                             <span className="material-symbols-outlined app-loader-icon">account_balance_wallet</span>
                         </div>
-                        <p className="app-loader-brand">Mis Gastos</p>
+                        <p className="app-loader-brand">Tus Gastos</p>
                         <div className="app-loader-bar">
                             <div className="app-loader-bar-fill" />
                         </div>

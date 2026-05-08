@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, THEMES } from '../context/ThemeContext';
 import GlassCard from '../components/GlassCard';
 import { useNotificaciones } from '../context/NotificacionesContext';
+import * as db from '../lib/db';
 
 /**
  * Página de configuración: perfil del usuario y selector de tema visual.
@@ -17,10 +18,80 @@ const Configuracion = () => {
     // Estado local del formulario de config (copia del contexto para edición)
     const [formConfig, setFormConfig] = useState(null);
 
+    // ── Estado de categorías personales ──────────────────────────────
+    const [categorias, setCategorias] = useState([]);
+    const [cargandoCats, setCargandoCats] = useState(true);
+    const [nuevaCategoria, setNuevaCategoria] = useState('');
+    const [guardandoCat, setGuardandoCat] = useState(false);
+    const [errorCat, setErrorCat] = useState('');
+    const [eliminandoCatId, setEliminandoCatId] = useState(null);
+    const [confirmEliminarCat, setConfirmEliminarCat] = useState(null);
+
     // Inicializar formConfig cuando el contexto carga la config real
     React.useEffect(() => {
         if (config) setFormConfig({ ...config });
     }, [config]);
+
+    // Carga inicial de categorías
+    const fetchCategorias = useCallback(async () => {
+        setCargandoCats(true);
+        try {
+            const data = await db.getCategories();
+            setCategorias(data);
+        } catch (err) {
+            console.error('❌ Error al cargar categorías:', err);
+        } finally {
+            setCargandoCats(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchCategorias();
+    }, [fetchCategorias]);
+
+    const handleCrearCategoria = async (e) => {
+        e.preventDefault();
+        if (!nuevaCategoria.trim()) {
+            setErrorCat('Ingresá un nombre para la categoría');
+            return;
+        }
+        // Verificar duplicados localmente
+        const existe = categorias.some(
+            c => c.nombre.toLowerCase() === nuevaCategoria.trim().toLowerCase()
+        );
+        if (existe) {
+            setErrorCat('Ya existe una categoría con ese nombre');
+            return;
+        }
+        setGuardandoCat(true);
+        setErrorCat('');
+        try {
+            const nueva = await db.createCategory(nuevaCategoria);
+            setCategorias(prev => [...prev, nueva].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+            setNuevaCategoria('');
+        } catch (err) {
+            setErrorCat(err.message || 'Error al crear la categoría');
+        } finally {
+            setGuardandoCat(false);
+        }
+    };
+
+    const handleEliminarCategoria = async (id) => {
+        setEliminandoCatId(id);
+        try {
+            await db.deleteCategory(id);
+            setCategorias(prev => prev.filter(c => c.id !== id));
+        } catch (err) {
+            // Si hay gastos asociados, FK constraint lo bloquea
+            const mensaje = err.code === '23503'
+                ? 'No podés eliminar esta categoría porque tiene gastos asociados.'
+                : (err.message || 'Error al eliminar la categoría');
+            setErrorCat(mensaje);
+        } finally {
+            setEliminandoCatId(null);
+            setConfirmEliminarCat(null);
+        }
+    };
 
     const handleToggle = (campo) => {
         setFormConfig(prev => ({ ...prev, [campo]: !prev[campo] }));
@@ -121,6 +192,125 @@ const Configuracion = () => {
                         ))}
                     </div>
                 </div>
+            </GlassCard>
+
+            {/* ── MIS CATEGORÍAS ────────────────────── */}
+            <GlassCard className="config-section">
+                <div className="config-section-header">
+                    <span className="material-symbols-outlined config-section-icon">label</span>
+                    <h3 className="config-section-title">Mis Categorías</h3>
+                </div>
+
+                <p className="cats-config-desc">
+                    Las categorías globales están disponibles para todos los usuarios y no se pueden eliminar.
+                    Podés crear tus propias categorías personalizadas — solo vos las verás.
+                </p>
+
+                {/* Formulario para crear nueva categoría */}
+                <form onSubmit={handleCrearCategoria} className="cats-config-form">
+                    <div className="cats-config-input-row">
+                        <input
+                            type="text"
+                            value={nuevaCategoria}
+                            onChange={(e) => {
+                                setNuevaCategoria(e.target.value);
+                                setErrorCat('');
+                            }}
+                            placeholder="Nueva categoría..."
+                            className="input cats-config-input"
+                            maxLength={60}
+                        />
+                        <button
+                            type="submit"
+                            className="btn btn-primary cats-config-btn"
+                            disabled={guardandoCat}
+                        >
+                            <span className="material-symbols-outlined">add</span>
+                            <span>{guardandoCat ? 'Creando...' : 'Crear'}</span>
+                        </button>
+                    </div>
+                    {errorCat && (
+                        <p className="cats-config-error">{errorCat}</p>
+                    )}
+                </form>
+
+                {/* Lista de categorías */}
+                {cargandoCats ? (
+                    <div className="cats-config-loading">
+                        <span className="material-symbols-outlined cats-config-loading-icon">sync</span>
+                        Cargando categorías...
+                    </div>
+                ) : (
+                    <div className="cats-config-list">
+                        {categorias.length === 0 && (
+                            <p className="cats-config-empty">No hay categorías configuradas.</p>
+                        )}
+
+                        {/* Categorías globales */}
+                        {categorias.filter(c => !c.es_propia).length > 0 && (
+                            <div className="cats-config-group">
+                                <p className="cats-config-group-label">
+                                    <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>public</span>
+                                    {' '}Globales
+                                </p>
+                                {categorias.filter(c => !c.es_propia).map(cat => (
+                                    <div key={cat.id} className="cats-config-item cats-config-item--global">
+                                        <span className="material-symbols-outlined cats-config-item-icon">label</span>
+                                        <span className="cats-config-item-name">{cat.nombre}</span>
+                                        <span className="cats-config-item-badge">Global</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Categorías propias del usuario */}
+                        {categorias.filter(c => c.es_propia).length > 0 && (
+                            <div className="cats-config-group">
+                                <p className="cats-config-group-label">
+                                    <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>star</span>
+                                    {' '}Mis categorías
+                                </p>
+                                {categorias.filter(c => c.es_propia).map(cat => (
+                                    <div key={cat.id} className="cats-config-item cats-config-item--propia">
+                                        <span className="material-symbols-outlined cats-config-item-icon">label</span>
+                                        <span className="cats-config-item-name">{cat.nombre}</span>
+
+                                        {/* Confirmar antes de eliminar */}
+                                        {confirmEliminarCat === cat.id ? (
+                                            <div className="cats-config-item-confirm">
+                                                <span className="cats-config-item-confirm-text">¿Eliminar?</span>
+                                                <button
+                                                    type="button"
+                                                    className="cats-config-item-confirm-yes"
+                                                    onClick={() => handleEliminarCategoria(cat.id)}
+                                                    disabled={eliminandoCatId === cat.id}
+                                                >
+                                                    {eliminandoCatId === cat.id ? '...' : 'Sí'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="cats-config-item-confirm-no"
+                                                    onClick={() => setConfirmEliminarCat(null)}
+                                                >
+                                                    No
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                className="cats-config-item-delete"
+                                                onClick={() => setConfirmEliminarCat(cat.id)}
+                                                title="Eliminar categoría"
+                                            >
+                                                <span className="material-symbols-outlined">delete</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
             </GlassCard>
 
             {/* ── NOTIFICACIONES ─────────────────────── */}
