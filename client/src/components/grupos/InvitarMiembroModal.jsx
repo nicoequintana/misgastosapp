@@ -45,6 +45,7 @@ const InvitarMiembroModal = ({ grupoId, isOpen, onClose, onExito }) => {
     const buscarUsuario = async () => {
         setError(null);
         setExito(null);
+        setResultadoBusqueda(null);
 
         const emailNormalizado = email.trim();
 
@@ -309,30 +310,25 @@ const InvitarMiembroModal = ({ grupoId, isOpen, onClose, onExito }) => {
                             {enviandoRegistro ? 'Enviando registro...' : 'Enviar mail de registro'}
                         </button>
                     )}
-                    <button
-                        type="submit"
-                        className="btn btn-primary"
-                        disabled={
-                            enviando ||
-                            enviandoRegistro ||
-                            buscando ||
-                            !email.trim() ||
-                            !resultadoBusqueda?.registrado ||
-                            resultadoBusqueda?.yaEsMiembro
-                        }
-                    >
-                        {enviando ? (
-                            <>
-                                <div className="loading-spinner loading-spinner--sm" />
-                                Enviando...
-                            </>
-                        ) : (
-                            <>
-                                <span className="material-symbols-outlined">send</span>
-                                Enviar invitación
-                            </>
-                        )}
-                    </button>
+                    {resultadoBusqueda?.registrado && !resultadoBusqueda?.yaEsMiembro && (
+                        <button
+                            type="submit"
+                            className="btn btn-primary"
+                            disabled={enviando || enviandoRegistro}
+                        >
+                            {enviando ? (
+                                <>
+                                    <div className="loading-spinner loading-spinner--sm" />
+                                    Enviando...
+                                </>
+                            ) : (
+                                <>
+                                    <span className="material-symbols-outlined">send</span>
+                                    Enviar invitación
+                                </>
+                            )}
+                        </button>
+                    )}
                 </div>
             </form>
         </Modal>

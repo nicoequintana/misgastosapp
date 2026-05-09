@@ -81,6 +81,11 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
             setMiembros(miembrosData || []);
         } catch (err) {
             console.error('Error al cargar el grupo:', err);
+            // Si el grupo no existe (fue eliminado), redirigir a la lista sin mostrar error
+            if (err.message?.includes('PGRST116') || err.message?.includes('JSON object requested')) {
+                navigate('/grupos', { replace: true });
+                return;
+            }
             setError('No se pudo cargar el grupo. Verificá que exista o que tengas acceso.');
         } finally {
             setCargando(false);
