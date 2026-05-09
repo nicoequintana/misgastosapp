@@ -10,6 +10,7 @@ import DashboardTable from '../components/dashboard/DashboardTable';
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton';
 import { useNotificaciones } from '../context/NotificacionesContext';
 import { useAppReady } from '../context/AppReadyContext';
+import { fechaHoyArgentina } from '../utils/format';
 
 // ==================== ESTADO INICIAL ====================
 
@@ -20,7 +21,7 @@ const ESTADO_INICIAL_GASTO = {
     id_categoria: '',
     id_metodo_pago: '',
     es_fijo: false,
-    fecha: new Date().toISOString().split('T')[0]
+    fecha: fechaHoyArgentina()
 };
 
 /** Estado inicial vacío para las estadísticas */

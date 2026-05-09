@@ -4,6 +4,7 @@ import CurrencyInput from '../../components/CurrencyInput';
 import MiembrosSelector from '../../components/grupos/MiembrosSelector';
 import { AuthContext } from '../../context/AuthContext';
 import * as db from '../../lib/db';
+import { fechaHoyArgentina } from '../../utils/format';
 
 /**
  * Página para registrar un nuevo gasto dentro de un grupo de gastos compartidos.
@@ -26,7 +27,7 @@ const GrupoGastoNuevo = () => {
     // Estado del formulario
     const [descripcion, setDescripcion] = useState('');
     const [monto, setMonto] = useState(0);
-    const [fecha, setFecha] = useState(() => new Date().toISOString().split('T')[0]);
+    const [fecha, setFecha] = useState(() => fechaHoyArgentina());
     const [categoriaId, setCategoriaId] = useState('');
     const [pagadoPor, setPagadoPor] = useState('');
     const [participantes, setParticipantes] = useState([]);

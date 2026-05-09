@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { fechaHoyArgentina } from '../utils/format';
 
 /**
  * Capa de acceso a datos (Data Access Layer) para Supabase.
@@ -95,7 +96,7 @@ export const createExpense = async (gasto) => {
             monto: montoNumero,
             id_categoria: gasto.id_categoria || null,
             id_metodo_pago: gasto.id_metodo_pago || null,
-            fecha: gasto.fecha || new Date().toISOString().split('T')[0],
+            fecha: gasto.fecha || fechaHoyArgentina(),
             es_fijo: Boolean(gasto.es_fijo)
         }])
         .select()

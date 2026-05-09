@@ -1,4 +1,14 @@
 /**
+ * Devuelve la fecha actual en Argentina (UTC-3) como string YYYY-MM-DD.
+ * Evita el bug de toISOString() que usa UTC y entre las 21:00 y 00:00
+ * devolvería la fecha del día siguiente.
+ * @returns {string} Fecha en formato YYYY-MM-DD (hora Argentina).
+ */
+export const fechaHoyArgentina = () => {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+};
+
+/**
  * Formatea un valor numérico como moneda argentina (ARS).
  * @param {number|string} value - El valor a formatear.
  * @returns {string} El valor formateado o un string vacío.

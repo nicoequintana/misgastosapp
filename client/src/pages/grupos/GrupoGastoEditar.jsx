@@ -4,6 +4,7 @@ import CurrencyInput from '../../components/CurrencyInput';
 import MiembrosSelector from '../../components/grupos/MiembrosSelector';
 import { AuthContext } from '../../context/AuthContext';
 import * as db from '../../lib/db';
+import { fechaHoyArgentina } from '../../utils/format';
 
 /**
  * Página para editar un gasto grupal existente.
@@ -55,7 +56,7 @@ const GrupoGastoEditar = () => {
             // Poblar formulario con los datos del gasto
             setDescripcion(gastoExistente.descripcion || '');
             setMonto(Number(gastoExistente.monto) || 0);
-            setFecha(gastoExistente.fecha ? gastoExistente.fecha.split('T')[0] : new Date().toISOString().split('T')[0]);
+            setFecha(gastoExistente.fecha ? gastoExistente.fecha.split('T')[0] : fechaHoyArgentina());
             setCategoriaId(gastoExistente.id_categoria ? String(gastoExistente.id_categoria) : '');
             setPagadoPor(gastoExistente.pagado_por || '');
             setNota(gastoExistente.nota || '');

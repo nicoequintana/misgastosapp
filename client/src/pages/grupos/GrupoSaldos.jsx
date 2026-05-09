@@ -7,6 +7,7 @@ import SaldoTable from '../../components/grupos/SaldoTable';
 import TransferenciasSugeridas from '../../components/grupos/TransferenciasSugeridas';
 import * as db from '../../lib/db';
 import { calcularTransferencias } from '../../lib/grupos/saldos';
+import { fechaHoyArgentina } from '../../utils/format';
 
 // Funciones puras de formato fuera del componente — no se recrean en cada render
 const formatearMonto = (valor) =>
@@ -44,7 +45,7 @@ const GrupoSaldos = ({ grupoId, miembros = [] }) => {
         deUserId: '',
         paraUserId: '',
         monto: 0,
-        fecha: new Date().toISOString().split('T')[0],
+        fecha: fechaHoyArgentina(),
         nota: '',
     });
     const [errorForm, setErrorForm] = useState('');
@@ -109,7 +110,7 @@ const GrupoSaldos = ({ grupoId, miembros = [] }) => {
             deUserId,
             paraUserId,
             monto,
-            fecha: new Date().toISOString().split('T')[0],
+            fecha: fechaHoyArgentina(),
             nota: '',
         });
         setErrorForm('');

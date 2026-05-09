@@ -179,7 +179,9 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
     }
     const emailUsuario = emailRaw;
 
-    const fechaActual = new Date().toISOString().split('T')[0];
+    // Fecha en hora Argentina (UTC-3) para evitar que entre las 21:00 y 00:00
+    // toISOString() devuelva el día siguiente (que está en UTC).
+    const fechaActual = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
     const expenseData = {
         descripcion: descripcion.trim(),
         monto: normalizedMonto,

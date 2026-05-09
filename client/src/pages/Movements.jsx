@@ -131,12 +131,17 @@ const Movements = () => {
 
         setGuardando(true);
         setErrorEdicion('');
+        // Normalizamos la fecha a YYYY-MM-DD para que pase la validación de db.js.
+        // gastoEditando.fecha puede llegar como "2025-05-09T03:00:00+00:00" desde Supabase.
+        const fechaNormalizada = gastoEditando.fecha
+            ? gastoEditando.fecha.split('T')[0]
+            : null;
         const payload = {
             descripcion: gastoEditando.descripcion,
             monto: gastoEditando.monto,
             id_categoria: gastoEditando.id_categoria,
             id_metodo_pago: gastoEditando.id_metodo_pago,
-            fecha: gastoEditando.fecha,
+            fecha: fechaNormalizada,
             es_fijo: gastoEditando.es_fijo
         };
         try {

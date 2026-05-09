@@ -10,6 +10,7 @@ import {
     getStatsByMonth,
 } from '../lib/db';
 import { useAuth } from './AuthContext';
+import { fechaHoyArgentina } from '../utils/format';
 
 // Clave de localStorage para el throttle de alertas financieras (evita spam).
 // Nota: el throttle es por dispositivo/navegador. En modo incógnito o desde otro dispositivo
@@ -233,7 +234,7 @@ export const NotificacionesProvider = ({ children }) => {
      */
     const puedeDispararAlerta = useCallback((tipoAlerta) => {
         try {
-            const hoy = new Date().toISOString().split('T')[0];
+            const hoy = fechaHoyArgentina();
             const raw = localStorage.getItem(THROTTLE_KEY);
             let throttle = {};
             try {
@@ -587,7 +588,7 @@ export const NotificacionesProvider = ({ children }) => {
     const generarResumenDiario = useCallback(async (stats) => {
         if (!user || !stats) return;
 
-        const hoy = new Date().toISOString().split('T')[0];
+        const hoy = fechaHoyArgentina();
         const gastosHoy = (stats.gastos || []).filter(g => {
             const fechaGasto = (g.fecha || '').split('T')[0];
             return fechaGasto === hoy;
