@@ -52,10 +52,14 @@ CREATE TABLE IF NOT EXISTS ingresos (
 );
 
 -- Tabla de Perfil de Usuario
--- Almacena preferencias del usuario como el tema seleccionado.
+-- Almacena preferencias y perfil del usuario.
+-- nombre_completo, email y avatar_url se sincronizan desde Google o se cargan en el registro manual.
 CREATE TABLE IF NOT EXISTS usuarios (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    theme_id VARCHAR(50) DEFAULT 'indigo-light',
+    id               UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    theme_id         VARCHAR(50)  DEFAULT 'indigo-light',
+    nombre_completo  VARCHAR(120),
+    email            VARCHAR(255),
+    avatar_url       TEXT,
     ultima_actualizacion TIMESTAMPTZ DEFAULT NOW()
 );
 

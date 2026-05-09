@@ -54,7 +54,7 @@ const AppWithLoader = () => {
         <Router>
           <Suspense fallback={<div className="grupos-page__loading"><div className="loading-spinner" /></div>}>
           <Routes>
-            {/* Ruta Pública */}
+            {/* Ruta pública */}
             <Route path="/welcome" element={<PageTransition><Welcome /></PageTransition>} />
 
             {/* Ruta pública: aceptar invitación — DEBE ir antes de /grupos/:id para evitar conflicto */}

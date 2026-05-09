@@ -176,7 +176,14 @@ export const createExpense = async (gasto) => {
         throw errPrimero;
     }
 
-    if (cuotas === 1) return primero;
+    // Siempre vinculamos la primera cuota a sí misma como padre para que
+    // getTarjetasEnCuotas pueda encontrarla (filtra por id_gasto_padre != null).
+    await supabase
+        .from('gastos')
+        .update({ id_gasto_padre: primero.id })
+        .eq('id', primero.id);
+
+    if (cuotas === 1) return { ...primero, id_gasto_padre: primero.id };
 
     // Las cuotas 2..N apuntan al primer registro como padre
     const restantes = registros.slice(1).map(r => ({ ...r, id_gasto_padre: primero.id }));
@@ -189,12 +196,6 @@ export const createExpense = async (gasto) => {
         console.error('❌ Error al insertar cuotas restantes:', errRestantes);
         throw errRestantes;
     }
-
-    // También vinculamos la primera cuota a sí misma como padre para fácil agrupación
-    await supabase
-        .from('gastos')
-        .update({ id_gasto_padre: primero.id })
-        .eq('id', primero.id);
 
     return primero;
 };
