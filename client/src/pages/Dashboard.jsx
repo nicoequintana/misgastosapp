@@ -5,9 +5,11 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import CurrencyInput from '../components/CurrencyInput';
 import * as db from '../lib/db';
+import { getTarjetasEnCuotas } from '../lib/db';
 import SummaryCard from '../components/dashboard/SummaryCard';
 import DashboardTable from '../components/dashboard/DashboardTable';
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton';
+import TarjetasCuotasCard from '../components/dashboard/TarjetasCuotasCard';
 import { useNotificaciones } from '../context/NotificacionesContext';
 import { useAppReady } from '../context/AppReadyContext';
 import { fechaHoyArgentina } from '../utils/format';
@@ -21,7 +23,9 @@ const ESTADO_INICIAL_GASTO = {
     id_categoria: '',
     id_metodo_pago: '',
     es_fijo: false,
-    fecha: fechaHoyArgentina()
+    fecha: fechaHoyArgentina(),
+    cuotas: 1,
+    esTarjetaCredito: false,
 };
 
 /** Estado inicial vacío para las estadísticas */
@@ -99,6 +103,9 @@ const Dashboard = () => {
     // Monto del formulario de ingreso
     const [incomeAmount, setIncomeAmount] = useState('');
 
+    // Grupos de cuotas para la card de tarjeta de crédito
+    const [cuotasGrupos, setCuotasGrupos] = useState([]);
+
     // ==================== DATA FETCHING ====================
 
     /**
@@ -139,12 +146,14 @@ const Dashboard = () => {
      */
     const fetchOpciones = useCallback(async () => {
         try {
-            const [cats, metodos] = await Promise.all([
+            const [cats, metodos, cuotas] = await Promise.all([
                 db.getCategories(),
-                db.getPaymentMethods()
+                db.getPaymentMethods(),
+                getTarjetasEnCuotas(),
             ]);
             setCategories(cats);
             setPaymentMethods(metodos);
+            setCuotasGrupos(cuotas);
         } catch (err) {
             console.error('❌ Error al obtener opciones:', err);
         }
@@ -221,6 +230,10 @@ const Dashboard = () => {
             // Verificar si el gasto supera el umbral de gasto alto
             verificarAlertaGastoAlto({ descripcion: expenseForm.descripcion, monto: expenseForm.monto });
             setExpenseForm(ESTADO_INICIAL_GASTO);
+            // Recargar cuotas si el nuevo gasto es con tarjeta de crédito
+            if (expenseForm.esTarjetaCredito) {
+                getTarjetasEnCuotas().then(setCuotasGrupos).catch(console.error);
+            }
             // Al recargar stats verificamos alertas de saldo y porcentaje
             await fetchStats({ verificarAlertas: true });
         } catch (err) {
@@ -281,6 +294,20 @@ const Dashboard = () => {
      */
     const handleAbrirNuevoGasto = () => {
         setIsModalOpen(true);
+    };
+
+    // Detecta si el método de pago seleccionado es tarjeta de crédito y actualiza el estado
+    const handleCambioMetodoPago = (id) => {
+        const metodo = paymentMethods.find(pm => pm.id === Number(id) || pm.id === id);
+        const esTarjeta = metodo?.nombre?.toUpperCase() === 'TARJETA DE CREDITO';
+        setExpenseForm(prev => ({
+            ...prev,
+            id_metodo_pago: id,
+            esTarjetaCredito: esTarjeta,
+            // Al cambiar el método, reseteamos cuotas y desbloqueamos es_fijo
+            cuotas: 1,
+            es_fijo: esTarjeta ? true : prev.es_fijo,
+        }));
     };
 
     // Gastos separados por tipo para las tablas inferiores
@@ -372,6 +399,9 @@ const Dashboard = () => {
                 </div>
             </div>
 
+            {/* Card de seguimiento de cuotas con tarjeta de crédito */}
+            <TarjetasCuotasCard grupos={cuotasGrupos} />
+
             {/* Botón de acción peligrosa: eliminar todos los gastos variables */}
             <div className="dashboard-footer">
                 <button onClick={() => setConfirmDeleteAll(true)} className="btn btn-danger-gradient">
@@ -439,7 +469,7 @@ const Dashboard = () => {
                             <label className="form-label-box">Método de Pago</label>
                             <select
                                 value={expenseForm.id_metodo_pago}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, id_metodo_pago: e.target.value }))}
+                                onChange={(e) => handleCambioMetodoPago(e.target.value)}
                                 required
                                 className="form-select"
                             >
@@ -450,15 +480,36 @@ const Dashboard = () => {
                             </select>
                         </div>
                     </div>
-                    <div className="form-checkbox-group">
-                        <input
-                            type="checkbox"
-                            id="es_fijo"
-                            checked={expenseForm.es_fijo}
-                            onChange={(e) => setExpenseForm(prev => ({ ...prev, es_fijo: e.target.checked }))}
-                        />
-                        <label htmlFor="es_fijo">Gasto Fijo</label>
-                    </div>
+                    {expenseForm.esTarjetaCredito && (
+                        <div className="form-group">
+                            <label className="form-label-box">Cuotas</label>
+                            <select
+                                value={expenseForm.cuotas}
+                                onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
+                                className="form-select"
+                            >
+                                {Array.from({ length: 18 }, (_, i) => i + 1).map(n => (
+                                    <option key={n} value={n}>
+                                        {n === 1 ? '1 cuota (pago único)' : `${n} cuotas`}
+                                    </option>
+                                ))}
+                            </select>
+                            <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
+                                Se generan {expenseForm.cuotas} gasto{expenseForm.cuotas > 1 ? 's fijos' : ' fijo'} a partir del mes siguiente
+                            </small>
+                        </div>
+                    )}
+                    {!expenseForm.esTarjetaCredito && (
+                        <div className="form-checkbox-group">
+                            <input
+                                type="checkbox"
+                                id="es_fijo"
+                                checked={expenseForm.es_fijo}
+                                onChange={(e) => setExpenseForm(prev => ({ ...prev, es_fijo: e.target.checked }))}
+                            />
+                            <label htmlFor="es_fijo">Gasto Fijo</label>
+                        </div>
+                    )}
                     <div className="form-row">
                         <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary" style={{ flex: 1 }}>
                             Cancelar

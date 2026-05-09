@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import GlassCard from '../components/GlassCard';
 import { getReporteByRango } from '../lib/db';
 import { formatCurrency } from '../utils/format';
+import TarjetasCuotasCard from '../components/dashboard/TarjetasCuotasCard';
 
 // ==================== HELPERS ====================
 
@@ -433,6 +434,44 @@ const Reportes = () => {
 
     const labelPeriodo = PERIODOS.find(p => p.id === periodo)?.label || '';
 
+    // Agrupa los gastos con tarjeta de crédito en cuotas presentes en el reporte del período.
+    // Usa la misma estructura que TarjetasCuotasCard para reutilizar el componente.
+    const cuotasEnReporte = useMemo(() => {
+        if (!reporte?.gastos) return [];
+        const conCuotas = reporte.gastos.filter(
+            g => g.id_gasto_padre != null &&
+                 g.metodos_pago?.nombre?.toUpperCase() === 'TARJETA DE CREDITO'
+        );
+        if (conCuotas.length === 0) return [];
+
+        const hoyStr = new Date().toISOString().split('T')[0];
+        const grupos = conCuotas.reduce((acc, g) => {
+            const k = g.id_gasto_padre;
+            if (!acc[k]) acc[k] = [];
+            acc[k].push(g);
+            return acc;
+        }, {});
+
+        return Object.values(grupos).map(cuotas => {
+            const ordenadas = [...cuotas].sort((a, b) => (a.numero_cuota ?? 0) - (b.numero_cuota ?? 0));
+            const primera = ordenadas[0];
+            const descripcionBase = primera.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
+            const totalOriginal = ordenadas.reduce((s, c) => s + parseFloat(c.monto), 0);
+            const pagadas = ordenadas.filter(c => (c.fecha || '').split('T')[0] <= hoyStr).length;
+            return {
+                id: primera.id_gasto_padre,
+                descripcionBase,
+                categoria: primera.categorias?.nombre || '—',
+                totalOriginal,
+                cuotas: ordenadas.length,
+                pagadas,
+                pendientes: ordenadas.length - pagadas,
+                montoMensual: parseFloat(primera.monto),
+                cuotasList: ordenadas,
+            };
+        }).sort((a, b) => a.pendientes - b.pendientes || a.descripcionBase.localeCompare(b.descripcionBase));
+    }, [reporte]);
+
     // Días en el rango para calcular promedio diario
     const diasEnRango = useMemo(() => {
         if (!rango.desde || !rango.hasta) return 1;
@@ -656,6 +695,11 @@ const Reportes = () => {
                         </div>
                         <TablaMovimientos gastos={reporte.gastos} />
                     </GlassCard>
+
+                    {/* Cuotas con tarjeta de crédito presentes en el período */}
+                    {cuotasEnReporte.length > 0 && (
+                        <TarjetasCuotasCard grupos={cuotasEnReporte} />
+                    )}
                 </>
             )}
 

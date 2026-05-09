@@ -38,13 +38,23 @@ const obtenerUsuarioActivo = async () => {
 // ==================== GASTOS ====================
 
 /**
- * Obtiene todos los gastos del usuario autenticado.
- * Incluye datos relacionados de categoría y método de pago.
- * 
- * @returns {Array} Lista de gastos ordenados por fecha descendente
+ * Obtiene los gastos del usuario del mes actual.
+ * Los gastos en cuotas tienen una fecha por cada mes, por lo que solo
+ * aparecen en el mes que les corresponde y desaparecen solos cuando pasa su fecha.
+ *
+ * @returns {Array} Lista de gastos del mes en curso, ordenados por fecha descendente
  */
 export const getExpenses = async () => {
     const usuario = await obtenerUsuarioActivo();
+
+    // Rango del mes actual en Argentina (zona UTC-3 representada como string local)
+    const hoy = new Date();
+    const anio = hoy.getFullYear();
+    const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+    const mesSiguiente = hoy.getMonth() === 11 ? 1 : hoy.getMonth() + 2;
+    const anioSiguiente = hoy.getMonth() === 11 ? anio + 1 : anio;
+    const desde = `${anio}-${mes}-01`;
+    const hasta = `${anioSiguiente}-${String(mesSiguiente).padStart(2, '0')}-01`;
 
     const { data, error } = await supabase
         .from('gastos')
@@ -54,6 +64,8 @@ export const getExpenses = async () => {
             metodos_pago:id_metodo_pago (id, nombre)
         `)
         .eq('user_id', usuario.id)
+        .gte('fecha', desde)
+        .lt('fecha', hasta)
         .order('fecha', { ascending: false });
 
     if (error) throw error;
@@ -77,42 +89,335 @@ export const getExpenses = async () => {
 export const createExpense = async (gasto) => {
     const usuario = await obtenerUsuarioActivo();
 
-    // Validar descripción: debe ser string
     if (typeof gasto.descripcion !== 'string' || !gasto.descripcion.trim()) {
         throw new Error('La descripción debe ser un texto válido');
     }
 
-    // Validar monto: debe ser número positivo
     const montoNumero = Number(gasto.monto);
     if (isNaN(montoNumero) || montoNumero <= 0) {
         throw new Error('El monto debe ser mayor a cero');
     }
 
-    const { data, error } = await supabase
-        .from('gastos')
-        .insert([{
+    const esTarjetaCredito = gasto.esTarjetaCredito === true;
+    const cuotas = esTarjetaCredito ? Math.max(1, Math.min(18, parseInt(gasto.cuotas) || 1)) : 1;
+    const descripcionBase = gasto.descripcion.trim().toUpperCase();
+
+    if (!esTarjetaCredito) {
+        // Gasto normal: inserción única
+        const { data, error } = await supabase
+            .from('gastos')
+            .insert([{
+                user_id: usuario.id,
+                descripcion: descripcionBase,
+                monto: montoNumero,
+                id_categoria: gasto.id_categoria || null,
+                id_metodo_pago: gasto.id_metodo_pago || null,
+                fecha: gasto.fecha || fechaHoyArgentina(),
+                es_fijo: Boolean(gasto.es_fijo),
+                cuotas: 1,
+                numero_cuota: null,
+                id_gasto_padre: null,
+            }])
+            .select()
+            .single();
+
+        if (error) {
+            console.error('❌ Error en createExpense:', error);
+            throw error;
+        }
+        return data;
+    }
+
+    // Gasto con tarjeta de crédito: se difiere al mes siguiente y se generan N cuotas fijas.
+    // El monto de cada cuota se redondea a centavos; la diferencia por redondeo va a la primera cuota.
+    const montoPorCuota = Math.floor((montoNumero / cuotas) * 100) / 100;
+    const diferencia = Math.round((montoNumero - montoPorCuota * cuotas) * 100) / 100;
+
+    // Fecha base: 1er día del mes siguiente a la fecha ingresada
+    const fechaBase = new Date(`${gasto.fecha || fechaHoyArgentina()}T00:00:00`);
+    fechaBase.setDate(1);
+    fechaBase.setMonth(fechaBase.getMonth() + 1);
+
+    const registros = Array.from({ length: cuotas }, (_, i) => {
+        const fechaCuota = new Date(fechaBase);
+        fechaCuota.setMonth(fechaBase.getMonth() + i);
+
+        const montoCuota = i === 0
+            ? Math.round((montoPorCuota + diferencia) * 100) / 100
+            : montoPorCuota;
+
+        const descripcionCuota = cuotas > 1
+            ? `${descripcionBase} (${i + 1}/${cuotas})`
+            : descripcionBase;
+
+        return {
             user_id: usuario.id,
-            descripcion: gasto.descripcion.trim().toUpperCase(),
-            monto: montoNumero,
+            descripcion: descripcionCuota,
+            monto: montoCuota,
             id_categoria: gasto.id_categoria || null,
             id_metodo_pago: gasto.id_metodo_pago || null,
-            fecha: gasto.fecha || fechaHoyArgentina(),
-            es_fijo: Boolean(gasto.es_fijo)
-        }])
+            fecha: fechaCuota.toISOString().split('T')[0],
+            es_fijo: true,
+            cuotas,
+            numero_cuota: i + 1,
+            id_gasto_padre: null, // se actualiza después del insert del primer registro
+        };
+    });
+
+    // Insertamos la primera cuota sola para obtener su ID como padre
+    const { data: primero, error: errPrimero } = await supabase
+        .from('gastos')
+        .insert([registros[0]])
         .select()
         .single();
 
-    if (error) {
-        console.error('❌ Error en createExpense:', error);
-        throw error;
+    if (errPrimero) {
+        console.error('❌ Error al insertar primera cuota:', errPrimero);
+        throw errPrimero;
     }
-    return data;
+
+    if (cuotas === 1) return primero;
+
+    // Las cuotas 2..N apuntan al primer registro como padre
+    const restantes = registros.slice(1).map(r => ({ ...r, id_gasto_padre: primero.id }));
+
+    const { error: errRestantes } = await supabase
+        .from('gastos')
+        .insert(restantes);
+
+    if (errRestantes) {
+        console.error('❌ Error al insertar cuotas restantes:', errRestantes);
+        throw errRestantes;
+    }
+
+    // También vinculamos la primera cuota a sí misma como padre para fácil agrupación
+    await supabase
+        .from('gastos')
+        .update({ id_gasto_padre: primero.id })
+        .eq('id', primero.id);
+
+    return primero;
+};
+
+/**
+ * Obtiene todos los gastos pagados con tarjeta de crédito del usuario,
+ * sin filtro de mes, para el panel de seguimiento de cuotas.
+ * Los agrupa por id_gasto_padre para mostrar el estado de cada compra.
+ *
+ * @returns {Array} Grupos de cuotas: [{ descripcionBase, totalOriginal, cuotas, pagadas, pendientes, montoMensual, cuotasList }]
+ */
+export const getTarjetasEnCuotas = async () => {
+    const usuario = await obtenerUsuarioActivo();
+
+    const { data, error } = await supabase
+        .from('gastos')
+        .select(`
+            id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre,
+            categorias:id_categoria (id, nombre),
+            metodos_pago:id_metodo_pago (id, nombre)
+        `)
+        .eq('user_id', usuario.id)
+        .not('id_gasto_padre', 'is', null)
+        .ilike('metodos_pago.nombre', 'TARJETA DE CREDITO')
+        .order('id_gasto_padre', { ascending: true })
+        .order('numero_cuota', { ascending: true });
+
+    if (error) throw error;
+
+    // Filtramos en cliente para asegurarnos que solo vienen gastos con tarjeta de crédito,
+    // ya que el filtro .ilike sobre una relación puede no funcionar en todos los casos con Supabase.
+    const soloTarjeta = (data ?? []).filter(g =>
+        g.metodos_pago?.nombre?.toUpperCase() === 'TARJETA DE CREDITO'
+    );
+
+    // Agrupar por id_gasto_padre
+    const grupos = soloTarjeta.reduce((acc, g) => {
+        const padreId = g.id_gasto_padre;
+        if (!acc[padreId]) acc[padreId] = [];
+        acc[padreId].push(g);
+        return acc;
+    }, {});
+
+    const hoy = new Date();
+    const hoyStr = hoy.toISOString().split('T')[0];
+
+    return Object.values(grupos).map(cuotas => {
+        const ordenadas = cuotas.sort((a, b) => a.numero_cuota - b.numero_cuota);
+        const primera = ordenadas[0];
+        // Descripción sin el sufijo "(1/N)"
+        const descripcionBase = primera.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
+        const totalOriginal = ordenadas.reduce((s, c) => s + parseFloat(c.monto), 0);
+        const pagadas = ordenadas.filter(c => c.fecha.split('T')[0] <= hoyStr).length;
+
+        return {
+            id: primera.id_gasto_padre,
+            descripcionBase,
+            categoria: primera.categorias?.nombre || '—',
+            totalOriginal,
+            cuotas: ordenadas.length,
+            pagadas,
+            pendientes: ordenadas.length - pagadas,
+            montoMensual: parseFloat(primera.monto),
+            cuotasList: ordenadas,
+        };
+    }).sort((a, b) => a.pendientes - b.pendientes || a.descripcionBase.localeCompare(b.descripcionBase));
+};
+
+/**
+ * Obtiene las cuotas futuras (mes siguiente en adelante) de compras con tarjeta de crédito,
+ * agrupadas por id_gasto_padre. Usado en la sección "Movimientos Futuros".
+ *
+ * @returns {Array} Grupos con las cuotas pendientes de cada compra
+ */
+export const getGastosFuturos = async () => {
+    const usuario = await obtenerUsuarioActivo();
+
+    // Primer día del mes siguiente como límite inferior
+    const hoy = new Date();
+    const anio = hoy.getMonth() === 11 ? hoy.getFullYear() + 1 : hoy.getFullYear();
+    const mes = hoy.getMonth() === 11 ? 1 : hoy.getMonth() + 2;
+    const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
+
+    const { data, error } = await supabase
+        .from('gastos')
+        .select(`
+            id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre,
+            categorias:id_categoria (id, nombre),
+            metodos_pago:id_metodo_pago (id, nombre)
+        `)
+        .eq('user_id', usuario.id)
+        .not('id_gasto_padre', 'is', null)
+        .gte('fecha', desde)
+        .order('id_gasto_padre', { ascending: true })
+        .order('numero_cuota', { ascending: true });
+
+    if (error) throw error;
+
+    const soloTarjeta = (data ?? []).filter(
+        g => g.metodos_pago?.nombre?.toUpperCase() === 'TARJETA DE CREDITO'
+    );
+
+    const grupos = soloTarjeta.reduce((acc, g) => {
+        const k = g.id_gasto_padre;
+        if (!acc[k]) acc[k] = [];
+        acc[k].push(g);
+        return acc;
+    }, {});
+
+    return Object.values(grupos).map(cuotas => {
+        const ordenadas = cuotas.sort((a, b) => (a.numero_cuota ?? 0) - (b.numero_cuota ?? 0));
+        const primera = ordenadas[0];
+        const descripcionBase = primera.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
+        return {
+            id: primera.id_gasto_padre,
+            descripcionBase,
+            categoria: primera.categorias?.nombre || '—',
+            idCategoria: primera.categorias?.id || null,
+            montoMensual: parseFloat(primera.monto),
+            cuotasFuturas: ordenadas,
+        };
+    }).sort((a, b) => a.cuotasFuturas[0]?.fecha?.localeCompare(b.cuotasFuturas[0]?.fecha));
+};
+
+/**
+ * Elimina todas las cuotas de una compra en tarjeta de crédito.
+ * Borra todos los registros que comparten el mismo id_gasto_padre (incluido el padre).
+ *
+ * @param {number} idGastoPadre - ID del gasto raíz de la compra en cuotas
+ */
+export const deleteExpenseGroup = async (idGastoPadre) => {
+    if (!idGastoPadre) throw new Error('ID de grupo inválido');
+
+    const usuario = await obtenerUsuarioActivo();
+
+    // El CASCADE en la FK elimina los hijos, pero eliminamos todos explícitamente
+    // para no depender de que el FK CASCADE esté activo en todas las instancias.
+    const { error } = await supabase
+        .from('gastos')
+        .delete()
+        .eq('user_id', usuario.id)
+        .eq('id_gasto_padre', idGastoPadre);
+
+    if (error) throw error;
+
+    // Eliminar también el registro padre
+    const { error: errPadre } = await supabase
+        .from('gastos')
+        .delete()
+        .eq('user_id', usuario.id)
+        .eq('id', idGastoPadre);
+
+    if (errPadre) throw errPadre;
+};
+
+/**
+ * Actualiza descripción, categoría y/o fecha de inicio de todos los registros
+ * de una compra en cuotas. Recalcula las fechas de cada cuota a partir de la nueva fecha base.
+ *
+ * @param {number} idGastoPadre - ID del gasto raíz
+ * @param {Object} cambios - { descripcion?, idCategoria?, fechaInicio? }
+ */
+export const updateExpenseGroup = async (idGastoPadre, { descripcion, idCategoria, fechaInicio }) => {
+    if (!idGastoPadre) throw new Error('ID de grupo inválido');
+
+    const usuario = await obtenerUsuarioActivo();
+
+    // Traer todas las cuotas del grupo ordenadas para recalcular fechas
+    const { data, error } = await supabase
+        .from('gastos')
+        .select('id, numero_cuota, descripcion')
+        .eq('user_id', usuario.id)
+        .eq('id_gasto_padre', idGastoPadre)
+        .order('numero_cuota', { ascending: true });
+
+    if (error) throw error;
+
+    const cuotas = data ?? [];
+    const totalCuotas = cuotas.length;
+
+    // Fecha base para recalcular: si no se provee, usamos la fecha actual de la primera cuota
+    const fechaBase = fechaInicio ? new Date(`${fechaInicio}T00:00:00`) : null;
+
+    const actualizaciones = cuotas.map(c => {
+        const update = {};
+
+        if (descripcion !== undefined) {
+            const descBase = descripcion.trim().toUpperCase();
+            update.descripcion = totalCuotas > 1
+                ? `${descBase} (${c.numero_cuota}/${totalCuotas})`
+                : descBase;
+        }
+
+        if (idCategoria !== undefined) {
+            update.id_categoria = idCategoria;
+        }
+
+        if (fechaBase) {
+            const nuevaFecha = new Date(fechaBase);
+            // numero_cuota arranca en 1; la primera cuota no desplaza, la segunda desplaza 1 mes, etc.
+            nuevaFecha.setMonth(fechaBase.getMonth() + (c.numero_cuota - 1));
+            update.fecha = nuevaFecha.toISOString().split('T')[0];
+        }
+
+        return { id: c.id, ...update };
+    });
+
+    // Actualizar en paralelo
+    await Promise.all(
+        actualizaciones.map(({ id, ...fields }) =>
+            supabase
+                .from('gastos')
+                .update(fields)
+                .eq('id', id)
+                .eq('user_id', usuario.id)
+        )
+    );
 };
 
 /**
  * Actualiza un gasto existente por su ID.
  * Solo actualiza los campos editables (no el user_id ni el id).
- * 
+ *
  * @param {string} id - ID del gasto a actualizar
  * @param {Object} gasto - Nuevos datos del gasto
  * @returns {Object} El gasto actualizado

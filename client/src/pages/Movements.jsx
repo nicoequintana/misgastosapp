@@ -5,6 +5,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import { formatCurrency } from '../utils/format';
 import CurrencyInput from '../components/CurrencyInput';
 import * as db from '../lib/db';
+import { getGastosFuturos, deleteExpenseGroup, updateExpenseGroup } from '../lib/db';
 import { useNotificaciones } from '../context/NotificacionesContext';
 
 /**
@@ -32,6 +33,17 @@ const Movements = () => {
     const [categories, setCategories] = useState([]);
     const [paymentMethods, setPaymentMethods] = useState([]);
 
+    // Estado para movimientos futuros (cuotas de tarjeta de crédito)
+    const [gastosFuturos, setGastosFuturos] = useState([]);
+    const [cargandoFuturos, setCargandoFuturos] = useState(true);
+    const [grupoEditando, setGrupoEditando] = useState(null);
+    const [isEditGrupoOpen, setIsEditGrupoOpen] = useState(false);
+    const [guardandoGrupo, setGuardandoGrupo] = useState(false);
+    const [errorGrupo, setErrorGrupo] = useState('');
+    const [grupoEliminando, setGrupoEliminando] = useState(null);
+    const [isDeleteGrupoOpen, setIsDeleteGrupoOpen] = useState(false);
+    const [eliminandoGrupo, setEliminandoGrupo] = useState(false);
+
     /**
      * Obtiene todos los movimientos de gastos y actualiza el estado.
      */
@@ -44,6 +56,18 @@ const Movements = () => {
             console.error('❌ Error al obtener los movimientos:', err);
         } finally {
             setCargando(false);
+        }
+    }, []);
+
+    const fetchFuturos = useCallback(async () => {
+        try {
+            setCargandoFuturos(true);
+            const data = await getGastosFuturos();
+            setGastosFuturos(data);
+        } catch (err) {
+            console.error('❌ Error al obtener movimientos futuros:', err);
+        } finally {
+            setCargandoFuturos(false);
         }
     }, []);
 
@@ -66,7 +90,86 @@ const Movements = () => {
     useEffect(() => {
         fetchMovimientos();
         fetchOpciones();
-    }, [fetchMovimientos, fetchOpciones]);
+        fetchFuturos();
+    }, [fetchMovimientos, fetchOpciones, fetchFuturos]);
+
+    // ── Handlers de movimientos futuros ──
+
+    const handleEditarGrupo = (grupo) => {
+        setErrorGrupo('');
+        setGrupoEditando({
+            id: grupo.id,
+            descripcion: grupo.descripcionBase,
+            idCategoria: grupo.idCategoria,
+            // Fecha de la primera cuota futura como punto de partida
+            fechaInicio: grupo.cuotasFuturas[0]?.fecha?.split('T')[0] || '',
+            cuotasFuturas: grupo.cuotasFuturas,
+        });
+        setIsEditGrupoOpen(true);
+    };
+
+    const handleCerrarEditarGrupo = () => {
+        if (guardandoGrupo) return;
+        setIsEditGrupoOpen(false);
+        setErrorGrupo('');
+        setTimeout(() => setGrupoEditando(null), 300);
+    };
+
+    const handleGuardarGrupo = async (e) => {
+        e.preventDefault();
+        if (!grupoEditando || guardandoGrupo) return;
+        setGuardandoGrupo(true);
+        setErrorGrupo('');
+        try {
+            await updateExpenseGroup(grupoEditando.id, {
+                descripcion: grupoEditando.descripcion,
+                idCategoria: grupoEditando.idCategoria || null,
+                fechaInicio: grupoEditando.fechaInicio,
+            });
+            setIsEditGrupoOpen(false);
+            setTimeout(() => setGrupoEditando(null), 300);
+            await fetchFuturos();
+            agregarNotificacion({
+                titulo: 'Compra actualizada',
+                mensaje: `Se actualizaron las cuotas de "${grupoEditando.descripcion}".`,
+                tipo: 'info',
+                origen: 'manual',
+            });
+        } catch (err) {
+            console.error('❌ Error al actualizar grupo:', err);
+            setErrorGrupo('No se pudo actualizar. Intentá de nuevo.');
+        } finally {
+            setGuardandoGrupo(false);
+        }
+    };
+
+    const handleEliminarGrupo = (grupo) => {
+        setGrupoEliminando(grupo);
+        setIsDeleteGrupoOpen(true);
+    };
+
+    const confirmarEliminarGrupo = async () => {
+        if (!grupoEliminando || eliminandoGrupo) return;
+        setEliminandoGrupo(true);
+        const desc = grupoEliminando.descripcionBase;
+        try {
+            await deleteExpenseGroup(grupoEliminando.id);
+            setIsDeleteGrupoOpen(false);
+            setTimeout(() => setGrupoEliminando(null), 300);
+            await fetchFuturos();
+            agregarNotificacion({
+                titulo: 'Compra eliminada',
+                mensaje: `Se eliminaron todas las cuotas de "${desc}".`,
+                tipo: 'warning',
+                origen: 'manual',
+            });
+        } catch (err) {
+            console.error('❌ Error al eliminar grupo:', err);
+            alert('No se pudo eliminar. Intentá de nuevo.');
+        } finally {
+            setEliminandoGrupo(false);
+        }
+    };
 
     const handleEliminarClick = (gasto) => {
         setGastoEliminando(gasto);
@@ -333,6 +436,119 @@ const Movements = () => {
                 )}
             </GlassCard>
 
+            {/* Card: Movimientos Futuros (cuotas de tarjeta de crédito) */}
+            {(cargandoFuturos || gastosFuturos.length > 0) && (
+                <GlassCard className="futuros-card">
+                    <div className="futuros-header">
+                        <div className="futuros-titulo-row">
+                            <span className="material-symbols-outlined futuros-icon">schedule</span>
+                            <h3 className="table-title">Movimientos Futuros</h3>
+                            {!cargandoFuturos && (
+                                <span className="category-tag counter">{gastosFuturos.length} compra{gastosFuturos.length !== 1 ? 's' : ''}</span>
+                            )}
+                        </div>
+                        <p className="futuros-subtitulo">Cuotas de tarjeta de crédito pendientes de débito</p>
+                    </div>
+
+                    {cargandoFuturos ? (
+                        <div className="empty-state" style={{ padding: '24px 0' }}>
+                            <div className="loader mx-auto"></div>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Vista desktop */}
+                            <div className="table-responsive movements-table-desktop">
+                                <table className="movements-table">
+                                    <thead>
+                                        <tr>
+                                            <th className="td-desc">Compra</th>
+                                            <th>Categoría</th>
+                                            <th className="text-center">Cuotas pendientes</th>
+                                            <th className="td-amount">Monto/mes</th>
+                                            <th className="td-amount">Total restante</th>
+                                            <th className="td-actions">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {gastosFuturos.map((grupo) => {
+                                            const primerFecha = new Date(`${grupo.cuotasFuturas[0].fecha.split('T')[0]}T12:00:00`);
+                                            const ultimaFecha = new Date(`${grupo.cuotasFuturas[grupo.cuotasFuturas.length - 1].fecha.split('T')[0]}T12:00:00`);
+                                            const totalRestante = grupo.cuotasFuturas.reduce((s, c) => s + parseFloat(c.monto), 0);
+                                            return (
+                                                <tr key={grupo.id}>
+                                                    <td className="td-desc">
+                                                        <span style={{ fontWeight: 600 }}>{grupo.descripcionBase}</span>
+                                                        <span className="futuros-rango">
+                                                            {primerFecha.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })}
+                                                            {' → '}
+                                                            {ultimaFecha.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <span className="category-tag-small">{grupo.categoria}</span>
+                                                    </td>
+                                                    <td className="text-center">
+                                                        <span className="futuros-cuotas-badge">{grupo.cuotasFuturas.length}</span>
+                                                    </td>
+                                                    <td className="td-amount">-${formatCurrency(grupo.montoMensual)}</td>
+                                                    <td className="td-amount futuros-total">-${formatCurrency(totalRestante)}</td>
+                                                    <td className="td-actions">
+                                                        <div className="action-buttons-group">
+                                                            <button type="button" onClick={() => handleEditarGrupo(grupo)} className="action-btn edit" title="Editar">
+                                                                <span className="material-symbols-outlined">edit</span>
+                                                            </button>
+                                                            <button type="button" onClick={() => handleEliminarGrupo(grupo)} className="action-btn delete" title="Eliminar todas las cuotas">
+                                                                <span className="material-symbols-outlined">delete</span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Vista mobile */}
+                            <div className="movements-cards-mobile">
+                                {gastosFuturos.map((grupo) => {
+                                    const totalRestante = grupo.cuotasFuturas.reduce((s, c) => s + parseFloat(c.monto), 0);
+                                    const primerFecha = new Date(`${grupo.cuotasFuturas[0].fecha.split('T')[0]}T12:00:00`);
+                                    const ultimaFecha = new Date(`${grupo.cuotasFuturas[grupo.cuotasFuturas.length - 1].fecha.split('T')[0]}T12:00:00`);
+                                    return (
+                                        <div key={grupo.id} className="mov-card">
+                                            <div className="mov-card-row">
+                                                <span className="mov-card-desc">{grupo.descripcionBase}</span>
+                                                <span className="mov-card-amount">-${formatCurrency(totalRestante)}</span>
+                                            </div>
+                                            <div className="mov-card-row mov-card-meta">
+                                                <div className="mov-card-tags">
+                                                    <span className="category-tag-small">{grupo.categoria}</span>
+                                                    <span className="futuros-cuotas-badge">{grupo.cuotasFuturas.length} cuota{grupo.cuotasFuturas.length !== 1 ? 's' : ''}</span>
+                                                    <span className="method-tag-small">
+                                                        {primerFecha.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })}
+                                                        {' → '}
+                                                        {ultimaFecha.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <div className="mov-card-actions">
+                                                    <button type="button" onClick={() => handleEditarGrupo(grupo)} className="action-btn edit" title="Editar">
+                                                        <span className="material-symbols-outlined">edit</span>
+                                                    </button>
+                                                    <button type="button" onClick={() => handleEliminarGrupo(grupo)} className="action-btn delete" title="Eliminar">
+                                                        <span className="material-symbols-outlined">delete</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    )}
+                </GlassCard>
+            )}
+
             {/* Modal: Editar gasto */}
             <Modal
                 isOpen={isEditModalOpen}
@@ -429,6 +645,78 @@ const Movements = () => {
                 title="Eliminar Gasto"
                 message={`¿Estás seguro de que deseas eliminar "${gastoEliminando?.descripcion || 'este movimiento'}"? Esta acción no se puede deshacer.`}
                 loading={eliminando}
+            />
+
+            {/* Modal: Editar compra en cuotas */}
+            <Modal
+                isOpen={isEditGrupoOpen}
+                onClose={handleCerrarEditarGrupo}
+                title="Editar compra en cuotas"
+                subtitle="Los cambios se aplican a todas las cuotas pendientes"
+            >
+                {grupoEditando && (
+                    <form onSubmit={handleGuardarGrupo} className="form-container">
+                        <div className="form-group">
+                            <label className="form-label-box">Descripción</label>
+                            <input
+                                type="text"
+                                value={grupoEditando.descripcion}
+                                onChange={e => setGrupoEditando(prev => ({ ...prev, descripcion: e.target.value }))}
+                                required
+                                disabled={guardandoGrupo}
+                                className="input"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label-box">Categoría</label>
+                            <select
+                                value={grupoEditando.idCategoria || ''}
+                                onChange={e => setGrupoEditando(prev => ({ ...prev, idCategoria: e.target.value }))}
+                                disabled={guardandoGrupo}
+                                className="form-select"
+                            >
+                                <option value="">Sin categoría</option>
+                                {categories.map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.nombre}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label-box">Fecha de la próxima cuota</label>
+                            <input
+                                type="date"
+                                value={grupoEditando.fechaInicio}
+                                onChange={e => setGrupoEditando(prev => ({ ...prev, fechaInicio: e.target.value }))}
+                                required
+                                disabled={guardandoGrupo}
+                                className="input"
+                            />
+                            <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
+                                Las fechas de las {grupoEditando.cuotasFuturas.length} cuotas siguientes se recalculan automáticamente mes a mes.
+                            </small>
+                        </div>
+                        {errorGrupo && <p className="edit-form-error">{errorGrupo}</p>}
+                        <div className="form-row mt-4">
+                            <button type="button" onClick={handleCerrarEditarGrupo} disabled={guardandoGrupo} className="btn btn-secondary" style={{ flex: 1 }}>
+                                Cancelar
+                            </button>
+                            <button type="submit" disabled={guardandoGrupo} className="btn btn-primary" style={{ flex: 1 }}>
+                                {guardandoGrupo ? 'Guardando...' : 'Actualizar'}
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </Modal>
+
+            {/* Modal: Confirmar eliminación de grupo de cuotas */}
+            <ConfirmModal
+                isOpen={isDeleteGrupoOpen}
+                onClose={() => { if (!eliminandoGrupo) { setIsDeleteGrupoOpen(false); setTimeout(() => setGrupoEliminando(null), 300); } }}
+                onConfirm={confirmarEliminarGrupo}
+                title="Eliminar compra en cuotas"
+                message={`¿Confirmas eliminar todas las cuotas de "${grupoEliminando?.descripcionBase || 'esta compra'}"? Se borran los ${grupoEliminando?.cuotasFuturas?.length || ''} meses restantes.`}
+                loading={eliminandoGrupo}
             />
         </div>
     );

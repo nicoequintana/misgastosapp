@@ -6705,3 +6705,349 @@ body::after {
     padding: var(--space-4);
   }
 }
+
+/* ============================================================
+   MOVIMIENTOS FUTUROS — Card en página Movimientos
+   ============================================================ */
+
+.futuros-card {
+  margin-bottom: var(--space-4);
+}
+
+.futuros-header {
+  margin-bottom: var(--space-4);
+}
+
+.futuros-titulo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: 4px;
+}
+
+.futuros-icon {
+  font-size: 20px;
+  color: var(--warning, #fbbf24);
+}
+
+.futuros-subtitulo {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.futuros-rango {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+.futuros-cuotas-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+.futuros-total {
+  font-weight: 700;
+  color: var(--danger, #fa6238);
+}
+
+/* ============================================================
+   TARJETAS EN CUOTAS — Card de seguimiento
+   ============================================================ */
+
+.cuotas-card {
+  margin-top: 0;
+}
+
+.cuotas-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.cuotas-card-titulo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cuotas-card-icon {
+  font-size: 20px;
+  color: var(--primary);
+}
+
+.cuotas-card-resumen {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.cuotas-resumen-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cuotas-resumen-monto {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.cuotas-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.cuotas-empty-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: var(--space-4) 0;
+}
+
+/* Fila de una compra */
+.cuotas-fila {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+  transition: background 0.2s;
+}
+
+.cuotas-fila--finalizada {
+  opacity: 0.6;
+}
+
+.cuotas-fila-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  user-select: none;
+}
+
+.cuotas-fila-header:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cuotas-fila-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cuotas-fila-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.cuotas-descripcion {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.cuotas-categoria {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.cuotas-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+.cuotas-badge .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.cuotas-badge--ok {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.cuotas-badge--pendiente {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+/* Barra de progreso */
+.cuotas-barra-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cuotas-barra-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.cuotas-barra-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--primary), #6366f1);
+  transition: width 0.4s ease;
+}
+
+.cuotas-barra-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  min-width: 72px;
+  text-align: right;
+}
+
+/* Montos alineados a la derecha */
+.cuotas-fila-montos {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 110px;
+}
+
+.cuotas-monto-mensual {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.cuotas-monto-total {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.cuotas-chevron {
+  color: var(--text-secondary);
+  transition: transform 0.2s;
+  line-height: 1;
+}
+
+.cuotas-chevron--open .material-symbols-outlined {
+  transform: rotate(180deg);
+  display: block;
+}
+
+/* Detalle expandido: lista de cuotas */
+.cuotas-detalle {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cuotas-detalle-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+
+.cuotas-detalle-row--pagada {
+  color: var(--text-primary);
+}
+
+.cuotas-detalle-icon {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.cuotas-detalle-row--pagada .cuotas-detalle-icon {
+  color: #10b981;
+}
+
+.cuotas-detalle-num {
+  min-width: 64px;
+  font-weight: 500;
+}
+
+.cuotas-detalle-fecha {
+  flex: 1;
+  text-transform: capitalize;
+}
+
+.cuotas-detalle-monto {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Botón toggle saldadas */
+.cuotas-toggle-saldadas {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-3);
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: var(--space-1) 0;
+  transition: color 0.2s;
+}
+
+.cuotas-toggle-saldadas:hover {
+  color: var(--primary);
+}
+
+.cuotas-toggle-saldadas .material-symbols-outlined {
+  font-size: 16px;
+}
+
+@media (max-width: 640px) {
+  .cuotas-fila-header {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .cuotas-fila-montos {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .cuotas-card-header {
+    flex-direction: column;
+  }
+
+  .cuotas-card-resumen {
+    align-items: flex-start;
+  }
+}

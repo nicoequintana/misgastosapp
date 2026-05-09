@@ -32,7 +32,10 @@ CREATE TABLE IF NOT EXISTS gastos (
     fecha TIMESTAMPTZ DEFAULT NOW(),
     es_fijo BOOLEAN DEFAULT FALSE,
     huella_digital VARCHAR(64),
-    fecha_creacion TIMESTAMPTZ DEFAULT NOW()
+    fecha_creacion TIMESTAMPTZ DEFAULT NOW(),
+    cuotas SMALLINT DEFAULT 1 CHECK (cuotas BETWEEN 1 AND 18),
+    numero_cuota SMALLINT,
+    id_gasto_padre BIGINT REFERENCES gastos(id) ON DELETE CASCADE
 );
 
 -- Tabla de Ingresos
@@ -105,6 +108,7 @@ CREATE INDEX idx_gastos_fecha ON gastos(fecha);
 CREATE INDEX idx_gastos_id_categoria ON gastos(id_categoria);
 CREATE INDEX idx_gastos_es_fijo ON gastos(es_fijo);
 CREATE INDEX idx_gastos_huella_digital ON gastos(huella_digital);
+CREATE INDEX idx_gastos_id_gasto_padre ON gastos(id_gasto_padre);
 CREATE INDEX idx_categorias_user_id ON categorias(user_id);
 CREATE INDEX idx_metodos_pago_user_id ON metodos_pago(user_id);
 CREATE INDEX idx_ingresos_user_id ON ingresos(user_id);
