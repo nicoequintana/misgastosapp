@@ -43,6 +43,9 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         // Estrategia network-first para rutas de la app (requiere auth activa)
         navigateFallback: '/index.html',
+        // Excluir el callback OAuth — el SW no debe interceptar URLs con ?code=
+        // Si lo hace, el SDK de Supabase no puede procesar el code PKCE y el login falla.
+        navigateFallbackDenylist: [/\?code=/, /\?error=/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,

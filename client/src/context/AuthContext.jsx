@@ -13,25 +13,10 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // 1. Inicializar sesión — getSession() procesa el code OAuth de la URL antes de resolver,
-        //    evitando que el redirect de Google llegue con user=null y mande a /welcome.
-        const initializeAuth = async () => {
-            const { data: { session }, error } = await supabase.auth.getSession();
-
-            if (error) {
-                console.error('❌ Error al obtener sesión:', error.message);
-            }
-
-            setSession(session ?? null);
-            setUser(session?.user ?? null);
-            setLoading(false);
-        };
-
-        initializeAuth();
-
-        // 2. Suscribirse a cambios de estado de autenticación
-        // invitacionRedirigida evita que el hook SIGNED_IN (que Supabase puede disparar
-        // múltiples veces por refrescos de token) ejecute la redirección más de una vez.
+        // onAuthStateChange dispara INITIAL_SESSION al montar (con sesión existente o null),
+        // y también captura el code PKCE del callback OAuth antes de que getSession() lo vea.
+        // Usarlo como fuente de verdad para setLoading(false) evita el race condition donde
+        // getSession() resuelve con null antes de que el SDK intercambie el code OAuth.
         let invitacionRedirigida = false;
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -39,9 +24,13 @@ export const AuthProvider = ({ children }) => {
                 console.log(`🔔 Evento de autenticación: ${event}`);
             }
 
-            setSession(session);
+            setSession(session ?? null);
             setUser(session?.user ?? null);
-            // loading se setea solo en initializeAuth para evitar parpadeos por TOKEN_REFRESHED, etc.
+
+            // INITIAL_SESSION es el primer evento — indica que auth ya resolvió
+            if (event === 'INITIAL_SESSION') {
+                setLoading(false);
+            }
 
             // Hook post-login: si hay una invitación pendiente, redirigir al link de aceptación.
             // AuthProvider vive fuera del Router, por lo que usamos window.location en lugar de useNavigate.
