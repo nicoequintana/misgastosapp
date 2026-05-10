@@ -499,12 +499,12 @@ const Dashboard = () => {
             <TarjetasCuotasCard grupos={cuotasGrupos} />
 
             {/* Botón de acción peligrosa: eliminar todos los gastos variables */}
-            <div className="dashboard-footer">
+            {/* <div className="dashboard-footer">
                 <button onClick={() => setConfirmDeleteAll(true)} className="btn btn-danger-gradient">
                     <span className="material-symbols-outlined">delete_sweep</span>
                     <span>Eliminar gastos variables</span>
                 </button>
-            </div>
+            </div> */}
 
             {/* ========== MODALES ========== */}
 
