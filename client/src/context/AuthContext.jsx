@@ -13,20 +13,17 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // 1. Verificar sesión activa contra el servidor — detecta tokens revocados
+        // 1. Inicializar sesión — getSession() procesa el code OAuth de la URL antes de resolver,
+        //    evitando que el redirect de Google llegue con user=null y mande a /welcome.
         const initializeAuth = async () => {
-            const { data: { user }, error } = await supabase.auth.getUser();
+            const { data: { session }, error } = await supabase.auth.getSession();
 
             if (error) {
                 console.error('❌ Error al obtener sesión:', error.message);
             }
 
-            setUser(user ?? null);
-            // Sincronizar session desde getSession para tener el access_token disponible
-            if (user) {
-                const { data: { session } } = await supabase.auth.getSession();
-                setSession(session);
-            }
+            setSession(session ?? null);
+            setUser(session?.user ?? null);
             setLoading(false);
         };
 
