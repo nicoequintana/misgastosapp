@@ -5,7 +5,7 @@ import { setSeo } from '../utils/seo';
 
 /**
  * Página de aterrizaje (Welcome) para usuarios no autenticados.
- * Estética Glassmorphism con botón de Google Login.
+ * Fondo animado con orbs de plasma + glassmorphism en la card de login.
  */
 const Welcome = () => {
     const { session, signInWithGoogle, loading } = useAuth();
@@ -22,52 +22,92 @@ const Welcome = () => {
     }
 
     return (
-        <div className="welcome-page-body">
-            <nav className="welcome-navbar">
-                <div className="welcome-navbar-brand">
-                    <span className="material-symbols-outlined welcome-navbar-icon">payments</span>
-                    <span className="welcome-navbar-title">Tus Gastos</span>
+        <div className="wlc-root">
+            {/* Orbs de fondo animados */}
+            <div className="wlc-bg" aria-hidden="true">
+                <div className="wlc-orb wlc-orb--1" />
+                <div className="wlc-orb wlc-orb--2" />
+                <div className="wlc-orb wlc-orb--3" />
+                <div className="wlc-orb wlc-orb--4" />
+                <div className="wlc-grid-overlay" />
+            </div>
+
+            {/* Navbar */}
+            <nav className="wlc-nav">
+                <div className="wlc-brand">
+                    <div className="wlc-brand-icon">
+                        <span className="material-symbols-outlined">payments</span>
+                    </div>
+                    <span className="wlc-brand-name">Tus Gastos</span>
                 </div>
+
             </nav>
 
-            <main className="welcome-main">
-                <div className="welcome-grid">
-                    {/* LEFT SIDE: Branding */}
-                    <div className="welcome-hero-side">
-                        <h1>
-                            Tu dinero,<br />
-                            bajo control.
-                        </h1>
-                        <p>
-                            Registrá gastos, analizá tus finanzas y tomá decisiones con claridad.
-                            Simple, rápido, sin fricción.
-                        </p>
-                        <div className="welcome-separator-line"></div>
-                    </div>
+            {/* Layout principal */}
+            <main className="wlc-main">
+                <div className="wlc-layout">
 
-                    {/* RIGHT SIDE: Login Card */}
-                    <div className="welcome-card-login">
-                        <div className="welcome-avatar-container">
-                            <span className="material-symbols-outlined">person</span>
+                    {/* LEFT: Hero */}
+                    <div className="wlc-hero">
+                        <div className="wlc-eyebrow">
+                            <span className="wlc-eyebrow-dot" />
+                            Finanzas personales y de grupo
                         </div>
 
-                        <button
-                            onClick={signInWithGoogle}
-                            className="btn-pill-google pulse-animation"
-                            disabled={loading}
-                        >
-                            <img
-                                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                                alt="Google"
-                                className="welcome-google-logo"
-                            />
-                            <span>{loading ? 'Conectando...' : 'Iniciar con Google'}</span>
-                        </button>
+                        <h1 className="wlc-headline">
+                            Tu dinero,<br />
+                            <span className="wlc-headline-accent">bajo control.</span>
+                        </h1>
 
-                        <p className="welcome-security-note">
-                            Acceso seguro garantizado por Google
+                        <p className="wlc-subline">
+                            Registrá gastos, analizá tus finanzas y tomá
+                            decisiones con claridad. Simple, rápido, sin fricción.
                         </p>
+
                     </div>
+
+                    {/* RIGHT: Card login */}
+                    <div className="wlc-card-wrap">
+                        <div className="wlc-card">
+                            {/* Inner glow top */}
+                            <div className="wlc-card-glow" aria-hidden="true" />
+
+                            <div className="wlc-card-avatar">
+                                <div className="wlc-avatar-inner">
+                                    <span className="material-symbols-outlined">person</span>
+                                </div>
+                                <div className="wlc-avatar-ring" />
+                            </div>
+
+                            <div className="wlc-card-copy">
+                                <h2 className="wlc-card-title">Bienvenido</h2>
+                                <p className="wlc-card-subtitle">Ingresá con tu cuenta de Google para continuar.</p>
+                            </div>
+
+                            <button
+                                onClick={signInWithGoogle}
+                                className="wlc-btn-google"
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <span className="wlc-spinner" />
+                                ) : (
+                                    <img
+                                        src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                                        alt="Google"
+                                        className="wlc-google-logo"
+                                    />
+                                )}
+                                <span>{loading ? 'Conectando...' : 'Iniciar con Google'}</span>
+                            </button>
+
+                            <p className="wlc-security-note">
+                                <span className="material-symbols-outlined wlc-lock-icon">lock</span>
+                                Acceso seguro garantizado por Google
+                            </p>
+                        </div>
+                    </div>
+
                 </div>
             </main>
         </div>

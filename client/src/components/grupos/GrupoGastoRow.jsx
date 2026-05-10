@@ -14,11 +14,10 @@ import * as db from '../../lib/db';
  * @param {Object}   props.gasto       - { id, descripcion, monto, pagado_por, fecha, estado, creado_por }
  * @param {Array}    props.miembros    - Lista de miembros del grupo para resolver nombres
  * @param {string}   props.userId      - user_id del usuario autenticado
- * @param {boolean}  props.esAdmin     - true si el usuario actual es admin del grupo
  * @param {Function} props.onAnular    - Callback que recibe el gastoId al confirmar la anulación
  * @param {string}   props.grupoId     - ID del grupo (para construir la ruta de edición)
  */
-const GrupoGastoRow = ({ gasto, miembros = [], userId, esAdmin = false, onAnular, grupoId }) => {
+const GrupoGastoRow = ({ gasto, miembros = [], userId, onAnular, grupoId }) => {
     const navigate = useNavigate();
     const [modalAnularAbierto, setModalAnularAbierto] = useState(false);
     const [anulando, setAnulando] = useState(false);

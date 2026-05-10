@@ -96,10 +96,10 @@ const Sidebar = ({ isOpen, isMobile, toggleSidebar, onNewExpense }) => {
                 )}
             </aside>
 
-            {/* Bottom Nav Bar — solo visible en mobile */}
+            {/* Bottom Nav Bar — solo visible en mobile/tablet */}
             {isMobile && (
                 <nav className="bottom-nav">
-                    <NavLink to="/" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+                    <NavLink to="/" end className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
                         <span className="material-symbols-outlined">dashboard</span>
                         <span className="bottom-nav-label">Inicio</span>
                     </NavLink>
@@ -108,7 +108,7 @@ const Sidebar = ({ isOpen, isMobile, toggleSidebar, onNewExpense }) => {
                     <button className="bottom-nav-fab" onClick={onNewExpense} title="Nuevo Gasto">
                         <span className="material-symbols-outlined">add</span>
                     </button>
-                    {/* Placeholder invisible para centrar el FAB en el grid */}
+                    {/* Placeholder invisible para centrar el FAB */}
                     <div className="bottom-nav-fab-placeholder" aria-hidden="true" />
 
                     <button className="bottom-nav-item" onClick={toggleSidebar}>

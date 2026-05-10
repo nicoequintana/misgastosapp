@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import GlassCard from '../components/GlassCard';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import CurrencyInput from '../components/CurrencyInput';
@@ -100,8 +99,14 @@ const Dashboard = () => {
     // Estado del formulario de nuevo gasto
     const [expenseForm, setExpenseForm] = useState(ESTADO_INICIAL_GASTO);
 
-    // Monto del formulario de ingreso
-    const [incomeAmount, setIncomeAmount] = useState('');
+    // Estado del panel de ingresos
+    const INCOME_FORM_INICIAL = { monto: '', descripcion: '', categoria_id: '', es_recurrente: false };
+    const [ingresosMes, setIngresosMes]             = useState([]);
+    const [recurrentes, setRecurrentes]             = useState([]);
+    const [categoriaIngresos, setCategoriaIngresos] = useState([]);
+    const [incomeForm, setIncomeForm]               = useState(INCOME_FORM_INICIAL);
+    const [incomeEditando, setIncomeEditando]       = useState(null);
+    const [incomeConfirmDelete, setIncomeConfirmDelete] = useState(null);
 
     // Grupos de cuotas para la card de tarjeta de crédito
     const [cuotasGrupos, setCuotasGrupos] = useState([]);
@@ -146,24 +151,47 @@ const Dashboard = () => {
      */
     const fetchOpciones = useCallback(async () => {
         try {
-            const [cats, metodos, cuotas] = await Promise.all([
+            const [cats, metodos, cuotas, catIngresos] = await Promise.all([
                 db.getCategories(),
                 db.getPaymentMethods(),
                 getTarjetasEnCuotas(),
+                db.getIncomeCategories(),
             ]);
             setCategories(cats);
             setPaymentMethods(metodos);
             setCuotasGrupos(cuotas);
+            setCategoriaIngresos(catIngresos);
         } catch (err) {
             console.error('❌ Error al obtener opciones:', err);
         }
     }, []);
 
+    /** Carga los ingresos del mes actual para mostrar en el panel. */
+    const fetchIngresosMes = useCallback(async () => {
+        try {
+            const hoy = new Date();
+            const data = await db.getIncomesByMonth(hoy.getFullYear(), hoy.getMonth() + 1);
+            setIngresosMes(data);
+        } catch (err) {
+            console.error('❌ Error al obtener ingresos del mes:', err);
+        }
+    }, []);
+
+    /** Carga ingresos recurrentes del usuario. */
+    const fetchRecurrentes = useCallback(async () => {
+        try {
+            const data = await db.getRecurringIncomes();
+            setRecurrentes(data);
+        } catch (err) {
+            console.error('❌ Error al obtener recurrentes:', err);
+        }
+    }, []);
+
     useEffect(() => {
-        // Al montar verificamos alertas financieras (ej: ingreso no configurado, saldo bajo)
         fetchStats({ verificarAlertas: true });
         fetchOpciones();
-    }, [fetchStats, fetchOpciones]);
+        fetchIngresosMes();
+    }, [fetchStats, fetchOpciones, fetchIngresosMes]);
 
     // Cuando el FAB del bottom nav mobile dispara onNewExpense, abrimos el modal
     useEffect(() => {
@@ -242,26 +270,94 @@ const Dashboard = () => {
         }
     };
 
+    /** Abre el panel de ingresos y carga los registros del mes y los recurrentes. */
+    const handleAbrirIngresos = () => {
+        setIncomeForm(INCOME_FORM_INICIAL);
+        setIncomeEditando(null);
+        setIsIncomeModalOpen(true);
+        fetchIngresosMes();
+        fetchRecurrentes();
+    };
+
     /**
-     * Guarda el ingreso activo. Crea o actualiza el registro único del usuario.
+     * Guarda un ingreso. Si es_recurrente = true, crea/actualiza en ingresos_recurrentes
+     * y también registra el movimiento real del mes. Si es_recurrente = false, solo registra
+     * el movimiento puntual. La fecha siempre es hoy (transparente para el usuario).
      */
     const handleSaveIncome = async (e) => {
         e.preventDefault();
+        const hoy = new Date();
+        const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
         try {
-            await db.saveIncome(incomeAmount);
-            console.log('✅ Ingreso guardado correctamente');
-            await fetchStats({ verificarAlertas: true });
+            if (incomeEditando) {
+                await db.updateIncome(incomeEditando, {
+                    monto:        incomeForm.monto,
+                    descripcion:  incomeForm.descripcion,
+                    categoria_id: incomeForm.categoria_id || null,
+                });
+                agregarNotificacion({ titulo: 'Ingreso actualizado', mensaje: `Ingreso de $${Number(incomeForm.monto).toLocaleString('es-AR')} modificado.`, tipo: 'info', origen: 'ingresos' });
+            } else {
+                // Si marcó recurrente, también lo registra en ingresos_recurrentes
+                if (incomeForm.es_recurrente) {
+                    await db.createRecurringIncome({
+                        descripcion:  incomeForm.descripcion || 'Ingreso recurrente',
+                        monto:        incomeForm.monto,
+                        categoria_id: incomeForm.categoria_id || null,
+                        fecha_inicio: `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`,
+                    });
+                }
+                await db.createIncome({
+                    monto:        incomeForm.monto,
+                    fecha:        fechaHoy,
+                    descripcion:  incomeForm.descripcion,
+                    categoria_id: incomeForm.categoria_id || null,
+                });
+                agregarNotificacion({ titulo: 'Ingreso registrado', mensaje: `Se registró un ingreso de $${Number(incomeForm.monto).toLocaleString('es-AR')}.`, tipo: 'success', origen: 'ingresos' });
+            }
+            setIncomeForm(INCOME_FORM_INICIAL);
+            setIncomeEditando(null);
             setIsIncomeModalOpen(false);
-            setIncomeAmount('');
-            agregarNotificacion({
-                titulo: 'Ingreso actualizado',
-                mensaje: `Tu ingreso mensual fue actualizado a $${incomeAmount}.`,
-                tipo: 'info',
-                origen: 'ingresos',
-            });
+            await Promise.all([fetchIngresosMes(), fetchRecurrentes(), fetchStats({ verificarAlertas: true })]);
         } catch (err) {
             console.error('❌ Error al guardar ingreso:', err);
-            alert('Error al guardar el ingreso. Por favor, intentá de nuevo.');
+            alert(`Error: ${err.message || 'Intentá de nuevo.'}`);
+        }
+    };
+
+    /** Carga los datos del ingreso seleccionado en el formulario para editar. */
+    const handleEditarIngreso = (ingreso) => {
+        setIncomeEditando(ingreso.id);
+        setIncomeForm({
+            monto:         String(ingreso.monto),
+            descripcion:   ingreso.descripcion || '',
+            categoria_id:  ingreso.categoria_id || '',
+            es_recurrente: false,
+        });
+    };
+
+    /** Elimina un ingreso puntual tras confirmación. */
+    const handleEliminarIngreso = async (id) => {
+        try {
+            await db.deleteIncome(id);
+            setIncomeConfirmDelete(null);
+            agregarNotificacion({ titulo: 'Ingreso eliminado', mensaje: 'El ingreso fue eliminado del período.', tipo: 'warning', origen: 'ingresos' });
+            await Promise.all([fetchIngresosMes(), fetchStats({ verificarAlertas: true })]);
+        } catch (err) {
+            console.error('❌ Error al eliminar ingreso:', err);
+            alert('No se pudo eliminar el ingreso. Intentá de nuevo.');
+        }
+    };
+
+    /** Elimina o desactiva un recurrente tras confirmación. */
+    const handleEliminarRecurrente = async (id) => {
+        try {
+            await db.deleteRecurringIncome(id);
+            setIncomeConfirmDelete(null);
+            agregarNotificacion({ titulo: 'Recurrente eliminado', mensaje: 'El ingreso recurrente fue eliminado.', tipo: 'warning', origen: 'ingresos' });
+            await Promise.all([fetchRecurrentes()]);
+        } catch (err) {
+            console.error('❌ Error al eliminar recurrente:', err);
+            alert('No se pudo eliminar el recurrente.');
         }
     };
 
@@ -338,7 +434,7 @@ const Dashboard = () => {
                     <p>Resumen general de tus finanzas personales</p>
                 </div>
                 <div className="dashboard-actions">
-                    <button onClick={() => setIsIncomeModalOpen(true)} className="btn btn-secondary">
+                    <button onClick={handleAbrirIngresos} className="btn btn-income">
                         <span className="material-symbols-outlined">account_balance</span>
                         <span>Ingresos</span>
                     </button>
@@ -521,33 +617,159 @@ const Dashboard = () => {
                 </form>
             </Modal>
 
-            {/* Modal: Ingreso */}
+            {/* Modal: Ingresos */}
             <Modal
                 isOpen={isIncomeModalOpen}
-                onClose={() => setIsIncomeModalOpen(false)}
+                onClose={() => { setIsIncomeModalOpen(false); setIncomeEditando(null); }}
                 title="Ingresos"
-                subtitle="Ingresá el monto de tu ingreso mensual"
+                subtitle="Registrá tus ingresos del mes"
+                disableClose={!!incomeConfirmDelete}
             >
-                <form onSubmit={handleSaveIncome} className="form-container">
-                    <div className="form-group">
-                        <label className="form-label-box">Monto</label>
-                        <CurrencyInput
-                            key={String(isIncomeModalOpen)}
-                            value={incomeAmount}
-                            onChange={setIncomeAmount}
-                            required
-                        />
-                    </div>
-                    <div className="form-row">
-                        <button type="button" onClick={() => setIsIncomeModalOpen(false)} className="btn btn-secondary" style={{ flex: 1 }}>
-                            Cancelar
-                        </button>
-                        <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                            Guardar
-                        </button>
-                    </div>
-                </form>
+                <div className="form-container">
+                    <form onSubmit={handleSaveIncome}>
+                        <div className="form-group">
+                            <label className="form-label-box">Monto</label>
+                            <CurrencyInput
+                                key={`income-${incomeEditando ?? 'new'}`}
+                                value={incomeForm.monto}
+                                onChange={(val) => setIncomeForm(prev => ({ ...prev, monto: val }))}
+                                required
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label-box">Descripción (opcional)</label>
+                            <input
+                                type="text"
+                                value={incomeForm.descripcion}
+                                onChange={(e) => setIncomeForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                                className="input"
+                                placeholder="Ej: Sueldo"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label-box">Categoría (opcional)</label>
+                            <select
+                                value={incomeForm.categoria_id}
+                                onChange={(e) => setIncomeForm(prev => ({ ...prev, categoria_id: e.target.value }))}
+                                className="form-select"
+                            >
+                                <option value="">Sin categoría</option>
+                                {categoriaIngresos.map(c => (
+                                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                                ))}
+                            </select>
+                        </div>
+                        {/* Solo mostrar checkbox recurrente al crear, no al editar */}
+                        {!incomeEditando && (
+                            <div className="form-checkbox-group">
+                                <input
+                                    type="checkbox"
+                                    id="es_recurrente"
+                                    checked={incomeForm.es_recurrente}
+                                    onChange={(e) => setIncomeForm(prev => ({ ...prev, es_recurrente: e.target.checked }))}
+                                />
+                                <label htmlFor="es_recurrente">Ingreso recurrente (se repite cada mes)</label>
+                            </div>
+                        )}
+                        <div className="form-row" style={{ marginTop: '8px' }}>
+                            {incomeEditando && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setIncomeEditando(null); setIncomeForm(INCOME_FORM_INICIAL); }}
+                                    className="btn btn-secondary"
+                                    style={{ flex: 1 }}
+                                >
+                                    Cancelar
+                                </button>
+                            )}
+                            <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+                                {incomeEditando ? 'Actualizar' : 'Agregar ingreso'}
+                            </button>
+                        </div>
+                    </form>
+
+                    {/* Lista de ingresos del mes */}
+                    {ingresosMes.length > 0 && (
+                        <div style={{ marginTop: '20px' }}>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Ingresos de este mes
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {ingresosMes.map(ing => (
+                                    <div key={ing.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', border: incomeEditando === ing.id ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)' }}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--success)' }}>
+                                                ${Number(ing.monto).toLocaleString('es-AR')}
+                                            </div>
+                                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                                {ing.descripcion || 'Sin descripción'}{ing.categorias_ingresos?.nombre ? ` · ${ing.categorias_ingresos.nombre}` : ''}
+                                                {ing.recurrente_id && <span style={{ marginLeft: '6px', fontSize: '11px', background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: '4px' }}>recurrente</span>}
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '6px', marginLeft: '10px' }}>
+                                            <button type="button" onClick={() => handleEditarIngreso(ing)} className="btn btn-secondary" style={{ padding: '4px 8px' }} title="Editar">
+                                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>edit</span>
+                                            </button>
+                                            <button type="button" onClick={() => setIncomeConfirmDelete(ing.id)} className="btn btn-danger-gradient" style={{ padding: '4px 8px' }} title="Eliminar">
+                                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                                <span style={{ color: 'var(--text-secondary)' }}>Total del mes</span>
+                                <span style={{ fontWeight: 700, color: 'var(--success)' }}>
+                                    ${ingresosMes.reduce((s, i) => s + Number(i.monto), 0).toLocaleString('es-AR')}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                    {ingresosMes.length === 0 && (
+                        <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px', marginTop: '16px', padding: '12px' }}>
+                            Todavía no registraste ingresos este mes.
+                        </div>
+                    )}
+
+                    {/* Lista de recurrentes activos — informativo */}
+                    {recurrentes.filter(r => r.activo).length > 0 && (
+                        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Recurrentes configurados
+                            </div>
+                            {recurrentes.filter(r => r.activo).map(rec => (
+                                <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '4px 0', color: 'var(--text-secondary)' }}>
+                                    <span>{rec.descripcion}</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{ color: 'var(--success)' }}>${Number(rec.monto).toLocaleString('es-AR')}/mes</span>
+                                        <button type="button" onClick={() => setIncomeConfirmDelete(`rec-${rec.id}`)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0' }} title="Eliminar recurrente">
+                                            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>close</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </Modal>
+
+            {/* Confirm: eliminar ingreso o recurrente */}
+            {!!incomeConfirmDelete && (
+                <ConfirmModal
+                    isOpen={true}
+                    onClose={() => setIncomeConfirmDelete(null)}
+                    onConfirm={() => {
+                        const id = incomeConfirmDelete;
+                        if (typeof id === 'string' && id.startsWith('rec-')) {
+                            handleEliminarRecurrente(Number(id.replace('rec-', '')));
+                        } else {
+                            handleEliminarIngreso(id);
+                        }
+                    }}
+                    title={typeof incomeConfirmDelete === 'string' && incomeConfirmDelete.startsWith('rec-') ? 'Eliminar recurrente' : 'Eliminar ingreso'}
+                    message={typeof incomeConfirmDelete === 'string' && incomeConfirmDelete.startsWith('rec-') ? 'Se eliminarán los próximos registros automáticos de este ingreso recurrente.' : '¿Querés eliminar este ingreso? El total del mes se recalculará.'}
+                />
+            )}
 
             {/* Modal: Confirmar eliminación de gastos variables */}
             <ConfirmModal

@@ -90,7 +90,7 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
         } finally {
             setCargando(false);
         }
-    }, [id]);
+    }, [id, navigate]);
 
     useEffect(() => {
         cargarDatos();

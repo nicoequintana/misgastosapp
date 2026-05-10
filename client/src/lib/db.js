@@ -610,62 +610,434 @@ export const getPaymentMethods = async () => {
 // ==================== INGRESOS ====================
 
 /**
- * Obtiene el ingreso activo del usuario.
- * Si no existe ninguno, retorna monto 0 sin crear filas vacías.
+ * Obtiene todos los ingresos del usuario en un mes/año específico.
+ * Ordenados por fecha descendente.
+ *
+ * @param {number} year  - Año (ej: 2026)
+ * @param {number} month - Mes 1-indexado (1=enero … 12=diciembre)
+ * @returns {Array} Lista de ingresos del período, con datos de categoría
  */
-export const getIncome = async () => {
+export const getIncomesByMonth = async (year, month) => {
     const usuario = await obtenerUsuarioActivo();
+
+    const mesStr        = String(month).padStart(2, '0');
+    const mesSigNum     = month === 12 ? 1  : month + 1;
+    const anioSig       = month === 12 ? year + 1 : year;
+    const mesSigStr     = String(mesSigNum).padStart(2, '0');
+    const desde         = `${year}-${mesStr}-01`;
+    const hasta         = `${anioSig}-${mesSigStr}-01`;
 
     const { data, error } = await supabase
         .from('ingresos')
-        .select('*')
+        .select('*, categorias_ingresos:categoria_id (id, nombre)')
         .eq('user_id', usuario.id)
-        .limit(1)
-        .maybeSingle();
+        .gte('fecha', desde)
+        .lt('fecha', hasta)
+        .order('fecha', { ascending: false });
 
     if (error) {
-        console.error('❌ Error en getIncome:', error);
+        console.error('❌ Error en getIncomesByMonth:', error);
         throw error;
     }
 
-    return data ?? { monto: 0 };
+    return data ?? [];
 };
 
 /**
- * Guarda el ingreso del usuario.
- * Intenta actualizar primero; si no afecta filas, crea uno nuevo.
- * Garantiza que cada usuario tenga exactamente un registro de ingreso.
- * 
- * @param {number} monto - Monto del ingreso
- * @returns {Object} El registro de ingreso (creado o actualizado)
- * @throws {Error} Si el monto no es válido o es ≤ 0
+ * Retorna la suma de ingresos del usuario para un mes/año.
+ * Devuelve 0 si no hay registros en ese período.
+ *
+ * @param {number} year
+ * @param {number} month
+ * @returns {number} Total de ingresos del período
  */
-export const saveIncome = async (monto) => {
+export const getIncomeTotalByMonth = async (year, month) => {
+    const ingresos = await getIncomesByMonth(year, month);
+    return ingresos.reduce((suma, i) => suma + parseFloat(i.monto || 0), 0);
+};
+
+/**
+ * Crea un nuevo ingreso para el usuario.
+ * No permite fechas anteriores al mes actual (bloquea cargar hacia atrás).
+ *
+ * @param {Object} data
+ * @param {number} data.monto       - Monto del ingreso (obligatorio, > 0)
+ * @param {string} data.fecha       - Fecha YYYY-MM-DD (obligatorio, no puede ser mes anterior)
+ * @param {string} [data.descripcion]
+ * @param {number} [data.categoria_id]
+ * @returns {Object} El ingreso creado
+ */
+export const createIncome = async ({ monto, fecha, descripcion, categoria_id }) => {
     const usuario = await obtenerUsuarioActivo();
-    
-    // Validar que el monto sea un número positivo
-    const montoLimpio = Number(monto);
-    if (isNaN(montoLimpio) || montoLimpio <= 0) {
+
+    const montoNum = Number(monto);
+    if (isNaN(montoNum) || montoNum <= 0) {
         throw new Error('El ingreso debe ser mayor a cero');
     }
 
-    // Upsert atómico: crea la fila si no existe, actualiza si ya existe.
-    // Evita la race condition del patrón update-then-insert.
+    // Validar que la fecha no sea de un mes anterior al actual
+    const hoy        = new Date();
+    const periodoMin = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const fechaIngreso = new Date(`${fecha}T12:00:00`);
+    if (fechaIngreso < periodoMin) {
+        throw new Error('No podés registrar ingresos en meses anteriores al actual');
+    }
+
+    const payload = {
+        user_id:     usuario.id,
+        monto:       montoNum,
+        fecha,
+        origen:      'manual',
+        fecha_creacion:     new Date().toISOString(),
+        fecha_actualizacion: new Date().toISOString(),
+    };
+    if (descripcion?.trim()) payload.descripcion = descripcion.trim();
+    if (categoria_id)        payload.categoria_id = categoria_id;
+
     const { data, error } = await supabase
         .from('ingresos')
-        .upsert(
-            { user_id: usuario.id, monto: montoLimpio, fecha_actualizacion: new Date().toISOString() },
-            { onConflict: 'user_id' }
-        )
-        .select()
+        .insert(payload)
+        .select('*, categorias_ingresos:categoria_id (id, nombre)')
         .single();
 
     if (error) {
-        console.error('❌ Error en saveIncome:', error);
+        console.error('❌ Error en createIncome:', error);
         throw error;
     }
 
     return data;
+};
+
+/**
+ * Actualiza un ingreso existente del usuario.
+ * No permite mover el ingreso a un mes anterior al actual.
+ *
+ * @param {number} id    - ID del ingreso a actualizar
+ * @param {Object} data  - Campos a actualizar: monto, fecha, descripcion, categoria_id
+ * @returns {Object} El ingreso actualizado
+ */
+export const updateIncome = async (id, { monto, fecha, descripcion, categoria_id }) => {
+    const usuario = await obtenerUsuarioActivo();
+
+    if (monto !== undefined) {
+        const montoNum = Number(monto);
+        if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
+    }
+
+    if (fecha) {
+        const hoy        = new Date();
+        const periodoMin = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+        const fechaIngreso = new Date(`${fecha}T12:00:00`);
+        if (fechaIngreso < periodoMin) {
+            throw new Error('No podés mover un ingreso a un mes anterior al actual');
+        }
+    }
+
+    const payload = { fecha_actualizacion: new Date().toISOString() };
+    if (monto       !== undefined) payload.monto       = Number(monto);
+    if (fecha       !== undefined) payload.fecha       = fecha;
+    if (descripcion !== undefined) payload.descripcion = descripcion?.trim() || null;
+    if (categoria_id !== undefined) payload.categoria_id = categoria_id || null;
+
+    const { data, error } = await supabase
+        .from('ingresos')
+        .update(payload)
+        .eq('id', id)
+        .eq('user_id', usuario.id)
+        .select('*, categorias_ingresos:categoria_id (id, nombre)')
+        .single();
+
+    if (error) {
+        console.error('❌ Error en updateIncome:', error);
+        throw error;
+    }
+
+    return data;
+};
+
+/**
+ * Elimina un ingreso del usuario por ID.
+ * RLS garantiza que solo puede eliminar los propios.
+ *
+ * @param {number} id - ID del ingreso a eliminar
+ */
+export const deleteIncome = async (id) => {
+    const usuario = await obtenerUsuarioActivo();
+
+    const { error } = await supabase
+        .from('ingresos')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', usuario.id);
+
+    if (error) {
+        console.error('❌ Error en deleteIncome:', error);
+        throw error;
+    }
+};
+
+/**
+ * Obtiene todas las categorías de ingresos disponibles para el usuario.
+ * Incluye globales (user_id IS NULL) y personales del usuario.
+ *
+ * @returns {Array} Lista de categorías con flag es_propia
+ */
+export const getIncomeCategories = async () => {
+    const { data, error } = await supabase
+        .from('categorias_ingresos')
+        .select('*')
+        .eq('activa', true)
+        .order('nombre');
+
+    if (error) {
+        console.error('❌ Error en getIncomeCategories:', error);
+        throw error;
+    }
+
+    const usuario = await obtenerUsuarioActivo();
+    return (data ?? []).map(c => ({ ...c, es_propia: c.user_id === usuario.id }));
+};
+
+// Alias para compatibilidad con código antiguo — usa getIncomesByMonth del mes actual
+export const getIncome = async () => {
+    const hoy = new Date();
+    const total = await getIncomeTotalByMonth(hoy.getFullYear(), hoy.getMonth() + 1);
+    return { monto: total };
+};
+
+// Alias mantenido para compatibilidad — ahora usa createIncome
+export const saveIncome = async (monto) => {
+    const hoy = new Date();
+    const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+    return createIncome({ monto, fecha });
+};
+
+// ==================== INGRESOS RECURRENTES ====================
+
+/**
+ * Obtiene todos los ingresos recurrentes del usuario (activos e inactivos).
+ */
+export const getRecurringIncomes = async () => {
+    const usuario = await obtenerUsuarioActivo();
+
+    const { data, error } = await supabase
+        .from('ingresos_recurrentes')
+        .select('*, categorias_ingresos:categoria_id (id, nombre)')
+        .eq('user_id', usuario.id)
+        .order('fecha_creacion', { ascending: false });
+
+    if (error) {
+        console.error('❌ Error en getRecurringIncomes:', error);
+        throw error;
+    }
+
+    return data ?? [];
+};
+
+/**
+ * Crea un ingreso recurrente.
+ *
+ * @param {Object} data
+ * @param {string} data.descripcion   - Obligatorio
+ * @param {number} data.monto         - Obligatorio, > 0
+ * @param {number} [data.categoria_id]
+ * @param {number} [data.dia_estimado] - Día del mes esperado (1-31)
+ * @param {string} [data.fecha_inicio] - YYYY-MM-DD, default hoy
+ */
+export const createRecurringIncome = async ({ descripcion, monto, categoria_id, dia_estimado, fecha_inicio }) => {
+    const usuario = await obtenerUsuarioActivo();
+
+    const montoNum = Number(monto);
+    if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
+    if (!descripcion?.trim()) throw new Error('La descripción es obligatoria');
+
+    const hoy = new Date();
+    const payload = {
+        user_id:     usuario.id,
+        descripcion: descripcion.trim().toUpperCase(),
+        monto:       montoNum,
+        frecuencia:  'mensual',
+        activo:      true,
+        fecha_inicio: fecha_inicio ?? `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`,
+    };
+    if (categoria_id)  payload.categoria_id  = categoria_id;
+    if (dia_estimado)  payload.dia_estimado  = Number(dia_estimado);
+
+    const { data, error } = await supabase
+        .from('ingresos_recurrentes')
+        .insert(payload)
+        .select('*, categorias_ingresos:categoria_id (id, nombre)')
+        .single();
+
+    if (error) {
+        console.error('❌ Error en createRecurringIncome:', error);
+        throw error;
+    }
+
+    return data;
+};
+
+/**
+ * Actualiza un ingreso recurrente existente.
+ *
+ * @param {number} id
+ * @param {Object} data - Campos a actualizar: descripcion, monto, categoria_id, dia_estimado, activo, fecha_fin
+ */
+export const updateRecurringIncome = async (id, data) => {
+    const usuario = await obtenerUsuarioActivo();
+
+    const payload = { fecha_actualizacion: new Date().toISOString() };
+    if (data.descripcion !== undefined) payload.descripcion = data.descripcion.trim().toUpperCase();
+    if (data.monto       !== undefined) {
+        const m = Number(data.monto);
+        if (isNaN(m) || m <= 0) throw new Error('El monto debe ser mayor a cero');
+        payload.monto = m;
+    }
+    if (data.categoria_id  !== undefined) payload.categoria_id  = data.categoria_id  || null;
+    if (data.dia_estimado  !== undefined) payload.dia_estimado  = data.dia_estimado  || null;
+    if (data.activo        !== undefined) payload.activo        = data.activo;
+    if (data.fecha_fin     !== undefined) payload.fecha_fin     = data.fecha_fin     || null;
+
+    const { data: updated, error } = await supabase
+        .from('ingresos_recurrentes')
+        .update(payload)
+        .eq('id', id)
+        .eq('user_id', usuario.id)
+        .select('*, categorias_ingresos:categoria_id (id, nombre)')
+        .single();
+
+    if (error) {
+        console.error('❌ Error en updateRecurringIncome:', error);
+        throw error;
+    }
+
+    return updated;
+};
+
+/**
+ * Elimina un ingreso recurrente. Solo elimina si no tiene ingresos generados asociados;
+ * si los tiene, desactiva (activo = false) para preservar el historial.
+ *
+ * @param {number} id
+ */
+export const deleteRecurringIncome = async (id) => {
+    const usuario = await obtenerUsuarioActivo();
+
+    // Verificar si tiene ingresos reales generados por este recurrente
+    const { count } = await supabase
+        .from('ingresos')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', usuario.id)
+        .eq('recurrente_id', id);
+
+    if (count > 0) {
+        // Tiene historial — desactivar en vez de borrar
+        return updateRecurringIncome(id, { activo: false, fecha_fin: new Date().toISOString().split('T')[0] });
+    }
+
+    const { error } = await supabase
+        .from('ingresos_recurrentes')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', usuario.id);
+
+    if (error) {
+        console.error('❌ Error en deleteRecurringIncome:', error);
+        throw error;
+    }
+};
+
+/**
+ * Proyecta los ingresos esperados para un mes/año dado, basándose en los
+ * ingresos recurrentes activos cuya fecha_inicio sea <= ese mes.
+ * No cuenta recurrentes cuya fecha_fin sea anterior al período solicitado.
+ * Diferencia la proyección de ingresos reales ya registrados.
+ *
+ * @param {number} year
+ * @param {number} month
+ * @returns {{ proyectados: Array, totalProyectado: number, totalReal: number, totalCombinado: number }}
+ */
+export const getProjectedIncomeByMonth = async (year, month) => {
+    const mesStr    = String(month).padStart(2, '0');
+    const periodoStr = `${year}-${mesStr}-01`;
+    const mesSigNum  = month === 12 ? 1 : month + 1;
+    const anioSig    = month === 12 ? year + 1 : year;
+    const hasta      = `${anioSig}-${String(mesSigNum).padStart(2, '0')}-01`;
+
+    const [recurrentes, ingresosReales] = await Promise.all([
+        getRecurringIncomes(),
+        getIncomesByMonth(year, month),
+    ]);
+
+    // Filtrar recurrentes que aplican para el período solicitado
+    const proyectados = recurrentes.filter(r => {
+        if (!r.activo) return false;
+        if (r.fecha_inicio > hasta) return false;                          // aún no empezó
+        if (r.fecha_fin && r.fecha_fin < periodoStr) return false;         // ya terminó
+        return true;
+    }).map(r => ({
+        id:           r.id,
+        descripcion:  r.descripcion,
+        monto:        parseFloat(r.monto),
+        categoria:    r.categorias_ingresos?.nombre ?? null,
+        dia_estimado: r.dia_estimado,
+        origen:       'proyectado',
+    }));
+
+    const totalProyectado = proyectados.reduce((s, r) => s + r.monto, 0);
+    const totalReal       = ingresosReales.reduce((s, i) => s + parseFloat(i.monto || 0), 0);
+
+    return {
+        proyectados,
+        totalProyectado,
+        totalReal,
+        // Total combinado: real + lo que falta de la proyección (no duplica lo ya cobrado)
+        totalCombinado: totalReal + Math.max(0, totalProyectado - totalReal),
+    };
+};
+
+/**
+ * Compara ingresos y gastos variables entre el mes actual y el anterior.
+ *
+ * @param {number} year
+ * @param {number} month - Mes actual (1-indexado)
+ * @returns {{ ingresoActual, ingresoAnterior, variacionIngreso, variacionIngresoPct,
+ *             gastosVarActual, gastosVarAnterior, variacionGastos, variacionGastosPct }}
+ */
+export const getMonthlyComparison = async (year, month) => {
+    const mesAntNum  = month === 1 ? 12 : month - 1;
+    const anioAnt    = month === 1 ? year - 1 : year;
+
+    const [ingresoActual, ingresoAnterior, statsActual, statsAnterior] = await Promise.all([
+        getIncomeTotalByMonth(year, month),
+        getIncomeTotalByMonth(anioAnt, mesAntNum),
+        getStatsByMonth(year, month),
+        getStatsByMonth(anioAnt, mesAntNum),
+    ]);
+
+    const gastosVarActual   = statsActual.gastosVariables   ?? 0;
+    const gastosVarAnterior = statsAnterior.gastosVariables ?? 0;
+
+    const variacionIngreso    = ingresoActual - ingresoAnterior;
+    const variacionIngresoPct = ingresoAnterior > 0
+        ? ((variacionIngreso / ingresoAnterior) * 100)
+        : null;
+
+    const variacionGastos    = gastosVarActual - gastosVarAnterior;
+    const variacionGastosPct = gastosVarAnterior > 0
+        ? ((variacionGastos / gastosVarAnterior) * 100)
+        : null;
+
+    return {
+        ingresoActual,
+        ingresoAnterior,
+        variacionIngreso,
+        variacionIngresoPct,
+        gastosVarActual,
+        gastosVarAnterior,
+        variacionGastos,
+        variacionGastosPct,
+    };
 };
 
 // ==================== PERFIL DE USUARIO ====================
@@ -731,29 +1103,27 @@ export const updateThemeUsuario = async (themeId) => {
  * //   ingresoMensual, gastos, porCategoria }
  */
 export const getStats = async () => {
-    // Obtener gastos e ingresos en paralelo para reducir latencia
-    const [gastos, ingreso] = await Promise.all([
+    const hoy  = new Date();
+    const year  = hoy.getFullYear();
+    const month = hoy.getMonth() + 1;
+
+    // Gastos e ingresos del mes actual en paralelo
+    const [gastos, ingresoMensual] = await Promise.all([
         getExpenses(),
-        getIncome()
+        getIncomeTotalByMonth(year, month),
     ]);
 
-    // Calcular totales
-    const totalGastos = gastos.reduce((suma, gasto) => suma + parseFloat(gasto.monto || 0), 0);
-    const gastosFijos = gastos
-        .filter(gasto => gasto.es_fijo)
-        .reduce((suma, gasto) => suma + parseFloat(gasto.monto || 0), 0);
+    const totalGastos     = gastos.reduce((suma, g) => suma + parseFloat(g.monto || 0), 0);
+    const gastosFijos     = gastos.filter(g => g.es_fijo).reduce((suma, g) => suma + parseFloat(g.monto || 0), 0);
     const gastosVariables = totalGastos - gastosFijos;
-    const saldoDisponible = (ingreso?.monto || 0) - totalGastos;
+    const saldoDisponible = ingresoMensual - totalGastos;
 
-    // Agrupar gastos por categoría para gráficos/informes
-    const porCategoria = gastos.reduce((acumulador, gasto) => {
-        const nombreCategoria = gasto.categorias?.nombre || 'Sin categoría';
-        if (!acumulador[nombreCategoria]) {
-            acumulador[nombreCategoria] = { total: 0, cantidad: 0 };
-        }
-        acumulador[nombreCategoria].total += parseFloat(gasto.monto || 0);
-        acumulador[nombreCategoria].cantidad += 1;
-        return acumulador;
+    const porCategoria = gastos.reduce((acc, gasto) => {
+        const nombre = gasto.categorias?.nombre || 'Sin categoría';
+        if (!acc[nombre]) acc[nombre] = { total: 0, cantidad: 0 };
+        acc[nombre].total    += parseFloat(gasto.monto || 0);
+        acc[nombre].cantidad += 1;
+        return acc;
     }, {});
 
     return {
@@ -761,9 +1131,9 @@ export const getStats = async () => {
         gastosFijos,
         gastosVariables,
         saldoDisponible,
-        ingresoMensual: ingreso?.monto || 0,
+        ingresoMensual,
         gastos,
-        porCategoria
+        porCategoria,
     };
 };
 
@@ -817,7 +1187,11 @@ export const getGastosByRango = async (desde, hasta) => {
 export const getReporteByRango = async (desde, hasta) => {
     const [gastos, ingreso] = await Promise.all([
         getGastosByRango(desde, hasta),
-        getIncome(),
+        // Ingresos del mes al que pertenece el rango (usa el mes de inicio del rango)
+        getIncomeTotalByMonth(
+            parseInt(desde.substring(0, 4)),
+            parseInt(desde.substring(5, 7))
+        ).then(total => ({ monto: total })),
     ]);
 
     const totalGastos     = gastos.reduce((s, g) => s + parseFloat(g.monto || 0), 0);
