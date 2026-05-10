@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
@@ -58,13 +60,19 @@ const corsOrigin = isProduction
 
 const corsOptions = {
     origin: corsOrigin,
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'x-api-key', 'Authorization']
 };
 
+app.use(helmet());
 app.use(cors(corsOptions));
 // Límite estricto de payload — el endpoint n8n nunca necesita más de 10kb
 app.use(express.json({ limit: '10kb' }));
+
+// Rate limiting por IP — global conservador + estricto en endpoints sensibles
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/notifications', rateLimit({ windowMs: 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/integrations', rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
 
 // En producción, Express sirve el build estático del frontend
 if (isProduction) {

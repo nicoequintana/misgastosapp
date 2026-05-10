@@ -1,5 +1,5 @@
 const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
+const { supabaseAdmin: supabaseAdminSingleton } = require('../services/supabaseAdmin');
 const { enviarEmailInvitacionGrupo, enviarEmailInvitacionRegistro } = require('../services/email');
 const { persistirNotificacion, actualizarEstadoEmailDb, getConfigUsuario } = require('../services/notificacionesDb');
 const { procesarEnvioEmail, buildNotificacionGrupo } = require('../services/notificaciones');
@@ -103,20 +103,14 @@ const requireAuth = async (req, res, next) => {
     }
 
     try {
-        // Siempre instanciar con service role para validar tokens de cualquier usuario
-        const supabaseAdmin = createClient(
-            process.env.SUPABASE_URL,
-            process.env.SUPABASE_KEY,
-            { auth: { persistSession: false } }
-        );
-        const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+        const { data: { user }, error } = await supabaseAdminSingleton.auth.getUser(token);
 
         if (error || !user) {
             return res.status(401).json({ ok: false, error: 'Token inválido o sesión expirada' });
         }
 
-        req.user         = user;
-        req.supabaseAdmin = supabaseAdmin; // service role — solo para queries necesarias
+        req.user          = user;
+        req.supabaseAdmin = supabaseAdminSingleton;
         next();
     } catch (err) {
         console.error('❌ Error en requireAuth:', err.message);
@@ -167,7 +161,7 @@ router.post('/:grupoId/invitaciones', requireAuth, async (req, res) => {
             .from('grupo_invitaciones')
             .select('id, email_invitado, fecha_expiracion')
             .eq('grupo_id', grupoId)
-            .ilike('email_invitado', email)
+            .eq('email_invitado', email)
             .eq('estado', 'pendiente')
             .maybeSingle();
 
@@ -319,11 +313,6 @@ router.get('/:grupoId/usuarios/buscar', requireAuth, async (req, res) => {
         return res.json({
             ok: true,
             registrado: true,
-            usuario: {
-                id: usuarioEncontrado.id,
-                email: usuarioEncontrado.email,
-                nombre: nombreDesdeAuthUser(usuarioEncontrado),
-            },
             yaEsMiembro: !!miembroActivo,
         });
     } catch (err) {
@@ -393,7 +382,6 @@ router.get('/:grupoId/miembros/perfiles', requireAuth, async (req, res) => {
             return {
                 user_id: m.user_id,
                 nombre: nombre || 'Usuario sin nombre',
-                email,
             };
         }));
 
@@ -597,6 +585,12 @@ router.delete('/:grupoId', requireAuth, async (req, res) => {
             return res.status(403).json({ ok: false, error: 'No sos miembro activo de este grupo' });
         }
 
+        // Solo admins pueden eliminar el grupo
+        const esAdmin = await validarAdminGrupo(supabaseAdmin, grupoId, userId);
+        if (!esAdmin) {
+            return res.status(403).json({ ok: false, error: 'Solo los admins pueden eliminar el grupo' });
+        }
+
         // Obtener datos del grupo y miembros activos antes de eliminar
         const [{ data: grupo, error: errGrupo }, { data: miembros, error: errMiembros }] = await Promise.all([
             supabaseAdmin.from('grupos_gastos').select('id, nombre').eq('id', grupoId).maybeSingle(),
@@ -792,7 +786,8 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
                 .update({ estado: 'anulado', anulado_en: new Date().toISOString(), anulado_por: user.id })
                 .eq('id', gasto.id);
             console.error('❌ Error al insertar participantes:', errPart.message);
-            return res.status(500).json({ ok: false, error: `Error al registrar participantes: ${errPart.message}` });
+            console.error('❌ Error al insertar participantes (POST /gastos):', errPart.message);
+            return res.status(500).json({ ok: false, error: 'Error al registrar participantes' });
         }
 
         // Obtener datos del grupo y nombre del actor para notificación
@@ -834,7 +829,7 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
         // Solo quien pagó puede editar
         const { data: gastoActual } = await supabaseAdmin
             .from('grupo_gastos').select('id, pagado_por, descripcion, monto')
-            .eq('id', gastoId).eq('estado', 'activo').maybeSingle();
+            .eq('id', gastoId).eq('grupo_id', grupoId).eq('estado', 'activo').maybeSingle();
         if (!gastoActual) return res.status(404).json({ ok: false, error: 'Gasto no encontrado o ya anulado' });
         if (gastoActual.pagado_por !== user.id) return res.status(403).json({ ok: false, error: 'Solo quien pagó el gasto puede editarlo' });
 
@@ -855,12 +850,18 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
             .select()
             .maybeSingle();
 
-        if (errUpdate) return res.status(500).json({ ok: false, error: errUpdate.message });
+        if (errUpdate) {
+            console.error('❌ Error al actualizar gasto (PUT /gastos):', errUpdate.message);
+            return res.status(500).json({ ok: false, error: 'Error al actualizar el gasto' });
+        }
         if (!gasto) return res.status(404).json({ ok: false, error: 'El gasto no existe o ya fue anulado' });
 
         const { error: errDel } = await supabaseAdmin
             .from('grupo_gasto_participantes').delete().eq('gasto_id', gastoId);
-        if (errDel) return res.status(500).json({ ok: false, error: `Error al limpiar participantes: ${errDel.message}` });
+        if (errDel) {
+            console.error('❌ Error al limpiar participantes (PUT /gastos):', errDel.message);
+            return res.status(500).json({ ok: false, error: 'Error al limpiar participantes' });
+        }
 
         const filas = calcularParticipantes(gasto.id, montoNum, pagadoPor, participantesUnicos);
         const { data: participantes, error: errPart } = await supabaseAdmin
@@ -869,7 +870,8 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
         if (errPart) {
             await supabaseAdmin.from('grupo_gastos')
                 .update({ estado: 'anulado' }).eq('id', gastoId);
-            return res.status(500).json({ ok: false, error: `Error al registrar participantes: ${errPart.message}` });
+            console.error('❌ Error al insertar participantes (PUT /gastos):', errPart.message);
+            return res.status(500).json({ ok: false, error: 'Error al registrar participantes' });
         }
 
         const [{ data: grupo }, { data: authData }] = await Promise.all([
@@ -903,7 +905,7 @@ router.patch('/:grupoId/gastos/:gastoId/anular', requireAuth, async (req, res) =
         // Verificar que existe y obtener datos para la notificación
         const { data: gastoActual } = await supabaseAdmin
             .from('grupo_gastos').select('id, pagado_por, descripcion, monto, estado')
-            .eq('id', gastoId).maybeSingle();
+            .eq('id', gastoId).eq('grupo_id', grupoId).maybeSingle();
         if (!gastoActual) return res.status(404).json({ ok: false, error: 'Gasto no encontrado' });
         if (gastoActual.estado !== 'activo') return res.status(409).json({ ok: false, error: 'El gasto ya está anulado' });
 
@@ -918,7 +920,10 @@ router.patch('/:grupoId/gastos/:gastoId/anular', requireAuth, async (req, res) =
             .eq('id', gastoId)
             .eq('estado', 'activo');
 
-        if (errAnular) return res.status(500).json({ ok: false, error: errAnular.message });
+        if (errAnular) {
+            console.error('❌ Error al anular gasto:', errAnular.message);
+            return res.status(500).json({ ok: false, error: 'Error al anular el gasto' });
+        }
 
         const [{ data: grupo }, { data: authData }] = await Promise.all([
             supabaseAdmin.from('grupos_gastos').select('nombre').eq('id', grupoId).maybeSingle(),
@@ -950,6 +955,7 @@ router.post('/:grupoId/liquidaciones', requireAuth, async (req, res) => {
 
     if (!deUserId || !paraUserId) return res.status(400).json({ ok: false, error: 'deUserId y paraUserId son requeridos' });
     if (deUserId === paraUserId) return res.status(400).json({ ok: false, error: 'El pagador y el receptor no pueden ser la misma persona' });
+    if (deUserId !== req.user.id) return res.status(403).json({ ok: false, error: 'Solo podés registrar pagos que vos realizaste' });
     const montoNum = Number(monto);
     if (isNaN(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
 
@@ -1011,7 +1017,7 @@ router.patch('/:grupoId/liquidaciones/:liqId/anular', requireAuth, async (req, r
     try {
         const { data: liq } = await supabaseAdmin
             .from('grupo_liquidaciones').select('id, registrado_por, monto, estado')
-            .eq('id', liqId).maybeSingle();
+            .eq('id', liqId).eq('grupo_id', grupoId).maybeSingle();
         if (!liq) return res.status(404).json({ ok: false, error: 'Liquidación no encontrada' });
         if (liq.estado !== 'confirmada') return res.status(409).json({ ok: false, error: 'La liquidación ya está anulada' });
 
@@ -1026,7 +1032,10 @@ router.patch('/:grupoId/liquidaciones/:liqId/anular', requireAuth, async (req, r
             .eq('id', liqId)
             .eq('estado', 'confirmada');
 
-        if (errAnular) return res.status(500).json({ ok: false, error: errAnular.message });
+        if (errAnular) {
+            console.error('❌ Error al anular liquidación:', errAnular.message);
+            return res.status(500).json({ ok: false, error: 'Error al anular la liquidación' });
+        }
 
         const [{ data: grupo }, { data: authData }] = await Promise.all([
             supabaseAdmin.from('grupos_gastos').select('nombre').eq('id', grupoId).maybeSingle(),
