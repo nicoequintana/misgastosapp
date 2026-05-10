@@ -64,7 +64,26 @@ const corsOptions = {
     allowedHeaders: ['Content-Type', 'x-api-key', 'Authorization']
 };
 
-app.use(helmet());
+const supabaseHost = process.env.SUPABASE_URL
+    ? new URL(process.env.SUPABASE_URL).host
+    : '*.supabase.co';
+
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            // Supabase: auth, DB, storage, realtime
+            connectSrc: ["'self'", `https://${supabaseHost}`, 'https://*.supabase.co', 'wss://*.supabase.co'],
+            // Google OAuth y fuentes externas de UI
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+            fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+            imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+            frameSrc: ["'self'", 'https://accounts.google.com'],
+            workerSrc: ["'self'", 'blob:'],
+        },
+    },
+}));
 app.use(cors(corsOptions));
 // Límite estricto de payload — el endpoint n8n nunca necesita más de 10kb
 app.use(express.json({ limit: '10kb' }));
