@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
  * El overflow del body se restaura en el cleanup del effect, no en un setTimeout,
  * para garantizar que se ejecute aunque el componente se desmonte antes de que termine la animación.
  */
-const Modal = ({ isOpen, onClose, title, subtitle, children, disableClose = false }) => {
+const Modal = ({ isOpen, onClose, title, subtitle, children, footer, disableClose = false }) => {
     const handleClose = (!disableClose && onClose) ? onClose : undefined;
     const [isVisible, setIsVisible] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
@@ -56,6 +56,11 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, disableClose = fals
                 <div className="modal-body">
                     {children}
                 </div>
+                {footer && (
+                    <div className="modal-footer">
+                        {footer}
+                    </div>
+                )}
             </div>
         </div>
     );
