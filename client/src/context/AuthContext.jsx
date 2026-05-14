@@ -37,10 +37,13 @@ export const AuthProvider = ({ children }) => {
             // La bandera invitacionRedirigida evita el loop cuando Supabase re-emite SIGNED_IN.
             if (event === 'SIGNED_IN' && !invitacionRedirigida) {
                 const tokenPendiente = localStorage.getItem('pending_invitation_token');
-                if (tokenPendiente) {
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (tokenPendiente && uuidRegex.test(tokenPendiente)) {
                     invitacionRedirigida = true;
                     localStorage.removeItem('pending_invitation_token');
                     window.location.replace(`/grupos/invitaciones/${tokenPendiente}`);
+                } else if (tokenPendiente) {
+                    localStorage.removeItem('pending_invitation_token');
                 }
             }
         });
