@@ -674,7 +674,7 @@ router.delete('/:grupoId', requireAuth, async (req, res) => {
 
     } catch (err) {
         console.error('❌ Error en DELETE /grupos/:grupoId:', err.message);
-        return res.status(500).json({ ok: false, error: err.message || 'Error interno al eliminar el grupo' });
+        return res.status(500).json({ ok: false, error: 'Error interno al eliminar el grupo' });
     }
 });
 
@@ -755,6 +755,10 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
         if (!membresia) return res.status(403).json({ ok: false, error: 'No sos miembro activo de este grupo' });
 
         const participantesUnicos = [...new Set(participantesUserIds)];
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (participantesUnicos.some(id => !uuidRegex.test(id))) {
+            return res.status(400).json({ ok: false, error: 'participantesUserIds contiene IDs inválidos' });
+        }
 
         const { data: gasto, error: errGasto } = await supabaseAdmin
             .from('grupo_gastos')
@@ -807,7 +811,7 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
         return res.status(201).json({ ok: true, gasto, participantes });
     } catch (err) {
         console.error('❌ Error en POST /gastos:', err.message);
-        return res.status(500).json({ ok: false, error: err.message || 'Error interno' });
+        return res.status(500).json({ ok: false, error: 'Error interno al crear el gasto' });
     }
 });
 
@@ -834,6 +838,10 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
         if (gastoActual.pagado_por !== user.id) return res.status(403).json({ ok: false, error: 'Solo quien pagó el gasto puede editarlo' });
 
         const participantesUnicos = [...new Set(participantesUserIds)];
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (participantesUnicos.some(id => !uuidRegex.test(id))) {
+            return res.status(400).json({ ok: false, error: 'participantesUserIds contiene IDs inválidos' });
+        }
 
         const { data: gasto, error: errUpdate } = await supabaseAdmin
             .from('grupo_gastos')
@@ -890,7 +898,7 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
         return res.json({ ok: true, gasto, participantes });
     } catch (err) {
         console.error('❌ Error en PUT /gastos/:gastoId:', err.message);
-        return res.status(500).json({ ok: false, error: err.message || 'Error interno' });
+        return res.status(500).json({ ok: false, error: 'Error interno al actualizar el gasto' });
     }
 });
 
@@ -983,7 +991,7 @@ router.post('/:grupoId/liquidaciones', requireAuth, async (req, res) => {
 
         if (errLiq) {
             console.error('❌ Error al registrar liquidación:', errLiq.message);
-            return res.status(500).json({ ok: false, error: errLiq.message });
+            return res.status(500).json({ ok: false, error: 'Error al registrar la liquidación' });
         }
 
         const [{ data: grupo }, { data: authData }] = await Promise.all([
@@ -1052,7 +1060,7 @@ router.patch('/:grupoId/liquidaciones/:liqId/anular', requireAuth, async (req, r
         return res.json({ ok: true });
     } catch (err) {
         console.error('❌ Error en PATCH /liquidaciones/:liqId/anular:', err.message);
-        return res.status(500).json({ ok: false, error: err.message || 'Error interno' });
+        return res.status(500).json({ ok: false, error: 'Error interno al anular la liquidación' });
     }
 });
 
