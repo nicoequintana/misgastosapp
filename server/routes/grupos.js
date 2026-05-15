@@ -1209,7 +1209,6 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
     const montoNum = Number(monto);
     if (isNaN(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
     const cantCuotas = Math.max(1, Math.min(18, parseInt(cuotasRaw) || 1));
-    if (cantCuotas < 2) return res.status(400).json({ ok: false, error: 'Este endpoint requiere al menos 2 cuotas. Usá /gastos para cuota única' });
     if (!pagadoPor) return res.status(400).json({ ok: false, error: 'El pagador es requerido' });
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         return res.status(400).json({ ok: false, error: 'Se requiere al menos un participante' });

@@ -34,7 +34,7 @@ const GrupoGastoNuevo = () => {
     const [participantes, setParticipantes] = useState([]);
     const [nota, setNota] = useState('');
     const [esTarjeta, setEsTarjeta] = useState(false);
-    const [cuotas, setCuotas] = useState(2);
+    const [cuotas, setCuotas] = useState(1);
 
     // Estado de envío
     const [guardando, setGuardando] = useState(false);
@@ -381,7 +381,7 @@ const GrupoGastoNuevo = () => {
                         checked={esTarjeta}
                         onChange={(e) => {
                             setEsTarjeta(e.target.checked);
-                            if (!e.target.checked) setCuotas(2);
+                            if (!e.target.checked) setCuotas(1);
                         }}
                         disabled={guardando}
                     />
@@ -403,6 +403,7 @@ const GrupoGastoNuevo = () => {
                             onChange={(e) => setCuotas(parseInt(e.target.value))}
                             disabled={guardando}
                         >
+                            <option value={1}>1 cuota (pago único)</option>
                             {Array.from({ length: 17 }, (_, i) => i + 2).map(n => (
                                 <option key={n} value={n}>{n} cuotas</option>
                             ))}
