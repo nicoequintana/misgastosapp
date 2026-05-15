@@ -515,6 +515,7 @@ router.post('/invitaciones/aceptar', requireAuth, async (req, res) => {
                 .from('grupo_invitaciones')
                 .update({ estado: 'expirada', fecha_resolucion: new Date().toISOString() })
                 .eq('id', invitacion.id)
+                .eq('estado', 'pendiente')
                 .then(() => {})
                 .catch((e) => console.error('⚠️ Error al marcar expirada:', e.message));
 
@@ -613,7 +614,7 @@ router.delete('/:grupoId', requireAuth, async (req, res) => {
             return res.status(500).json({ ok: false, error: 'Error al verificar saldos del grupo' });
         }
 
-        const saldosPendientes = (saldos || []).filter((s) => Math.abs(s.saldo_neto) >= 0.01);
+        const saldosPendientes = (saldos || []).filter((s) => Math.abs(s.saldo_neto) > 0.01);
         if (saldosPendientes.length > 0) {
             return res.status(422).json({
                 ok: false,
@@ -759,6 +760,23 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
         if (participantesUnicos.some(id => !uuidRegex.test(id))) {
             return res.status(400).json({ ok: false, error: 'participantesUserIds contiene IDs inválidos' });
         }
+        if (!uuidRegex.test(pagadoPor)) {
+            return res.status(400).json({ ok: false, error: 'pagadoPor contiene un ID inválido' });
+        }
+
+        // Verificar que todos los participantes y el pagador son miembros activos del grupo
+        const idsAValidar = [...new Set([...participantesUnicos, pagadoPor])];
+        const { data: miembrosActivos } = await supabaseAdmin
+            .from('grupo_miembros').select('user_id')
+            .eq('grupo_id', grupoId).eq('estado', 'activo').in('user_id', idsAValidar);
+        const idsValidos = new Set((miembrosActivos || []).map(m => m.user_id));
+        if (!idsValidos.has(pagadoPor)) {
+            return res.status(400).json({ ok: false, error: 'El pagador no es miembro activo del grupo' });
+        }
+        const noMiembros = participantesUnicos.filter(id => !idsValidos.has(id));
+        if (noMiembros.length > 0) {
+            return res.status(400).json({ ok: false, error: 'Algunos participantes no son miembros activos del grupo' });
+        }
 
         const { data: gasto, error: errGasto } = await supabaseAdmin
             .from('grupo_gastos')
@@ -789,7 +807,6 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
             await supabaseAdmin.from('grupo_gastos')
                 .update({ estado: 'anulado', anulado_en: new Date().toISOString(), anulado_por: user.id })
                 .eq('id', gasto.id);
-            console.error('❌ Error al insertar participantes:', errPart.message);
             console.error('❌ Error al insertar participantes (POST /gastos):', errPart.message);
             return res.status(500).json({ ok: false, error: 'Error al registrar participantes' });
         }
@@ -841,6 +858,23 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (participantesUnicos.some(id => !uuidRegex.test(id))) {
             return res.status(400).json({ ok: false, error: 'participantesUserIds contiene IDs inválidos' });
+        }
+        if (!uuidRegex.test(pagadoPor)) {
+            return res.status(400).json({ ok: false, error: 'pagadoPor contiene un ID inválido' });
+        }
+
+        // Verificar que todos los participantes y el pagador son miembros activos del grupo
+        const idsAValidarPut = [...new Set([...participantesUnicos, pagadoPor])];
+        const { data: miembrosActivosPut } = await supabaseAdmin
+            .from('grupo_miembros').select('user_id')
+            .eq('grupo_id', grupoId).eq('estado', 'activo').in('user_id', idsAValidarPut);
+        const idsValidosPut = new Set((miembrosActivosPut || []).map(m => m.user_id));
+        if (!idsValidosPut.has(pagadoPor)) {
+            return res.status(400).json({ ok: false, error: 'El pagador no es miembro activo del grupo' });
+        }
+        const noMiembrosPut = participantesUnicos.filter(id => !idsValidosPut.has(id));
+        if (noMiembrosPut.length > 0) {
+            return res.status(400).json({ ok: false, error: 'Algunos participantes no son miembros activos del grupo' });
         }
 
         const { data: gasto, error: errUpdate } = await supabaseAdmin
@@ -949,7 +983,93 @@ router.patch('/:grupoId/gastos/:gastoId/anular', requireAuth, async (req, res) =
         return res.json({ ok: true });
     } catch (err) {
         console.error('❌ Error en PATCH /gastos/:gastoId/anular:', err.message);
-        return res.status(500).json({ ok: false, error: err.message || 'Error interno' });
+        return res.status(500).json({ ok: false, error: 'Error interno al anular el gasto' });
+    }
+});
+
+// ─────────────────────────────────────────────
+// PATCH /api/grupos/:grupoId/gastos/:gastoId/anular-cuotas
+// Anula todas las cuotas de una compra grupal en cuotas (por id_gasto_padre).
+// Si hay cuotas ya vencidas, requiere { force: true } en el body.
+// Solo quien pagó puede anular.
+// ─────────────────────────────────────────────
+router.patch('/:grupoId/gastos/:gastoId/anular-cuotas', requireAuth, async (req, res) => {
+    const { grupoId, gastoId } = req.params;
+    const { supabaseAdmin, user } = req;
+    const { force = false } = req.body;
+
+    try {
+        // Verificar que el gasto padre existe, está activo y pertenece al grupo
+        const { data: gastoPadre } = await supabaseAdmin
+            .from('grupo_gastos')
+            .select('id, pagado_por, descripcion, monto, estado, cuotas, id_gasto_padre')
+            .eq('id', gastoId)
+            .eq('grupo_id', grupoId)
+            .maybeSingle();
+
+        if (!gastoPadre) return res.status(404).json({ ok: false, error: 'Gasto no encontrado' });
+        if (gastoPadre.estado === 'anulado') return res.status(409).json({ ok: false, error: 'El gasto ya está anulado' });
+        if (gastoPadre.pagado_por !== user.id) {
+            return res.status(403).json({ ok: false, error: 'Solo quien pagó el gasto puede anularlo' });
+        }
+
+        // El id_gasto_padre para cuotas siempre apunta al primer registro (o a sí mismo)
+        const padreId = gastoPadre.id_gasto_padre ?? gastoPadre.id;
+
+        // Obtener todas las cuotas de esta compra
+        const { data: todasLasCuotas } = await supabaseAdmin
+            .from('grupo_gastos')
+            .select('id, fecha, estado')
+            .eq('id_gasto_padre', padreId)
+            .eq('grupo_id', grupoId);
+
+        const cuotas = todasLasCuotas || [];
+        const hoy = new Date().toISOString().split('T')[0];
+        const tieneVencidas = cuotas.some(c => c.estado === 'activo' && (c.fecha || '') <= hoy);
+
+        // Si hay cuotas vencidas, requerir force explícito
+        if (tieneVencidas && !force) {
+            return res.status(409).json({
+                ok:              false,
+                error:           'Esta compra tiene cuotas ya vencidas. Confirmá con force: true para anular igualmente.',
+                tieneVencidas:   true,
+                cuotasVencidas:  cuotas.filter(c => c.fecha <= hoy).length,
+                cuotasTotales:   cuotas.length,
+            });
+        }
+
+        // Anular todas las cuotas activas del grupo
+        const ahora = new Date().toISOString();
+        const { error: errAnular } = await supabaseAdmin
+            .from('grupo_gastos')
+            .update({ estado: 'anulado', anulado_en: ahora, anulado_por: user.id })
+            .eq('id_gasto_padre', padreId)
+            .eq('grupo_id', grupoId)
+            .eq('estado', 'activo');
+
+        if (errAnular) {
+            console.error('❌ Error al anular cuotas grupales:', errAnular.message);
+            return res.status(500).json({ ok: false, error: 'Error al anular las cuotas' });
+        }
+
+        const [{ data: grupo }, { data: authData }] = await Promise.all([
+            supabaseAdmin.from('grupos_gastos').select('nombre').eq('id', grupoId).maybeSingle(),
+            supabaseAdmin.auth.admin.getUserById(user.id),
+        ]);
+        const actorNombre = nombreDesdeAuthUser(authData?.user) || user.email?.split('@')[0] || 'Un miembro';
+        const descBase = gastoPadre.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
+
+        notificarMiembros(supabaseAdmin, grupoId, buildNotificacionGrupo('gasto_anulado', {
+            grupoNombre: grupo?.nombre || '',
+            actorNombre,
+            descripcion: descBase,
+            monto:       gastoPadre.monto,
+        }), user.id);
+
+        return res.json({ ok: true, cuotasAnuladas: cuotas.length });
+    } catch (err) {
+        console.error('❌ Error en PATCH /gastos/:gastoId/anular-cuotas:', err.message);
+        return res.status(500).json({ ok: false, error: 'Error interno al anular las cuotas' });
     }
 });
 
@@ -1011,7 +1131,7 @@ router.post('/:grupoId/liquidaciones', requireAuth, async (req, res) => {
         return res.status(201).json({ ok: true, liquidacion });
     } catch (err) {
         console.error('❌ Error en POST /liquidaciones:', err.message);
-        return res.status(500).json({ ok: false, error: err.message || 'Error interno' });
+        return res.status(500).json({ ok: false, error: 'Error interno al registrar la liquidación' });
     }
 });
 
@@ -1061,6 +1181,197 @@ router.patch('/:grupoId/liquidaciones/:liqId/anular', requireAuth, async (req, r
     } catch (err) {
         console.error('❌ Error en PATCH /liquidaciones/:liqId/anular:', err.message);
         return res.status(500).json({ ok: false, error: 'Error interno al anular la liquidación' });
+    }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/grupos/:grupoId/gastos-cuotas — Crea un gasto grupal en cuotas con tarjeta
+// Body: { descripcion, monto, cuotas, pagadoPor, fecha, nota, idCategoria, participantesUserIds }
+// Genera una fila en grupo_gastos por cada cuota, vinculadas por id_gasto_padre.
+// Los participantes y sus montos se registran en grupo_gasto_participantes para cada cuota.
+// ─────────────────────────────────────────────
+router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
+    const { grupoId } = req.params;
+    const { supabaseAdmin, user } = req;
+    const {
+        descripcion,
+        monto,
+        cuotas: cuotasRaw,
+        pagadoPor,
+        fecha,
+        nota,
+        idCategoria,
+        participantesUserIds,
+    } = req.body;
+
+    // Validaciones de entrada
+    if (!descripcion?.trim()) return res.status(400).json({ ok: false, error: 'La descripción es requerida' });
+    const montoNum = Number(monto);
+    if (isNaN(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
+    const cantCuotas = Math.max(1, Math.min(18, parseInt(cuotasRaw) || 1));
+    if (cantCuotas < 2) return res.status(400).json({ ok: false, error: 'Este endpoint requiere al menos 2 cuotas. Usá /gastos para cuota única' });
+    if (!pagadoPor) return res.status(400).json({ ok: false, error: 'El pagador es requerido' });
+    if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
+        return res.status(400).json({ ok: false, error: 'Se requiere al menos un participante' });
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const participantesUnicos = [...new Set(participantesUserIds)];
+    if (participantesUnicos.some(id => !uuidRegex.test(id))) {
+        return res.status(400).json({ ok: false, error: 'participantesUserIds contiene IDs inválidos' });
+    }
+
+    try {
+        // Verificar membresía activa
+        const { data: membresia } = await supabaseAdmin
+            .from('grupo_miembros').select('id')
+            .eq('grupo_id', grupoId).eq('user_id', user.id).eq('estado', 'activo').maybeSingle();
+        if (!membresia) return res.status(403).json({ ok: false, error: 'No sos miembro activo de este grupo' });
+
+        // Verificar que todos los participantes y el pagador son miembros activos del grupo
+        const uuidRegexCuotas = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegexCuotas.test(pagadoPor)) {
+            return res.status(400).json({ ok: false, error: 'pagadoPor contiene un ID inválido' });
+        }
+        const idsAValidarCuotas = [...new Set([...participantesUnicos, pagadoPor])];
+        const { data: miembrosActivosCuotas } = await supabaseAdmin
+            .from('grupo_miembros').select('user_id')
+            .eq('grupo_id', grupoId).eq('estado', 'activo').in('user_id', idsAValidarCuotas);
+        const idsValidosCuotas = new Set((miembrosActivosCuotas || []).map(m => m.user_id));
+        if (!idsValidosCuotas.has(pagadoPor)) {
+            return res.status(400).json({ ok: false, error: 'El pagador no es miembro activo del grupo' });
+        }
+        const noMiembrosCuotas = participantesUnicos.filter(id => !idsValidosCuotas.has(id));
+        if (noMiembrosCuotas.length > 0) {
+            return res.status(400).json({ ok: false, error: 'Algunos participantes no son miembros activos del grupo' });
+        }
+
+        const descripcionBase = descripcion.trim().toUpperCase();
+        const fechaBase = fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+
+        // Calcular cuotas: fecha base = 1er día del mes siguiente, cada cuota desplaza 1 mes
+        const montoPorCuota = Math.floor((montoNum / cantCuotas) * 100) / 100;
+        const diferencia = Math.round((montoNum - montoPorCuota * cantCuotas) * 100) / 100;
+        const inicio = new Date(`${fechaBase}T00:00:00`);
+        inicio.setDate(1);
+        inicio.setMonth(inicio.getMonth() + 1);
+
+        const cuotasCalculadas = Array.from({ length: cantCuotas }, (_, i) => {
+            const fechaCuota = new Date(inicio);
+            fechaCuota.setMonth(inicio.getMonth() + i);
+            return {
+                numero:      i + 1,
+                monto:       i === 0 ? Math.round((montoPorCuota + diferencia) * 100) / 100 : montoPorCuota,
+                fecha:       fechaCuota.toISOString().split('T')[0],
+                descripcion: `${descripcionBase} (${i + 1}/${cantCuotas})`,
+            };
+        });
+
+        // Insertar primera cuota para obtener el id que será el padre de todas
+        const { data: primera, error: errPrimera } = await supabaseAdmin
+            .from('grupo_gastos')
+            .insert([{
+                grupo_id:       Number(grupoId),
+                descripcion:    cuotasCalculadas[0].descripcion,
+                monto:          cuotasCalculadas[0].monto,
+                pagado_por:     pagadoPor,
+                fecha:          cuotasCalculadas[0].fecha,
+                nota:           nota?.trim() || null,
+                id_categoria:   idCategoria || null,
+                creado_por:     user.id,
+                cuotas:         cantCuotas,
+                numero_cuota:   1,
+                id_gasto_padre: null, // se actualiza a continuación
+                metodo_pago:    'TARJETA DE CREDITO',
+            }])
+            .select()
+            .single();
+
+        if (errPrimera) {
+            console.error('❌ Error al insertar primera cuota grupal:', errPrimera.message);
+            return res.status(500).json({ ok: false, error: 'Error al crear el gasto en cuotas' });
+        }
+
+        // Vincular la primera cuota a sí misma como padre
+        await supabaseAdmin.from('grupo_gastos')
+            .update({ id_gasto_padre: primera.id })
+            .eq('id', primera.id);
+
+        // Insertar cuotas 2..N apuntando a la primera como padre
+        let gastosRestantes = [];
+        if (cantCuotas > 1) {
+            const filasRestantes = cuotasCalculadas.slice(1).map(c => ({
+                grupo_id:       Number(grupoId),
+                descripcion:    c.descripcion,
+                monto:          c.monto,
+                pagado_por:     pagadoPor,
+                fecha:          c.fecha,
+                nota:           nota?.trim() || null,
+                id_categoria:   idCategoria || null,
+                creado_por:     user.id,
+                cuotas:         cantCuotas,
+                numero_cuota:   c.numero,
+                id_gasto_padre: primera.id,
+                metodo_pago:    'TARJETA DE CREDITO',
+            }));
+
+            const { data: resto, error: errResto } = await supabaseAdmin
+                .from('grupo_gastos').insert(filasRestantes).select();
+
+            if (errResto) {
+                // Rollback: anular la primera cuota huérfana
+                await supabaseAdmin.from('grupo_gastos')
+                    .update({ estado: 'anulado', anulado_en: new Date().toISOString(), anulado_por: user.id })
+                    .eq('id', primera.id);
+                console.error('❌ Error al insertar cuotas restantes:', errResto.message);
+                return res.status(500).json({ ok: false, error: 'Error al crear las cuotas' });
+            }
+            gastosRestantes = resto || [];
+        }
+
+        const todosLosGastos = [{ ...primera, id_gasto_padre: primera.id }, ...gastosRestantes];
+
+        // Registrar participantes para cada cuota
+        // El monto asignado a cada participante se calcula sobre el monto de esa cuota específica
+        const filasParticipantes = todosLosGastos.flatMap(g =>
+            calcularParticipantes(g.id, g.monto, pagadoPor, participantesUnicos)
+        );
+
+        const { data: participantes, error: errPart } = await supabaseAdmin
+            .from('grupo_gasto_participantes').insert(filasParticipantes).select();
+
+        if (errPart) {
+            // Rollback: anular todas las cuotas creadas
+            await supabaseAdmin.from('grupo_gastos')
+                .update({ estado: 'anulado', anulado_en: new Date().toISOString(), anulado_por: user.id })
+                .eq('id_gasto_padre', primera.id);
+            console.error('❌ Error al insertar participantes de cuotas:', errPart.message);
+            return res.status(500).json({ ok: false, error: 'Error al registrar participantes' });
+        }
+
+        // Notificar miembros del grupo (sin bloquear respuesta)
+        const [{ data: grupo }, { data: authData }] = await Promise.all([
+            supabaseAdmin.from('grupos_gastos').select('nombre').eq('id', grupoId).maybeSingle(),
+            supabaseAdmin.auth.admin.getUserById(user.id),
+        ]);
+        const actorNombre = nombreDesdeAuthUser(authData?.user) || user.email?.split('@')[0] || 'Un miembro';
+
+        notificarMiembros(supabaseAdmin, grupoId, buildNotificacionGrupo('gasto_creado', {
+            grupoNombre: grupo?.nombre || '',
+            actorNombre,
+            descripcion: descripcionBase,
+            monto:       montoNum,
+        }), user.id);
+
+        return res.status(201).json({
+            ok:           true,
+            gasto:        { ...primera, id_gasto_padre: primera.id },
+            gastos:       todosLosGastos,
+            participantes,
+        });
+    } catch (err) {
+        console.error('❌ Error en POST /gastos-cuotas:', err.message);
+        return res.status(500).json({ ok: false, error: 'Error interno al crear el gasto en cuotas' });
     }
 });
 

@@ -40,7 +40,7 @@ const Welcome = () => {
                     </div>
                     <span className="wlc-brand-name">Tus Gastos</span>
                 </div>
-
+                <span className="wlc-agency">Quintech | Studio</span>
             </nav>
 
             {/* Layout principal */}
@@ -111,6 +111,11 @@ const Welcome = () => {
 
                 </div>
             </main>
+
+            {/* Footer mobile — solo visible en mobile, crédito de agencia */}
+            <footer className="wlc-footer-mobile">
+                <span className="wlc-agency">Quintech | Studio</span>
+            </footer>
         </div>
     );
 };

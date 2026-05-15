@@ -5,6 +5,7 @@ import MiembrosSelector from '../../components/grupos/MiembrosSelector';
 import { AuthContext } from '../../context/AuthContext';
 import * as db from '../../lib/db';
 import { fechaHoyArgentina } from '../../utils/format';
+import { calcularDivisionIgualitaria } from '../../lib/cuotasHelper';
 
 /**
  * Página para registrar un nuevo gasto dentro de un grupo de gastos compartidos.
@@ -32,6 +33,8 @@ const GrupoGastoNuevo = () => {
     const [pagadoPor, setPagadoPor] = useState('');
     const [participantes, setParticipantes] = useState([]);
     const [nota, setNota] = useState('');
+    const [esTarjeta, setEsTarjeta] = useState(false);
+    const [cuotas, setCuotas] = useState(2);
 
     // Estado de envío
     const [guardando, setGuardando] = useState(false);
@@ -67,16 +70,39 @@ const GrupoGastoNuevo = () => {
         cargarMiembros();
     }, [cargarMiembros]);
 
-    // Calcula cuánto le toca a cada participante (división igualitaria con ajuste de centavos)
-    const calcularPorParticipante = () => {
+    // Calcula el preview de división igualitaria.
+    // Si es tarjeta, muestra el monto por cuota por participante.
+    const calcularPreview = () => {
         const n = participantes.length;
         if (!n || !monto || monto <= 0) return null;
+
+        if (esTarjeta) {
+            // Monto de la primera cuota (puede absorber diferencia de redondeo)
+            const montoPorCuota = Math.floor((monto / cuotas) * 100) / 100;
+            const diferenciaCuota = Math.round((monto - montoPorCuota * cuotas) * 100) / 100;
+            const montoPrimeraCuota = Math.round((montoPorCuota + diferenciaCuota) * 100) / 100;
+
+            // División de la primera cuota entre participantes
+            const divisionPrimera = calcularDivisionIgualitaria(montoPrimeraCuota, participantes, pagadoPor);
+            const montoPorPersona = divisionPrimera.find(d => d.user_id !== pagadoPor)?.monto_asignado
+                ?? divisionPrimera[0]?.monto_asignado
+                ?? 0;
+
+            return {
+                esTarjeta:        true,
+                cuotas,
+                montoCuota:       montoPrimeraCuota,
+                montoPorPersona,
+                participantes:    n,
+            };
+        }
+
         const base = Math.floor((monto / n) * 100) / 100;
         const diferencia = Math.round((monto - base * n) * 100) / 100;
-        return { base, diferencia, tieneDiferencia: diferencia > 0 };
+        return { esTarjeta: false, base, diferencia, tieneDiferencia: diferencia > 0 };
     };
 
-    const divisionPreview = calcularPorParticipante();
+    const divisionPreview = calcularPreview();
 
     // Formatea monto en estilo argentino
     const formatearMonto = (val) =>
@@ -110,7 +136,7 @@ const GrupoGastoNuevo = () => {
 
         try {
             setGuardando(true);
-            await db.crearGastoGrupal({
+            const params = {
                 grupoId: Number(grupoId),
                 descripcion,
                 monto,
@@ -119,7 +145,13 @@ const GrupoGastoNuevo = () => {
                 idCategoria: categoriaId ? Number(categoriaId) : undefined,
                 nota: nota || undefined,
                 participantesUserIds: participantes,
-            });
+            };
+
+            if (esTarjeta) {
+                await db.crearGastoGrupalEnCuotas({ ...params, cuotas });
+            } else {
+                await db.crearGastoGrupal(params);
+            }
             // Navegar de vuelta al detalle del grupo, mostrando el tab de gastos
             navigate(`/grupos/${grupoId}`, { state: { tab: 'gastos' } });
         } catch (err) {
@@ -309,17 +341,75 @@ const GrupoGastoNuevo = () => {
                             calculate
                         </span>
                         <div>
-                            <p className="grupo-gasto-nuevo__preview-texto">
-                                Cada uno paga:{' '}
-                                <strong>{formatearMonto(divisionPreview.base)}</strong>
-                                {' '}({participantes.length} participante{participantes.length !== 1 ? 's' : ''})
-                            </p>
-                            {divisionPreview.tieneDiferencia && (
-                                <p className="grupo-gasto-nuevo__preview-nota">
-                                    El pagador absorbe {formatearMonto(divisionPreview.diferencia)} de diferencia por redondeo.
-                                </p>
+                            {divisionPreview.esTarjeta ? (
+                                <>
+                                    <p className="grupo-gasto-nuevo__preview-texto">
+                                        Cada uno paga:{' '}
+                                        <strong>{formatearMonto(divisionPreview.montoPorPersona)}</strong>
+                                        {' '}por mes durante{' '}
+                                        <strong>{divisionPreview.cuotas} cuotas</strong>
+                                        {' '}({divisionPreview.participantes} participante{divisionPreview.participantes !== 1 ? 's' : ''})
+                                    </p>
+                                    <p className="grupo-gasto-nuevo__preview-nota">
+                                        Total a dividir por cuota: {formatearMonto(divisionPreview.montoCuota)}
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <p className="grupo-gasto-nuevo__preview-texto">
+                                        Cada uno paga:{' '}
+                                        <strong>{formatearMonto(divisionPreview.base)}</strong>
+                                        {' '}({participantes.length} participante{participantes.length !== 1 ? 's' : ''})
+                                    </p>
+                                    {divisionPreview.tieneDiferencia && (
+                                        <p className="grupo-gasto-nuevo__preview-nota">
+                                            El pagador absorbe {formatearMonto(divisionPreview.diferencia)} de diferencia por redondeo.
+                                        </p>
+                                    )}
+                                </>
                             )}
                         </div>
+                    </div>
+                )}
+
+                {/* Toggle: Tarjeta de crédito */}
+                <div className="form-checkbox-group">
+                    <input
+                        id="es-tarjeta"
+                        type="checkbox"
+                        className="form-checkbox"
+                        checked={esTarjeta}
+                        onChange={(e) => {
+                            setEsTarjeta(e.target.checked);
+                            if (!e.target.checked) setCuotas(2);
+                        }}
+                        disabled={guardando}
+                    />
+                    <label htmlFor="es-tarjeta" className="form-checkbox-label">
+                        Pagado con tarjeta de crédito
+                    </label>
+                </div>
+
+                {/* Selector de cuotas — solo si es tarjeta */}
+                {esTarjeta && (
+                    <div className="form-group">
+                        <label className="form-label" htmlFor="cuotas">
+                            Cuotas <span className="form-label__required">*</span>
+                        </label>
+                        <select
+                            id="cuotas"
+                            className="input"
+                            value={cuotas}
+                            onChange={(e) => setCuotas(parseInt(e.target.value))}
+                            disabled={guardando}
+                        >
+                            {Array.from({ length: 17 }, (_, i) => i + 2).map(n => (
+                                <option key={n} value={n}>{n} cuotas</option>
+                            ))}
+                        </select>
+                        <small className="form-hint">
+                            La primera cuota vence el 1° del mes siguiente. Cada cuota se divide entre los participantes.
+                        </small>
                     </div>
                 )}
 

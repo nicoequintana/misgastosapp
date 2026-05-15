@@ -214,7 +214,8 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
         monto: normalizedMonto,
         categoria: categoriaNum.toString(),
         medioPago: mediaNum.toString(),
-        fecha: fechaActual
+        fecha: fechaActual,
+        user_id,
     };
 
     const fingerprint = generateFingerprint(expenseData);

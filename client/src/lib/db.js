@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { fechaHoyArgentina } from '../utils/format';
+import { calcularCuotas } from './cuotasHelper';
 
 /**
  * Capa de acceso a datos (Data Access Layer) para Supabase.
@@ -129,40 +130,25 @@ export const createExpense = async (gasto) => {
     }
 
     // Gasto con tarjeta de crédito: se difiere al mes siguiente y se generan N cuotas fijas.
-    // El monto de cada cuota se redondea a centavos; la diferencia por redondeo va a la primera cuota.
-    const montoPorCuota = Math.floor((montoNumero / cuotas) * 100) / 100;
-    const diferencia = Math.round((montoNumero - montoPorCuota * cuotas) * 100) / 100;
+    const cuotasCalculadas = calcularCuotas(
+        montoNumero,
+        cuotas,
+        gasto.fecha || fechaHoyArgentina(),
+        descripcionBase
+    );
 
-    // Fecha base: 1er día del mes siguiente a la fecha ingresada
-    const fechaBase = new Date(`${gasto.fecha || fechaHoyArgentina()}T00:00:00`);
-    fechaBase.setDate(1);
-    fechaBase.setMonth(fechaBase.getMonth() + 1);
-
-    const registros = Array.from({ length: cuotas }, (_, i) => {
-        const fechaCuota = new Date(fechaBase);
-        fechaCuota.setMonth(fechaBase.getMonth() + i);
-
-        const montoCuota = i === 0
-            ? Math.round((montoPorCuota + diferencia) * 100) / 100
-            : montoPorCuota;
-
-        const descripcionCuota = cuotas > 1
-            ? `${descripcionBase} (${i + 1}/${cuotas})`
-            : descripcionBase;
-
-        return {
-            user_id: usuario.id,
-            descripcion: descripcionCuota,
-            monto: montoCuota,
-            id_categoria: gasto.id_categoria || null,
-            id_metodo_pago: gasto.id_metodo_pago || null,
-            fecha: fechaCuota.toISOString().split('T')[0],
-            es_fijo: true,
-            cuotas,
-            numero_cuota: i + 1,
-            id_gasto_padre: null, // se actualiza después del insert del primer registro
-        };
-    });
+    const registros = cuotasCalculadas.map(c => ({
+        user_id:        usuario.id,
+        descripcion:    c.descripcion,
+        monto:          c.monto,
+        id_categoria:   gasto.id_categoria || null,
+        id_metodo_pago: gasto.id_metodo_pago || null,
+        fecha:          c.fecha,
+        es_fijo:        true,
+        cuotas,
+        numero_cuota:   c.numero,
+        id_gasto_padre: null, // se actualiza después del insert del primer registro
+    }));
 
     // Insertamos la primera cuota sola para obtener su ID como padre
     const { data: primero, error: errPrimero } = await supabase
@@ -247,7 +233,7 @@ export const getTarjetasEnCuotas = async () => {
         const primera = ordenadas[0];
         // Descripción sin el sufijo "(1/N)"
         const descripcionBase = primera.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
-        const totalOriginal = ordenadas.reduce((s, c) => s + parseFloat(c.monto), 0);
+        const totalOriginal = ordenadas.reduce((s, c) => s + parseFloat(c.monto || 0), 0);
         const pagadas = ordenadas.filter(c => c.fecha.split('T')[0] <= hoyStr).length;
 
         return {
@@ -258,7 +244,7 @@ export const getTarjetasEnCuotas = async () => {
             cuotas: ordenadas.length,
             pagadas,
             pendientes: ordenadas.length - pagadas,
-            montoMensual: parseFloat(primera.monto),
+            montoMensual: parseFloat(primera.monto || 0),
             cuotasList: ordenadas,
         };
     }).sort((a, b) => a.pendientes - b.pendientes || a.descripcionBase.localeCompare(b.descripcionBase));
@@ -314,7 +300,7 @@ export const getGastosFuturos = async () => {
             descripcionBase,
             categoria: primera.categorias?.nombre || '—',
             idCategoria: primera.categorias?.id || null,
-            montoMensual: parseFloat(primera.monto),
+            montoMensual: parseFloat(primera.monto || 0),
             cuotasFuturas: ordenadas,
         };
     }).sort((a, b) => a.cuotasFuturas[0]?.fecha?.localeCompare(b.cuotasFuturas[0]?.fecha));
@@ -1833,6 +1819,123 @@ export const crearGastoGrupal = async ({
 };
 
 /**
+ * Crea un gasto grupal en cuotas con tarjeta de crédito.
+ * Genera una cuota por mes durante N meses, comenzando el 1er día del mes siguiente.
+ * Cada cuota se divide igualitariamente entre los participantes seleccionados.
+ *
+ * @param {Object} params
+ * @param {number}   params.grupoId              - ID del grupo
+ * @param {string}   params.descripcion           - Descripción del gasto
+ * @param {number}   params.monto                 - Monto total de la compra
+ * @param {number}   params.cuotas                - Cantidad de cuotas (2-18)
+ * @param {string}   params.pagadoPor             - UUID del usuario que pagó
+ * @param {string}   [params.fecha]               - Fecha de la compra (YYYY-MM-DD)
+ * @param {string}   [params.nota]                - Nota opcional
+ * @param {number}   [params.idCategoria]         - ID de categoría (nullable)
+ * @param {string[]} params.participantesUserIds  - Array de UUIDs de participantes
+ * @returns {{ gasto: Object, gastos: Object[], participantes: Object[] }}
+ */
+export const crearGastoGrupalEnCuotas = async ({
+    grupoId,
+    descripcion,
+    monto,
+    cuotas,
+    pagadoPor,
+    fecha,
+    nota,
+    idCategoria,
+    participantesUserIds,
+}) => {
+    if (!grupoId) throw new Error('ID de grupo requerido');
+    if (!descripcion || !descripcion.trim()) throw new Error('La descripción es requerida');
+    const montoNum = Number(monto);
+    if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
+    const cantCuotas = Math.max(2, Math.min(18, parseInt(cuotas) || 2));
+    if (!pagadoPor) throw new Error('El pagador es requerido');
+    if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
+        throw new Error('Debe haber al menos un participante');
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('No hay sesión activa');
+
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
+    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/gastos-cuotas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+            descripcion,
+            monto: montoNum,
+            cuotas: cantCuotas,
+            pagadoPor,
+            fecha,
+            nota,
+            idCategoria,
+            participantesUserIds,
+        }),
+    });
+
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Error al crear el gasto en cuotas');
+    return { gasto: json.gasto, gastos: json.gastos, participantes: json.participantes };
+};
+
+/**
+ * Obtiene los gastos en cuotas activos de un grupo, agrupados por id_gasto_padre.
+ * Solo incluye compras con tarjeta de crédito (metodo_pago = 'TARJETA DE CREDITO').
+ * Útil para mostrar el panel de cuotas en el detalle del grupo.
+ *
+ * @param {number} grupoId - ID del grupo
+ * @returns {Array} Grupos de cuotas: [{ id, descripcionBase, totalOriginal, cuotas, pagadas, pendientes, montoMensual, cuotasList }]
+ */
+export const obtenerCuotasGrupal = async (grupoId) => {
+    if (!grupoId) throw new Error('ID de grupo inválido');
+
+    const { data, error } = await supabase
+        .from('grupo_gastos')
+        .select('id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre, metodo_pago, estado')
+        .eq('grupo_id', grupoId)
+        .eq('estado', 'activo')
+        .eq('metodo_pago', 'TARJETA DE CREDITO')
+        .not('id_gasto_padre', 'is', null)
+        .order('id_gasto_padre', { ascending: true })
+        .order('numero_cuota', { ascending: true });
+
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) return [];
+
+    // Agrupar por id_gasto_padre
+    const grupos = new Map();
+    for (const cuota of data) {
+        const padreId = cuota.id_gasto_padre;
+        if (!grupos.has(padreId)) grupos.set(padreId, []);
+        grupos.get(padreId).push(cuota);
+    }
+
+    const hoy = new Date().toISOString().split('T')[0];
+
+    return Array.from(grupos.values()).map(cuotasList => {
+        const primera = cuotasList[0];
+        // Quitar el sufijo "(1/N)" para mostrar la descripción base
+        const descripcionBase = primera.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
+        const totalOriginal = cuotasList.reduce((sum, c) => sum + Number(c.monto), 0);
+        const pagadas  = cuotasList.filter(c => c.fecha <= hoy).length;
+        const pendientes = cuotasList.filter(c => c.fecha > hoy).length;
+
+        return {
+            id:             primera.id_gasto_padre,
+            descripcionBase,
+            totalOriginal:  Math.round(totalOriginal * 100) / 100,
+            cuotas:         primera.cuotas,
+            pagadas,
+            pendientes,
+            montoMensual:   primera.monto,
+            cuotasList,
+        };
+    });
+};
+
+/**
  * Obtiene los gastos activos de un grupo con paginación.
  *
  * @param {number} grupoId - ID del grupo
@@ -1906,6 +2009,41 @@ export const anularGastoGrupal = async (gastoId, grupoId) => {
 
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || 'Error al anular el gasto');
+};
+
+/**
+ * Anula todas las cuotas de una compra grupal en cuotas (opera sobre id_gasto_padre).
+ * Si hay cuotas ya vencidas, el backend devuelve 409 con tieneVencidas: true.
+ * En ese caso llamar de nuevo con force: true para confirmar.
+ *
+ * @param {number}  gastoId - ID del gasto padre (primera cuota)
+ * @param {number}  grupoId - ID del grupo
+ * @param {boolean} force   - true para confirmar anulación con cuotas ya vencidas
+ * @returns {{ cuotasAnuladas: number }}
+ */
+export const anularCuotasGrupales = async (gastoId, grupoId, force = false) => {
+    if (!gastoId) throw new Error('ID de gasto inválido');
+    if (!grupoId) throw new Error('ID de grupo inválido');
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('No hay sesión activa');
+
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
+    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/gastos/${gastoId}/anular-cuotas`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ force }),
+    });
+
+    const json = await res.json();
+    if (!res.ok) {
+        const err = new Error(json.error || 'Error al anular las cuotas');
+        err.tieneVencidas    = json.tieneVencidas ?? false;
+        err.cuotasVencidas   = json.cuotasVencidas ?? 0;
+        err.cuotasTotales    = json.cuotasTotales ?? 0;
+        throw err;
+    }
+    return json;
 };
 
 /**

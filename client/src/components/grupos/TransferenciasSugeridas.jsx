@@ -59,8 +59,8 @@ const TransferenciasSugeridas = ({ transferencias = [], miembros = [], userId, o
                             </span>
                         </div>
 
-                        {/* Botón visible solo cuando el usuario actual está involucrado */}
-                        {involucraAlUsuario && onLiquidar && (
+                        {/* Botón visible solo para quien debe realizar el pago */}
+                        {tx.de === userId && onLiquidar && (
                             <button
                                 className="btn btn-primary transferencias-sugeridas__btn"
                                 onClick={() =>
