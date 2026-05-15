@@ -64,11 +64,15 @@ const Dashboard = () => {
 
     const {
         agregarNotificacion,
+        config: configNotif,
         verificarAlertasFinancieras,
         verificarAlertaGastoAlto,
         verificarAlertasGastosFijos,
         verificarAlertaConcentracionCategoria,
         verificarProyecciones,
+        generarResumenDiario,
+        generarResumenSemanal,
+        generarResumenMensual,
     } = useNotificaciones();
 
     // Refs estables para las funciones de verificación: fetchStats no se recrea
@@ -77,15 +81,81 @@ const Dashboard = () => {
     const verificarAlertasGastosFijosRef       = useRef(verificarAlertasGastosFijos);
     const verificarAlertaConcentracionRef      = useRef(verificarAlertaConcentracionCategoria);
     const verificarProyeccionesRef             = useRef(verificarProyecciones);
+    const generarResumenDiarioRef              = useRef(generarResumenDiario);
+    const generarResumenSemanalRef             = useRef(generarResumenSemanal);
+    const generarResumenMensualRef             = useRef(generarResumenMensual);
+    const configNotifRef                       = useRef(configNotif);
+    const dispararResumenesRef                 = useRef(null);
     useEffect(() => {
         verificarAlertasFinancierasRef.current      = verificarAlertasFinancieras;
         verificarAlertasGastosFijosRef.current      = verificarAlertasGastosFijos;
         verificarAlertaConcentracionRef.current     = verificarAlertaConcentracionCategoria;
         verificarProyeccionesRef.current            = verificarProyecciones;
-    }, [verificarAlertasFinancieras, verificarAlertasGastosFijos, verificarAlertaConcentracionCategoria, verificarProyecciones]);
+        generarResumenDiarioRef.current             = generarResumenDiario;
+        generarResumenSemanalRef.current            = generarResumenSemanal;
+        generarResumenMensualRef.current            = generarResumenMensual;
+        configNotifRef.current                      = configNotif;
+    }, [verificarAlertasFinancieras, verificarAlertasGastosFijos, verificarAlertaConcentracionCategoria, verificarProyecciones, generarResumenDiario, generarResumenSemanal, generarResumenMensual, configNotif]);
 
     // Gasto diario disponible calculado por verificarProyecciones
     const [gastoDiarioDisponible, setGastoDiarioDisponible] = useState(null);
+
+    /**
+     * Dispara resúmenes diario/semanal/mensual si el usuario los tiene habilitados por email.
+     * Cada resumen se envía como máximo una vez por día usando el mismo throttle de localStorage.
+     * El día de la semana determina si se dispara el semanal (lunes) y el mensual (día 1 del mes).
+     * Se asigna a un ref para que fetchStats pueda llamarlo sin agregarlo a sus dependencias.
+     */
+    const dispararResumenesAutomaticos = useCallback((stats) => {
+        const cfg = configNotifRef.current;
+        if (!cfg?.email_habilitado) return;
+
+        const hoy = new Date();
+        const fechaHoy = hoy.toISOString().split('T')[0];
+
+        // Leer el throttle compartido con el sistema de alertas
+        let throttle = {};
+        try {
+            const raw = localStorage.getItem('notif_alertas_throttle');
+            const parsed = JSON.parse(raw || '{}');
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.getPrototypeOf(parsed) === Object.prototype) {
+                throttle = parsed;
+            }
+        } catch { /* mantener throttle vacío */ }
+
+        const puedeDisparar = (clave) => {
+            if (throttle[clave] === fechaHoy) return false;
+            throttle[clave] = fechaHoy;
+            return true;
+        };
+
+        let modificado = false;
+
+        if (cfg.email_resumen_diario && puedeDisparar('resumen_diario')) {
+            generarResumenDiarioRef.current(stats);
+            modificado = true;
+        }
+
+        // Resumen semanal: lunes de cada semana
+        if (cfg.email_resumen_semanal && hoy.getDay() === 1 && puedeDisparar('resumen_semanal')) {
+            generarResumenSemanalRef.current(stats);
+            modificado = true;
+        }
+
+        // Resumen mensual: primer día del mes
+        if (cfg.email_resumen_mensual && hoy.getDate() === 1 && puedeDisparar('resumen_mensual')) {
+            generarResumenMensualRef.current(stats);
+            modificado = true;
+        }
+
+        if (modificado) {
+            try {
+                localStorage.setItem('notif_alertas_throttle', JSON.stringify(throttle));
+            } catch { /* ignorar fallo de storage */ }
+        }
+    }, []);
+    // Mantener el ref sincronizado para que fetchStats lo use sin dependencia directa
+    dispararResumenesRef.current = dispararResumenesAutomaticos;
 
     // Control de los modales de la UI
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -132,6 +202,9 @@ const Dashboard = () => {
                         setGastoDiarioDisponible(proyeccion.gastoDiarioDisponible);
                     }
                 });
+                // Disparar resúmenes automáticos si el usuario los tiene habilitados.
+                // Usa el mismo throttle de localStorage para enviar cada resumen como máximo una vez por día.
+                dispararResumenesRef.current?.(data);
             }
         } catch (err) {
             console.error('❌ Error al obtener estadísticas:', err);

@@ -1435,6 +1435,25 @@ body::after {
   color: #fff;
 }
 
+/* Crédito de agencia — visible en desktop en la nav, oculto en mobile */
+.wlc-agency {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+}
+
+/* Footer de agencia — solo visible en mobile */
+.wlc-footer-mobile {
+  display: none;
+  position: relative;
+  z-index: 10;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 24px 24px;
+}
+
 .wlc-nav-badge {
   display: flex;
   align-items: center;
@@ -1864,6 +1883,9 @@ body::after {
 @media (max-width: 900px) {
   .wlc-nav { padding: 20px 24px; }
   .wlc-nav-badge { display: none; }
+  /* En mobile el crédito de la nav se oculta y aparece en el footer */
+  .wlc-nav .wlc-agency { display: none; }
+  .wlc-footer-mobile { display: flex; }
   .wlc-main { padding: 0 24px 48px; }
   .wlc-layout {
     grid-template-columns: 1fr;
@@ -4008,15 +4030,40 @@ body::after {
   max-height: 520px;
   display: flex;
   flex-direction: column;
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  /* Capa base sólida que garantiza legibilidad independientemente del tema.
+     El ::before aplica el color y el glass queda encima como efecto. */
+  background: transparent;
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--shadow-xl), 0 8px 40px rgba(0,0,0,0.28);
   z-index: 1100;
   overflow: hidden;
   animation: notif-panel-in 0.18s ease;
+}
+
+/* Capa de fondo sólida — garantiza opacidad mínima en todos los temas */
+.notif-panel-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* En temas oscuros renderiza oscuro, en claros renderiza claro.
+     light-dark() usa el color-scheme del elemento activo. */
+  background: light-dark(
+    rgba(248, 250, 252, 0.88),
+    rgba(18, 18, 28, 0.88)
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Todo el contenido del panel debe quedar sobre la capa base */
+.notif-panel-header,
+.notif-panel-lista {
+  position: relative;
+  z-index: 1;
 }
 
 @keyframes notif-panel-in {

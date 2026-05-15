@@ -98,18 +98,32 @@ const Configuracion = () => {
     };
 
     const handleNumero = (campo, valor) => {
-        const num = Number(valor);
-        if (!isNaN(num) && num >= 0) {
-            setFormConfig(prev => ({ ...prev, [campo]: num }));
+        // Guardamos como string durante la edición para no bloquear el borrado del 0 inicial.
+        // La conversión a número ocurre al guardar en handleGuardarConfig.
+        if (valor === '' || /^\d*\.?\d*$/.test(valor)) {
+            setFormConfig(prev => ({ ...prev, [campo]: valor }));
         }
     };
+
+    // Campos numéricos del formulario de notificaciones
+    const CAMPOS_NUMERICOS = [
+        'umbral_saldo_bajo', 'porcentaje_maximo_ingreso', 'monto_gasto_alto',
+        'umbral_fijos_ingreso', 'margen_crecimiento_variables',
+        'porcentaje_concentracion_categoria', 'objetivo_ahorro_porcentaje',
+    ];
 
     const handleGuardarConfig = async () => {
         if (!formConfig) return;
         setGuardandoConfig(true);
         setMensajeConfig('');
         try {
-            await guardarConfig(formConfig);
+            // Convertir campos numéricos de string a número antes de persistir
+            const configNormalizada = { ...formConfig };
+            CAMPOS_NUMERICOS.forEach(campo => {
+                const v = parseFloat(configNormalizada[campo]);
+                configNormalizada[campo] = isNaN(v) ? 0 : v;
+            });
+            await guardarConfig(configNormalizada);
             setMensajeConfig('Configuración guardada correctamente.');
         } catch {
             setMensajeConfig('Error al guardar. Intentá de nuevo.');
@@ -345,6 +359,7 @@ const Configuracion = () => {
                                 <label className="notif-config-sub-label">Umbral de saldo bajo ($)</label>
                                 <input
                                     type="number"
+                                    inputMode="numeric"
                                     min="0"
                                     value={formConfig.umbral_saldo_bajo}
                                     onChange={(e) => handleNumero('umbral_saldo_bajo', e.target.value)}
@@ -373,6 +388,7 @@ const Configuracion = () => {
                                 <label className="notif-config-sub-label">Porcentaje máximo (%)</label>
                                 <input
                                     type="number"
+                                    inputMode="numeric"
                                     min="1"
                                     max="100"
                                     value={formConfig.porcentaje_maximo_ingreso}
@@ -402,6 +418,7 @@ const Configuracion = () => {
                                 <label className="notif-config-sub-label">Monto de gasto alto ($)</label>
                                 <input
                                     type="number"
+                                    inputMode="numeric"
                                     min="0"
                                     value={formConfig.monto_gasto_alto}
                                     onChange={(e) => handleNumero('monto_gasto_alto', e.target.value)}
@@ -450,6 +467,7 @@ const Configuracion = () => {
                                 <label className="notif-config-sub-label">Umbral de gastos fijos sobre ingreso (%)</label>
                                 <input
                                     type="number"
+                                    inputMode="numeric"
                                     min="1"
                                     max="100"
                                     value={formConfig.umbral_fijos_ingreso}
@@ -479,6 +497,7 @@ const Configuracion = () => {
                                 <label className="notif-config-sub-label">Margen de crecimiento aceptable (%)</label>
                                 <input
                                     type="number"
+                                    inputMode="numeric"
                                     min="1"
                                     max="200"
                                     value={formConfig.margen_crecimiento_variables}
@@ -508,6 +527,7 @@ const Configuracion = () => {
                                 <label className="notif-config-sub-label">Porcentaje de concentración máximo (%)</label>
                                 <input
                                     type="number"
+                                    inputMode="numeric"
                                     min="1"
                                     max="100"
                                     value={formConfig.porcentaje_concentracion_categoria}
@@ -542,6 +562,7 @@ const Configuracion = () => {
                                 <label className="notif-config-sub-label">Objetivo de ahorro mensual (%)</label>
                                 <input
                                     type="number"
+                                    inputMode="numeric"
                                     min="0"
                                     max="100"
                                     value={formConfig.objetivo_ahorro_porcentaje}
@@ -589,16 +610,6 @@ const Configuracion = () => {
                                         type="button"
                                         className={`notif-toggle notif-toggle--sm${formConfig.email_gasto_alto ? ' notif-toggle--on' : ''}`}
                                         onClick={() => handleToggle('email_gasto_alto')}
-                                    >
-                                        <span className="notif-toggle-thumb" />
-                                    </button>
-                                </div>
-                                <div className="notif-config-row notif-config-row--sub">
-                                    <span className="notif-config-row-title">Email por integraciones n8n/WhatsApp</span>
-                                    <button
-                                        type="button"
-                                        className={`notif-toggle notif-toggle--sm${formConfig.email_notificaciones_n8n ? ' notif-toggle--on' : ''}`}
-                                        onClick={() => handleToggle('email_notificaciones_n8n')}
                                     >
                                         <span className="notif-toggle-thumb" />
                                     </button>
