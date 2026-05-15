@@ -1848,7 +1848,7 @@ export const crearGastoGrupalEnCuotas = async ({
     if (!descripcion || !descripcion.trim()) throw new Error('La descripción es requerida');
     const montoNum = Number(monto);
     if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
-    const cantCuotas = Math.max(2, Math.min(18, parseInt(cuotas) || 2));
+    const cantCuotas = Math.max(1, Math.min(18, parseInt(cuotas) || 1));
     if (!pagadoPor) throw new Error('El pagador es requerido');
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         throw new Error('Debe haber al menos un participante');
