@@ -26,8 +26,8 @@ const normalizeAmount = (val) => {
  * @returns {string} SHA-256 hash de los datos
  */
 const generateFingerprint = (data) => {
-    const { descripcion, monto, categoria, medioPago, fecha } = data;
-    const raw = `${descripcion.trim().toLowerCase()}|${Number(monto).toFixed(2)}|${categoria.trim().toLowerCase()}|${medioPago.trim().toLowerCase()}|${fecha}`;
+    const { descripcion, monto, categoria, medioPago, fecha, user_id } = data;
+    const raw = `${user_id}|${descripcion.trim().toLowerCase()}|${Number(monto).toFixed(2)}|${categoria.trim().toLowerCase()}|${medioPago.trim().toLowerCase()}|${fecha}`;
     return crypto.createHash('sha256').update(raw).digest('hex');
 };
 

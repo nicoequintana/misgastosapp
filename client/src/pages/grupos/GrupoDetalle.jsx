@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import GrupoTabs from '../../components/grupos/GrupoTabs';
 import MiembroChip from '../../components/grupos/MiembroChip';
 import GrupoGastoRow from '../../components/grupos/GrupoGastoRow';
+import GrupoCuotasCard from '../../components/grupos/GrupoCuotasCard';
 import GrupoSaldos from './GrupoSaldos';
 import InvitarMiembroModal from '../../components/grupos/InvitarMiembroModal';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -51,6 +52,7 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
     // Estado del tab Gastos
     const [gastos, setGastos] = useState([]);
     const [cargandoGastos, setCargandoGastos] = useState(false);
+    const [cuotasGrupo, setCuotasGrupo] = useState([]);
 
     // Estado del modal de invitación
     const [mostrarInvitar, setMostrarInvitar] = useState(false);
@@ -101,13 +103,18 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
         setTabActivo(defaultTab);
     }, [defaultTab]);
 
-    // Carga los gastos del grupo cuando el tab de gastos se activa
+    // Carga los gastos del grupo cuando el tab de gastos se activa.
+    // También carga las cuotas grupales activas para mostrar tarjeta y movimientos futuros.
     const cargarGastos = useCallback(async () => {
         if (!id) return;
         try {
             setCargandoGastos(true);
-            const datos = await db.obtenerGastosDelGrupo(id);
+            const [datos, cuotas] = await Promise.all([
+                db.obtenerGastosDelGrupo(id),
+                db.obtenerCuotasGrupal(id),
+            ]);
             setGastos(datos || []);
+            setCuotasGrupo(cuotas || []);
         } catch (err) {
             console.error('Error al cargar gastos del grupo:', err);
         } finally {
@@ -189,6 +196,14 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
         () => miembros.some((m) => m.user_id === user?.id && m.estado === 'activo'),
         [miembros, user?.id]
     );
+
+    // Cuotas con fecha > hoy: se muestran como "Movimientos futuros", no afectan saldo
+    const hoyStr = new Date().toISOString().split('T')[0];
+    const movimientosFuturos = useMemo(() => {
+        return cuotasGrupo.flatMap(g =>
+            g.cuotasList.filter(c => (c.fecha || '').split('T')[0] > hoyStr)
+        ).sort((a, b) => a.fecha.localeCompare(b.fecha));
+    }, [cuotasGrupo, hoyStr]);
 
     // ── Estado de carga ──
     if (cargando) {
@@ -358,34 +373,84 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                             <div className="loading-spinner" />
                             <p>Cargando gastos...</p>
                         </div>
-                    ) : gastos.length === 0 ? (
-                        // Estado vacío
-                        <div className="glass-card grupo-detalle__placeholder">
-                            <span className="material-symbols-outlined grupo-detalle__placeholder-icon">
-                                receipt_long
-                            </span>
-                            <p>Todavía no hay gastos en este grupo.</p>
-                            {!grupo.archivado && (
-                                <p className="grupo-detalle__empty-msg">
-                                    Usá el botón "Cargar gasto" para agregar el primero.
-                                </p>
-                            )}
-                        </div>
                     ) : (
-                        // Lista de gastos
-                        <div className="glass-card grupo-detalle__gastos-lista">
-                            {gastos.map((gasto) => (
-                                <GrupoGastoRow
-                                    key={gasto.id}
-                                    gasto={gasto}
-                                    miembros={miembros}
-                                    userId={user?.id}
-                                    esAdmin={esAdmin}
-                                    onAnular={handleAnular}
-                                    grupoId={grupo.id}
-                                />
-                            ))}
-                        </div>
+                        <>
+                            {/* Card de cuotas grupales con tarjeta */}
+                            <GrupoCuotasCard
+                                grupos={cuotasGrupo}
+                                miembros={miembros}
+                                grupoId={grupo.id}
+                                userId={user?.id}
+                                onAnuladoExito={cargarGastos}
+                            />
+
+                            {/* Movimientos futuros: cuotas que aún no vencieron */}
+                            {movimientosFuturos.length > 0 && (
+                                <div className="glass-card grupo-detalle__futuros">
+                                    <div className="grupo-detalle__futuros-header">
+                                        <span className="material-symbols-outlined">schedule</span>
+                                        <h3 className="table-title">Movimientos futuros</h3>
+                                        <span className="category-tag counter">{movimientosFuturos.length}</span>
+                                    </div>
+                                    <p className="grupo-detalle__futuros-desc">
+                                        Estas cuotas aún no vencieron y no afectan el saldo actual del grupo.
+                                    </p>
+                                    <div className="grupo-detalle__futuros-lista">
+                                        {movimientosFuturos.map((c) => {
+                                            const fechaStr = (c.fecha || '').split('T')[0];
+                                            const fecha = new Date(`${fechaStr}T12:00:00`).toLocaleDateString('es-AR', {
+                                                day: '2-digit', month: 'long', year: 'numeric',
+                                            });
+                                            const descBase = c.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
+                                            return (
+                                                <div key={c.id} className="grupo-detalle__futuro-row">
+                                                    <span className="material-symbols-outlined grupo-detalle__futuro-icon">
+                                                        credit_card
+                                                    </span>
+                                                    <div className="grupo-detalle__futuro-info">
+                                                        <span className="grupo-detalle__futuro-desc">{descBase}</span>
+                                                        <span className="grupo-detalle__futuro-cuota">{c.descripcion.match(/\(\d+\/\d+\)/)?.[0]}</span>
+                                                    </div>
+                                                    <span className="grupo-detalle__futuro-fecha">{fecha}</span>
+                                                    <span className="grupo-detalle__futuro-monto">
+                                                        ${(c.monto || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Lista de gastos */}
+                            {gastos.length === 0 ? (
+                                <div className="glass-card grupo-detalle__placeholder">
+                                    <span className="material-symbols-outlined grupo-detalle__placeholder-icon">
+                                        receipt_long
+                                    </span>
+                                    <p>Todavía no hay gastos en este grupo.</p>
+                                    {!grupo.archivado && (
+                                        <p className="grupo-detalle__empty-msg">
+                                            Usá el botón "Cargar gasto" para agregar el primero.
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="glass-card grupo-detalle__gastos-lista">
+                                    {gastos.map((gasto) => (
+                                        <GrupoGastoRow
+                                            key={gasto.id}
+                                            gasto={gasto}
+                                            miembros={miembros}
+                                            userId={user?.id}
+                                            esAdmin={esAdmin}
+                                            onAnular={handleAnular}
+                                            grupoId={grupo.id}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             )}

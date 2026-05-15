@@ -201,7 +201,7 @@ const Dashboard = () => {
                     if (proyeccion?.gastoDiarioDisponible !== undefined) {
                         setGastoDiarioDisponible(proyeccion.gastoDiarioDisponible);
                     }
-                });
+                }).catch(e => console.error('❌ Error al verificar proyecciones:', e));
                 // Disparar resúmenes automáticos si el usuario los tiene habilitados.
                 // Usa el mismo throttle de localStorage para enviar cada resumen como máximo una vez por día.
                 dispararResumenesRef.current?.(data);
