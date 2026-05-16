@@ -508,9 +508,11 @@ export const deleteVariableExpenses = async () => {
 export const getCategories = async () => {
     const usuario = await obtenerUsuarioActivo();
 
+    // Traemos globales (user_id IS NULL) y propias del usuario autenticado
     const { data, error } = await supabase
         .from('categorias')
         .select('*')
+        .or(`user_id.is.null,user_id.eq.${usuario.id}`)
         .order('nombre');
 
     if (error) throw error;

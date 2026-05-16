@@ -587,8 +587,18 @@ const Dashboard = () => {
                 onClose={() => setIsModalOpen(false)}
                 title="Nuevo Gasto"
                 subtitle="Completá los detalles del movimiento"
+                footer={
+                    <div className="form-row">
+                        <button type="button" form="form-nuevo-gasto" onClick={() => setIsModalOpen(false)} className="btn btn-secondary" style={{ flex: 1 }}>
+                            Cancelar
+                        </button>
+                        <button type="submit" form="form-nuevo-gasto" className="btn btn-primary" style={{ flex: 1 }}>
+                            Guardar
+                        </button>
+                    </div>
+                }
             >
-                <form onSubmit={handleSubmitExpense} className="form-container">
+                <form id="form-nuevo-gasto" onSubmit={handleSubmitExpense} className="form-container">
                     <div className="form-group">
                         <label className="form-label-box">Descripción</label>
                         <input
@@ -679,14 +689,6 @@ const Dashboard = () => {
                             <label htmlFor="es_fijo">Gasto Fijo</label>
                         </div>
                     )}
-                    <div className="form-row">
-                        <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary" style={{ flex: 1 }}>
-                            Cancelar
-                        </button>
-                        <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                            Guardar
-                        </button>
-                    </div>
                 </form>
             </Modal>
 
