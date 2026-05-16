@@ -683,7 +683,7 @@ const Dashboard = () => {
                             </select>
                         </div>
                         <div className="form-group">
-                            <label className="form-label-box">Mes de la primera cuota <span style={{ color: 'var(--color-danger)' }}>*</span></label>
+                            <label className="form-label-box">Mes de la primera cuota <span style={{ color: 'var(--danger)' }}>*</span></label>
                             <input
                                 type="month"
                                 className="form-select"
