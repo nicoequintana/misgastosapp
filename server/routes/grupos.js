@@ -885,7 +885,7 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
 router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
     const { grupoId, gastoId } = req.params;
     const { supabaseAdmin, user } = req;
-    const { descripcion, monto, pagadoPor, fecha, nota, idCategoria, participantesUserIds } = req.body;
+    const { descripcion, monto, pagadoPor, fecha, primeraCuota, nota, idCategoria, participantesUserIds } = req.body;
 
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         return res.status(400).json({ ok: false, error: 'Se requiere al menos un participante' });
@@ -948,9 +948,22 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
         }
         if (!gasto) return res.status(404).json({ ok: false, error: 'El gasto no existe o ya fue anulado' });
 
-        // Si la compra tiene cuotas hijas, recalcular sus fechas en base a la nueva fecha de la cuota 1.
-        // Cada cuota N cae el primer día del mes de la cuota 1 + (N-1) meses.
-        if (gasto.cuotas > 1) {
+        // Si la compra tiene cuotas (primeraCuota informada), recalcular las fechas de todas.
+        // La cuota 1 queda en el mes elegido por el usuario; cada cuota N desplaza (N-1) meses.
+        if (gasto.cuotas > 1 && primeraCuota) {
+            const inicio = new Date(`${primeraCuota.slice(0, 7)}-01T00:00:00`);
+            const anioCuota1 = inicio.getFullYear();
+            const mesCuota1  = inicio.getMonth(); // 0-indexed
+
+            // Actualizar la cuota 1 (la editada) con la fecha del mes elegido
+            const fechaCuota1 = `${primeraCuota.slice(0, 7)}-01T12:00:00-03:00`;
+            await supabaseAdmin
+                .from('grupo_gastos')
+                .update({ fecha: fechaCuota1 })
+                .eq('id', gastoId)
+                .eq('estado', 'activo');
+
+            // Actualizar cuotas hijas (2..N)
             const { data: cuotasHijas } = await supabaseAdmin
                 .from('grupo_gastos')
                 .select('id, numero_cuota')
@@ -958,10 +971,6 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
                 .eq('estado', 'activo');
 
             if (cuotasHijas && cuotasHijas.length > 0) {
-                const fechaBase = new Date(`${fecha}T12:00:00-03:00`);
-                const anioCuota1 = fechaBase.getFullYear();
-                const mesCuota1  = fechaBase.getMonth(); // 0-indexed
-
                 const actualizaciones = cuotasHijas.map(c => {
                     const mesOffset = c.numero_cuota - 1;
                     const anio = anioCuota1 + Math.floor((mesCuota1 + mesOffset) / 12);
@@ -1278,6 +1287,7 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
         cuotas: cuotasRaw,
         pagadoPor,
         fecha,
+        primeraCuota,
         nota,
         idCategoria,
         participantesUserIds,
@@ -1290,6 +1300,9 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
     if (!Number.isFinite(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
     const cantCuotas = Math.max(1, Math.min(18, parseInt(cuotasRaw, 10) || 1));
     if (!pagadoPor) return res.status(400).json({ ok: false, error: 'El pagador es requerido' });
+    if (!primeraCuota || !/^\d{4}-\d{2}$/.test(primeraCuota.slice(0, 7))) {
+        return res.status(400).json({ ok: false, error: 'Indicá en qué mes vence la primera cuota (YYYY-MM)' });
+    }
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         return res.status(400).json({ ok: false, error: 'Se requiere al menos un participante' });
     }
@@ -1326,14 +1339,11 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
         }
 
         const descripcionBase = descripcion.trim().toUpperCase();
-        const fechaBase = fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
 
-        // Calcular cuotas: fecha base = 1er día del mes siguiente, cada cuota desplaza 1 mes
+        // Calcular cuotas: la primera vence en el mes elegido por el usuario, cada cuota desplaza 1 mes
         const montoPorCuota = Math.floor((montoNum / cantCuotas) * 100) / 100;
         const diferencia = Math.round((montoNum - montoPorCuota * cantCuotas) * 100) / 100;
-        const inicio = new Date(`${fechaBase}T00:00:00`);
-        inicio.setDate(1);
-        inicio.setMonth(inicio.getMonth() + 1);
+        const inicio = new Date(`${primeraCuota.slice(0, 7)}-01T00:00:00`);
 
         const cuotasCalculadas = Array.from({ length: cantCuotas }, (_, i) => {
             const fechaCuota = new Date(inicio);

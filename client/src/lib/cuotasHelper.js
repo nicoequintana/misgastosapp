@@ -8,26 +8,25 @@
  * Calcula el array de cuotas para una compra con tarjeta de crédito.
  *
  * Reglas de negocio:
- *   - Fecha base: 1er día del mes siguiente a fechaBase.
- *   - Cada cuota desplaza 1 mes desde la fecha base.
+ *   - fechaPrimeraCuota define el mes exacto en que vence la cuota 1 (YYYY-MM-DD).
+ *   - Siempre se normaliza al 1er día del mes indicado.
+ *   - Cada cuota siguiente desplaza 1 mes.
  *   - Redondeo a centavos; diferencia por redondeo se asigna a la primera cuota.
  *   - Si cuotas > 1, la descripción de cada cuota lleva el sufijo "(N/total)".
  *
- * @param {number} monto       - Monto total de la compra (> 0)
- * @param {number} cantCuotas  - Cantidad de cuotas (1-18)
- * @param {string} fechaBase   - Fecha de la compra en formato YYYY-MM-DD
- * @param {string} descripcion - Descripción base ya normalizada (MAYÚSCULAS)
+ * @param {number} monto             - Monto total de la compra (> 0)
+ * @param {number} cantCuotas        - Cantidad de cuotas (1-18)
+ * @param {string} fechaPrimeraCuota - Mes de la primera cuota en formato YYYY-MM (o YYYY-MM-DD)
+ * @param {string} descripcion       - Descripción base ya normalizada (MAYÚSCULAS)
  * @returns {Array<{ numero: number, monto: number, fecha: string, descripcion: string }>}
  */
-export function calcularCuotas(monto, cantCuotas, fechaBase, descripcion) {
+export function calcularCuotas(monto, cantCuotas, fechaPrimeraCuota, descripcion) {
     const n = Math.max(1, Math.min(18, Math.floor(cantCuotas)));
     const montoPorCuota = Math.floor((monto / n) * 100) / 100;
     const diferencia = Math.round((monto - montoPorCuota * n) * 100) / 100;
 
-    // 1er día del mes siguiente a la fecha de la compra
-    const inicio = new Date(`${fechaBase}T00:00:00`);
-    inicio.setDate(1);
-    inicio.setMonth(inicio.getMonth() + 1);
+    // Normalizar al 1er día del mes indicado por el usuario
+    const inicio = new Date(`${fechaPrimeraCuota.slice(0, 7)}-01T00:00:00`);
 
     return Array.from({ length: n }, (_, i) => {
         const fechaCuota = new Date(inicio);

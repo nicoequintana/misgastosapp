@@ -31,6 +31,8 @@ const GrupoGastoEditar = () => {
     const [pagadoPor, setPagadoPor] = useState('');
     const [participantes, setParticipantes] = useState([]);
     const [nota, setNota] = useState('');
+    const [esCuotas, setEsCuotas] = useState(false);
+    const [primeraCuota, setPrimeraCuota] = useState('');
 
     // Estado de envío
     const [guardando, setGuardando] = useState(false);
@@ -61,6 +63,12 @@ const GrupoGastoEditar = () => {
             setPagadoPor(gastoExistente.pagado_por || '');
             setNota(gastoExistente.nota || '');
             setParticipantes((gastoExistente.participantes || []).map((p) => p.user_id));
+            // Si es compra en cuotas, cargar el mes de la primera cuota (YYYY-MM)
+            const esCuotasGasto = (gastoExistente.cuotas || 1) > 1;
+            setEsCuotas(esCuotasGasto);
+            if (esCuotasGasto && gastoExistente.fecha) {
+                setPrimeraCuota(gastoExistente.fecha.slice(0, 7));
+            }
         } catch (err) {
             console.error('Error al cargar el gasto:', err);
             setErrorCarga('No se pudo cargar el gasto. Verificá que exista o que tengas permisos.');
@@ -110,6 +118,10 @@ const GrupoGastoEditar = () => {
             setErrorGuardado('Seleccioná quién pagó.');
             return;
         }
+        if (esCuotas && !primeraCuota) {
+            setErrorGuardado('Indicá en qué mes vence la primera cuota.');
+            return;
+        }
 
         try {
             setGuardando(true);
@@ -119,6 +131,7 @@ const GrupoGastoEditar = () => {
                 monto,
                 pagadoPor,
                 fecha,
+                primeraCuota: esCuotas ? primeraCuota : undefined,
                 idCategoria: categoriaId ? Number(categoriaId) : undefined,
                 nota: nota || undefined,
                 participantesUserIds: participantes,
@@ -236,6 +249,27 @@ const GrupoGastoEditar = () => {
                         disabled={guardando}
                     />
                 </div>
+
+                {/* Mes primera cuota — solo si es compra en cuotas */}
+                {esCuotas && (
+                    <div className="form-group">
+                        <label className="form-label" htmlFor="primera-cuota">
+                            Mes de la primera cuota <span className="form-label__required">*</span>
+                        </label>
+                        <input
+                            id="primera-cuota"
+                            type="month"
+                            className="input"
+                            value={primeraCuota}
+                            onChange={(e) => setPrimeraCuota(e.target.value)}
+                            required
+                            disabled={guardando}
+                        />
+                        <small className="form-hint">
+                            El 1° del mes elegido se usa como fecha de vencimiento de la primera cuota.
+                        </small>
+                    </div>
+                )}
 
                 {/* Campo: Categoría opcional */}
                 <div className="form-group">

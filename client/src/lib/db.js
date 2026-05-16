@@ -129,11 +129,12 @@ export const createExpense = async (gasto) => {
         return data;
     }
 
-    // Gasto con tarjeta de crédito: se difiere al mes siguiente y se generan N cuotas fijas.
+    // Gasto con tarjeta de crédito: el usuario define en qué mes vence la primera cuota.
+    if (!gasto.primeraCuota) throw new Error('Indicá en qué mes vence la primera cuota');
     const cuotasCalculadas = calcularCuotas(
         montoNumero,
         cuotas,
-        gasto.fecha || fechaHoyArgentina(),
+        gasto.primeraCuota,
         descripcionBase
     );
 
@@ -1842,6 +1843,7 @@ export const crearGastoGrupalEnCuotas = async ({
     cuotas,
     pagadoPor,
     fecha,
+    primeraCuota,
     nota,
     idCategoria,
     participantesUserIds,
@@ -1852,6 +1854,7 @@ export const crearGastoGrupalEnCuotas = async ({
     if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
     const cantCuotas = Math.max(1, Math.min(18, parseInt(cuotas) || 1));
     if (!pagadoPor) throw new Error('El pagador es requerido');
+    if (!primeraCuota) throw new Error('Indicá en qué mes vence la primera cuota');
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         throw new Error('Debe haber al menos un participante');
     }
@@ -1869,6 +1872,7 @@ export const crearGastoGrupalEnCuotas = async ({
             cuotas: cantCuotas,
             pagadoPor,
             fecha,
+            primeraCuota,
             nota,
             idCategoria,
             participantesUserIds,
@@ -2057,7 +2061,7 @@ export const anularCuotasGrupales = async (gastoId, grupoId, force = false) => {
  * @param {Object} campos - Campos a actualizar: descripcion, monto, pagadoPor, fecha, idCategoria, nota, participantesUserIds
  * @returns {Object} El gasto actualizado con los nuevos participantes
  */
-export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, monto, pagadoPor, fecha, idCategoria, nota, participantesUserIds }) => {
+export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, monto, pagadoPor, fecha, primeraCuota, idCategoria, nota, participantesUserIds }) => {
     if (!gastoId) throw new Error('ID de gasto inválido');
     if (!grupoId) throw new Error('ID de grupo inválido');
     if (!participantesUserIds?.length) throw new Error('Se requiere al menos un participante');
@@ -2071,7 +2075,7 @@ export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, mon
     const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/gastos/${gastoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, idCategoria, nota, participantesUserIds }),
+        body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, primeraCuota, idCategoria, nota, participantesUserIds }),
     });
 
     const json = await res.json();

@@ -35,6 +35,7 @@ const GrupoGastoNuevo = () => {
     const [nota, setNota] = useState('');
     const [esTarjeta, setEsTarjeta] = useState(false);
     const [cuotas, setCuotas] = useState(1);
+    const [primeraCuota, setPrimeraCuota] = useState('');
 
     // Estado de envío
     const [guardando, setGuardando] = useState(false);
@@ -133,6 +134,10 @@ const GrupoGastoNuevo = () => {
             setErrorGuardado('Seleccioná quién pagó.');
             return;
         }
+        if (esTarjeta && !primeraCuota) {
+            setErrorGuardado('Indicá en qué mes vence la primera cuota.');
+            return;
+        }
 
         try {
             setGuardando(true);
@@ -148,7 +153,7 @@ const GrupoGastoNuevo = () => {
             };
 
             if (esTarjeta) {
-                await db.crearGastoGrupalEnCuotas({ ...params, cuotas });
+                await db.crearGastoGrupalEnCuotas({ ...params, cuotas, primeraCuota });
             } else {
                 await db.crearGastoGrupal(params);
             }
@@ -381,7 +386,7 @@ const GrupoGastoNuevo = () => {
                         checked={esTarjeta}
                         onChange={(e) => {
                             setEsTarjeta(e.target.checked);
-                            if (!e.target.checked) setCuotas(1);
+                            if (!e.target.checked) { setCuotas(1); setPrimeraCuota(''); }
                         }}
                         disabled={guardando}
                     />
@@ -390,8 +395,9 @@ const GrupoGastoNuevo = () => {
                     </label>
                 </div>
 
-                {/* Selector de cuotas — solo si es tarjeta */}
+                {/* Selector de cuotas y mes primera cuota — solo si es tarjeta */}
                 {esTarjeta && (
+                    <>
                     <div className="form-group">
                         <label className="form-label" htmlFor="cuotas">
                             Cuotas <span className="form-label__required">*</span>
@@ -409,9 +415,28 @@ const GrupoGastoNuevo = () => {
                             ))}
                         </select>
                         <small className="form-hint">
-                            La primera cuota vence el 1° del mes siguiente. Cada cuota se divide entre los participantes.
+                            Cada cuota se divide igualitariamente entre los participantes.
                         </small>
                     </div>
+
+                    <div className="form-group">
+                        <label className="form-label" htmlFor="primera-cuota">
+                            Mes de la primera cuota <span className="form-label__required">*</span>
+                        </label>
+                        <input
+                            id="primera-cuota"
+                            type="month"
+                            className="input"
+                            value={primeraCuota}
+                            onChange={(e) => setPrimeraCuota(e.target.value)}
+                            required
+                            disabled={guardando}
+                        />
+                        <small className="form-hint">
+                            El 1° del mes elegido se usa como fecha de vencimiento de la primera cuota.
+                        </small>
+                    </div>
+                    </>
                 )}
 
                 {/* Campo: Nota (opcional) */}

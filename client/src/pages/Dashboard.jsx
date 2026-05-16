@@ -25,6 +25,7 @@ const ESTADO_INICIAL_GASTO = {
     fecha: fechaHoyArgentina(),
     cuotas: 1,
     esTarjetaCredito: false,
+    primeraCuota: '',
 };
 
 /** Estado inicial vacío para las estadísticas */
@@ -317,6 +318,11 @@ const Dashboard = () => {
             return;
         }
 
+        if (expenseForm.esTarjetaCredito && !expenseForm.primeraCuota) {
+            alert('Indicá en qué mes vence la primera cuota.');
+            return;
+        }
+
         try {
             await db.createExpense(expenseForm);
             console.log('✅ Gasto creado correctamente');
@@ -473,8 +479,9 @@ const Dashboard = () => {
             ...prev,
             id_metodo_pago: id,
             esTarjetaCredito: esTarjeta,
-            // Al cambiar el método, reseteamos cuotas y desbloqueamos es_fijo
+            // Al cambiar el método, reseteamos cuotas, primeraCuota y desbloqueamos es_fijo
             cuotas: 1,
+            primeraCuota: '',
             es_fijo: esTarjeta ? true : prev.es_fijo,
         }));
     };
@@ -660,6 +667,7 @@ const Dashboard = () => {
                         </div>
                     </div>
                     {expenseForm.esTarjetaCredito && (
+                        <>
                         <div className="form-group">
                             <label className="form-label-box">Cuotas</label>
                             <select
@@ -673,10 +681,21 @@ const Dashboard = () => {
                                     </option>
                                 ))}
                             </select>
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label-box">Mes de la primera cuota <span style={{ color: 'var(--color-danger)' }}>*</span></label>
+                            <input
+                                type="month"
+                                className="form-select"
+                                value={expenseForm.primeraCuota}
+                                onChange={(e) => setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }))}
+                                required
+                            />
                             <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
-                                Se generan {expenseForm.cuotas} gasto{expenseForm.cuotas > 1 ? 's fijos' : ' fijo'} a partir del mes siguiente
+                                El 1° del mes elegido es la fecha de vencimiento de la primera cuota.
                             </small>
                         </div>
+                        </>
                     )}
                     {!expenseForm.esTarjetaCredito && (
                         <div className="form-checkbox-group">
