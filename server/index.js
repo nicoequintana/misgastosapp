@@ -88,6 +88,10 @@ app.use(cors(corsOptions));
 // Límite estricto de payload — el endpoint n8n nunca necesita más de 10kb
 app.use(express.json({ limit: '10kb' }));
 
+// Necesario en prod: la app corre detrás de un proxy (Render/Railway) que agrega X-Forwarded-For.
+// Sin esto, express-rate-limit no puede identificar la IP real del cliente.
+if (isProduction) app.set('trust proxy', 1);
+
 // Rate limiting por IP — global conservador + estricto en endpoints sensibles
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/notifications', rateLimit({ windowMs: 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }));
