@@ -948,6 +948,35 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
         }
         if (!gasto) return res.status(404).json({ ok: false, error: 'El gasto no existe o ya fue anulado' });
 
+        // Si la compra tiene cuotas hijas, recalcular sus fechas en base a la nueva fecha de la cuota 1.
+        // Cada cuota N cae el primer día del mes de la cuota 1 + (N-1) meses.
+        if (gasto.cuotas > 1) {
+            const { data: cuotasHijas } = await supabaseAdmin
+                .from('grupo_gastos')
+                .select('id, numero_cuota')
+                .eq('id_gasto_padre', gastoId)
+                .eq('estado', 'activo');
+
+            if (cuotasHijas && cuotasHijas.length > 0) {
+                const fechaBase = new Date(`${fecha}T12:00:00-03:00`);
+                const anioCuota1 = fechaBase.getFullYear();
+                const mesCuota1  = fechaBase.getMonth(); // 0-indexed
+
+                const actualizaciones = cuotasHijas.map(c => {
+                    const mesOffset = c.numero_cuota - 1;
+                    const anio = anioCuota1 + Math.floor((mesCuota1 + mesOffset) / 12);
+                    const mes  = (mesCuota1 + mesOffset) % 12;
+                    const fechaCuota = `${anio}-${String(mes + 1).padStart(2, '0')}-01T12:00:00-03:00`;
+                    return supabaseAdmin
+                        .from('grupo_gastos')
+                        .update({ fecha: fechaCuota })
+                        .eq('id', c.id)
+                        .eq('estado', 'activo');
+                });
+                await Promise.all(actualizaciones);
+            }
+        }
+
         const { error: errDel } = await supabaseAdmin
             .from('grupo_gasto_participantes').delete().eq('gasto_id', gastoId);
         if (errDel) {
