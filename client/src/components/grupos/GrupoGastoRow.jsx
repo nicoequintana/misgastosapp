@@ -41,12 +41,12 @@ const GrupoGastoRow = ({ gasto, miembros = [], userId, onAnular, grupoId }) => {
 
     const formatearFecha = (fecha) => {
         if (!fecha) return '–';
-        const [año, mes, dia] = fecha.split('-');
-        return new Date(Date.UTC(año, mes - 1, dia)).toLocaleDateString('es-AR', {
+        const fechaStr = String(fecha).split('T')[0];
+        return new Date(`${fechaStr}T12:00:00Z`).toLocaleDateString('es-AR', {
             day: '2-digit',
             month: 'short',
             year: 'numeric',
-            timeZone: 'UTC',
+            timeZone: 'America/Argentina/Buenos_Aires',
         });
     };
 

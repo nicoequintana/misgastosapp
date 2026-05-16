@@ -6,6 +6,33 @@ const { procesarEnvioEmail, buildNotificacionGrupo } = require('../services/noti
 
 const router = express.Router();
 
+// ─────────────────────────────────────────────
+// Validación central de parámetros de ruta
+// ─────────────────────────────────────────────
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+router.param('grupoId', (req, res, next, value) => {
+    const n = parseInt(value, 10);
+    if (!Number.isFinite(n) || n <= 0) {
+        return res.status(400).json({ ok: false, error: 'ID de grupo inválido' });
+    }
+    next();
+});
+
+router.param('gastoId', (req, res, next, value) => {
+    if (!UUID_REGEX.test(value)) {
+        return res.status(400).json({ ok: false, error: 'ID de gasto inválido' });
+    }
+    next();
+});
+
+router.param('liqId', (req, res, next, value) => {
+    if (!UUID_REGEX.test(value)) {
+        return res.status(400).json({ ok: false, error: 'ID de liquidación inválido' });
+    }
+    next();
+});
+
 // ───────────────────────────────────────────────
 // Rate limit in-memory por grupo (MVP — se resetea al reiniciar)
 // Máximo 10 invitaciones por grupo por hora.
@@ -199,7 +226,7 @@ router.post('/:grupoId/invitaciones', requireAuth, async (req, res) => {
             if (miembroActivo) {
                 return res.status(409).json({
                     ok: false,
-                    error: 'Este email ya corresponde a un miembro activo del grupo.',
+                    error: 'Este email ya es parte del grupo.',
                 });
             }
         }
@@ -294,7 +321,7 @@ router.get('/:grupoId/usuarios/buscar', requireAuth, async (req, res) => {
 
         const usuarioEncontrado = await buscarUsuarioPorEmail(supabaseAdmin, email);
         if (!usuarioEncontrado) {
-            return res.json({ ok: true, registrado: false, email });
+            return res.json({ ok: true, registrado: false, yaEsMiembro: false });
         }
 
         const { data: miembroActivo, error: errMiembro } = await supabaseAdmin
@@ -314,6 +341,10 @@ router.get('/:grupoId/usuarios/buscar', requireAuth, async (req, res) => {
             ok: true,
             registrado: true,
             yaEsMiembro: !!miembroActivo,
+            usuario: {
+                nombre: nombreDesdeAuthUser(usuarioEncontrado),
+                email:  usuarioEncontrado.email || null,
+            },
         });
     } catch (err) {
         console.error('❌ Error en GET /usuarios/buscar:', err.message);
@@ -533,7 +564,21 @@ router.post('/invitaciones/aceptar', requireAuth, async (req, res) => {
             });
         }
 
-        // 7. Llamar RPC transaccional con service role
+        // 7. Verificar que el grupo existe y no está archivado
+        const { data: grupoValido } = await supabaseAdmin
+            .from('grupos_gastos')
+            .select('id, archivado')
+            .eq('id', invitacion.grupo_id)
+            .maybeSingle();
+
+        if (!grupoValido) {
+            return res.status(410).json({ ok: false, error: 'El grupo al que pertenece esta invitación ya no existe.' });
+        }
+        if (grupoValido.archivado) {
+            return res.status(410).json({ ok: false, error: 'Este grupo está archivado y no acepta nuevas invitaciones.' });
+        }
+
+        // 8. Llamar RPC transaccional con service role
         const { data: grupoIdResultado, error: errRpc } = await supabaseAdmin
             .rpc('aceptar_invitacion_grupo', {
                 p_token:   token.trim(),
@@ -741,8 +786,9 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
     const { descripcion, monto, pagadoPor, fecha, nota, idCategoria, participantesUserIds } = req.body;
 
     if (!descripcion?.trim()) return res.status(400).json({ ok: false, error: 'La descripción es requerida' });
+    if (descripcion.trim().length > 500) return res.status(400).json({ ok: false, error: 'La descripción no puede exceder 500 caracteres' });
     const montoNum = Number(monto);
-    if (isNaN(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
+    if (!Number.isFinite(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
     if (!pagadoPor) return res.status(400).json({ ok: false, error: 'El pagador es requerido' });
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         return res.status(400).json({ ok: false, error: 'Se requiere al menos un participante' });
@@ -785,7 +831,7 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
                 descripcion:  descripcion.trim().toUpperCase(),
                 monto:        montoNum,
                 pagado_por:   pagadoPor,
-                fecha:        fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }),
+                fecha:        `${fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })}T12:00:00-03:00`,
                 nota:         nota?.trim() || null,
                 id_categoria: idCategoria || null,
                 creado_por:   user.id,
@@ -843,8 +889,11 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         return res.status(400).json({ ok: false, error: 'Se requiere al menos un participante' });
     }
+    if (descripcion !== undefined && descripcion.trim().length > 500) {
+        return res.status(400).json({ ok: false, error: 'La descripción no puede exceder 500 caracteres' });
+    }
     const montoNum = Number(monto);
-    if (isNaN(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
+    if (!Number.isFinite(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
 
     try {
         // Solo quien pagó puede editar
@@ -883,7 +932,7 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
                 descripcion:  descripcion.trim().toUpperCase(),
                 monto:        montoNum,
                 pagado_por:   pagadoPor,
-                fecha:        fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }),
+                fecha:        `${fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })}T12:00:00-03:00`,
                 nota:         nota?.trim() || null,
                 id_categoria: idCategoria || null,
             })
@@ -1024,8 +1073,8 @@ router.patch('/:grupoId/gastos/:gastoId/anular-cuotas', requireAuth, async (req,
             .eq('grupo_id', grupoId);
 
         const cuotas = todasLasCuotas || [];
-        const hoy = new Date().toISOString().split('T')[0];
-        const tieneVencidas = cuotas.some(c => c.estado === 'activo' && (c.fecha || '') <= hoy);
+        const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+        const tieneVencidas = cuotas.some(c => c.estado === 'activo' && (c.fecha || '').split('T')[0] <= hoy);
 
         // Si hay cuotas vencidas, requerir force explícito
         if (tieneVencidas && !force) {
@@ -1033,7 +1082,7 @@ router.patch('/:grupoId/gastos/:gastoId/anular-cuotas', requireAuth, async (req,
                 ok:              false,
                 error:           'Esta compra tiene cuotas ya vencidas. Confirmá con force: true para anular igualmente.',
                 tieneVencidas:   true,
-                cuotasVencidas:  cuotas.filter(c => c.fecha <= hoy).length,
+                cuotasVencidas:  cuotas.filter(c => (c.fecha || '').split('T')[0] <= hoy).length,
                 cuotasTotales:   cuotas.length,
             });
         }
@@ -1085,7 +1134,7 @@ router.post('/:grupoId/liquidaciones', requireAuth, async (req, res) => {
     if (deUserId === paraUserId) return res.status(400).json({ ok: false, error: 'El pagador y el receptor no pueden ser la misma persona' });
     if (deUserId !== req.user.id) return res.status(403).json({ ok: false, error: 'Solo podés registrar pagos que vos realizaste' });
     const montoNum = Number(monto);
-    if (isNaN(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
+    if (!Number.isFinite(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
 
     try {
         // Verificar membresía activa
@@ -1206,9 +1255,10 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
 
     // Validaciones de entrada
     if (!descripcion?.trim()) return res.status(400).json({ ok: false, error: 'La descripción es requerida' });
+    if (descripcion.trim().length > 500) return res.status(400).json({ ok: false, error: 'La descripción no puede exceder 500 caracteres' });
     const montoNum = Number(monto);
-    if (isNaN(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
-    const cantCuotas = Math.max(1, Math.min(18, parseInt(cuotasRaw) || 1));
+    if (!Number.isFinite(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
+    const cantCuotas = Math.max(1, Math.min(18, parseInt(cuotasRaw, 10) || 1));
     if (!pagadoPor) return res.status(400).json({ ok: false, error: 'El pagador es requerido' });
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         return res.status(400).json({ ok: false, error: 'Se requiere al menos un participante' });
@@ -1261,7 +1311,7 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
             return {
                 numero:      i + 1,
                 monto:       i === 0 ? Math.round((montoPorCuota + diferencia) * 100) / 100 : montoPorCuota,
-                fecha:       fechaCuota.toISOString().split('T')[0],
+                fecha:       `${fechaCuota.toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })}T12:00:00-03:00`,
                 descripcion: `${descripcionBase} (${i + 1}/${cantCuotas})`,
             };
         });
