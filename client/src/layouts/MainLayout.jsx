@@ -14,7 +14,7 @@ const MainLayout = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const [isMobile, setIsMobile] = React.useState(window.innerWidth <= 1024);
-    const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = React.useState(window.innerWidth > 1024);
     const [showNewExpense, setShowNewExpense] = React.useState(false);
 
     /**
@@ -35,6 +35,8 @@ const MainLayout = () => {
             setIsMobile(mobile);
             if (mobile) {
                 setIsSidebarOpen(false);
+            } else {
+                setIsSidebarOpen(true);
             }
         };
 
