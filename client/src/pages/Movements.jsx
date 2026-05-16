@@ -287,13 +287,14 @@ const Movements = () => {
     const formatDate = (dateStr) => {
         if (!dateStr) return 'N/A';
         try {
-            // Si viene solo fecha (YYYY-MM-DD), forzamos mediodía para evitar desfases de zona horaria
-            const date = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr + 'T12:00:00');
+            const fechaStr = String(dateStr).split('T')[0];
+            const date = new Date(`${fechaStr}T12:00:00Z`);
             if (isNaN(date.getTime())) return 'Fecha inválida';
             return date.toLocaleDateString('es-AR', {
                 day: '2-digit',
                 month: '2-digit',
-                year: 'numeric'
+                year: 'numeric',
+                timeZone: 'America/Argentina/Buenos_Aires',
             });
         } catch {
             return 'Error fecha';
@@ -471,8 +472,8 @@ const Movements = () => {
                                     </thead>
                                     <tbody>
                                         {gastosFuturos.map((grupo) => {
-                                            const primerFecha = new Date(`${grupo.cuotasFuturas[0].fecha.split('T')[0]}T12:00:00`);
-                                            const ultimaFecha = new Date(`${grupo.cuotasFuturas[grupo.cuotasFuturas.length - 1].fecha.split('T')[0]}T12:00:00`);
+                                            const primerFecha = new Date(`${grupo.cuotasFuturas[0].fecha.split('T')[0]}T12:00:00Z`);
+                                            const ultimaFecha = new Date(`${grupo.cuotasFuturas[grupo.cuotasFuturas.length - 1].fecha.split('T')[0]}T12:00:00Z`);
                                             const totalRestante = grupo.cuotasFuturas.reduce((s, c) => s + parseFloat(c.monto), 0);
                                             return (
                                                 <tr key={grupo.id}>
@@ -513,8 +514,8 @@ const Movements = () => {
                             <div className="movements-cards-mobile">
                                 {gastosFuturos.map((grupo) => {
                                     const totalRestante = grupo.cuotasFuturas.reduce((s, c) => s + parseFloat(c.monto), 0);
-                                    const primerFecha = new Date(`${grupo.cuotasFuturas[0].fecha.split('T')[0]}T12:00:00`);
-                                    const ultimaFecha = new Date(`${grupo.cuotasFuturas[grupo.cuotasFuturas.length - 1].fecha.split('T')[0]}T12:00:00`);
+                                    const primerFecha = new Date(`${grupo.cuotasFuturas[0].fecha.split('T')[0]}T12:00:00Z`);
+                                    const ultimaFecha = new Date(`${grupo.cuotasFuturas[grupo.cuotasFuturas.length - 1].fecha.split('T')[0]}T12:00:00Z`);
                                     return (
                                         <div key={grupo.id} className="mov-card">
                                             <div className="mov-card-row">

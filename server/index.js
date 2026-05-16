@@ -92,6 +92,7 @@ app.use(express.json({ limit: '10kb' }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/notifications', rateLimit({ windowMs: 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/integrations', rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/grupos', rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false }));
 
 // En producción, Express sirve el build estático del frontend
 if (isProduction) {
@@ -102,12 +103,12 @@ if (isProduction) {
 // ==================== INICIALIZACIÓN DE SUPABASE ====================
 
 let supabase;
-const isSupabaseConfigured = process.env.SUPABASE_URL && process.env.SUPABASE_KEY;
+const isSupabaseConfigured = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (isSupabaseConfigured) {
     supabase = createClient(
         process.env.SUPABASE_URL,
-        process.env.SUPABASE_KEY
+        process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 }
 

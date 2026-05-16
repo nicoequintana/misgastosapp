@@ -15,8 +15,10 @@ const formatearMonto = (valor) =>
 
 const formatearFecha = (fecha) => {
     if (!fecha) return '–';
-    return new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', {
+    const fechaStr = String(fecha).split('T')[0];
+    return new Date(`${fechaStr}T12:00:00Z`).toLocaleDateString('es-AR', {
         day: '2-digit', month: 'short', year: 'numeric',
+        timeZone: 'America/Argentina/Buenos_Aires',
     });
 };
 

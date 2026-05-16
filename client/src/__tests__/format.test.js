@@ -3,7 +3,7 @@
  * Funciones puras: sin dependencias externas, testeable sin mocks.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { formatCurrency, parseCurrency, fechaHoyArgentina } from '../utils/format';
 
 // ── formatCurrency ────────────────────────────────────────────────────────────
