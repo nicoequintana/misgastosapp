@@ -14,7 +14,7 @@ const MainLayout = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const [isMobile, setIsMobile] = React.useState(window.innerWidth <= 1024);
-    const [isSidebarOpen, setIsSidebarOpen] = React.useState(!isMobile);
+    const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
     const [showNewExpense, setShowNewExpense] = React.useState(false);
 
     /**
@@ -31,12 +31,9 @@ const MainLayout = () => {
     // Detectar cambios de tamaño de ventana
     React.useEffect(() => {
         const handleResize = () => {
-            // Mobile estricto: <= 640px activa el bottom nav
             const mobile = window.innerWidth <= 1024;
             setIsMobile(mobile);
-            if (!mobile) {
-                setIsSidebarOpen(true);
-            } else {
+            if (mobile) {
                 setIsSidebarOpen(false);
             }
         };
