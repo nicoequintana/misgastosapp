@@ -66,6 +66,14 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
     const [eliminandoGrupo, setEliminandoGrupo] = useState(false);
     const [errorEliminar, setErrorEliminar] = useState(null);
 
+    // Estado para cancelar invitación pendiente
+    const [cancelandoInvitacionId, setCancelandoInvitacionId] = useState(null);
+
+    // Estado para eliminar miembro
+    const [miembroAEliminar, setMiembroAEliminar] = useState(null);
+    const [eliminandoMiembro, setEliminandoMiembro] = useState(false);
+    const [errorEliminarMiembro, setErrorEliminarMiembro] = useState(null);
+
     // Carga el grupo y sus miembros al montar (o al cambiar el :id)
     const cargarDatos = useCallback(async () => {
         if (!id) return;
@@ -151,8 +159,51 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
     // Anula un gasto grupal y recarga la lista
     const handleAnular = async (gastoId) => {
         await db.anularGastoGrupal(gastoId, id);
-        // Recargamos los gastos para reflejar el cambio de estado
         await cargarGastos();
+    };
+
+    // Cancela una invitación pendiente
+    const handleCancelarInvitacion = async (invitacionId) => {
+        try {
+            setCancelandoInvitacionId(invitacionId);
+            await db.cancelarInvitacion(invitacionId);
+            await cargarInvitaciones();
+        } catch (err) {
+            console.error('Error al cancelar invitación:', err);
+        } finally {
+            setCancelandoInvitacionId(null);
+        }
+    };
+
+    // Elimina un miembro del grupo (solo admin, solo si saldo neto = 0)
+    const handleEliminarMiembro = async () => {
+        if (!miembroAEliminar) return;
+        try {
+            setEliminandoMiembro(true);
+            setErrorEliminarMiembro(null);
+
+            // Verificar saldo antes de remover
+            const saldos = await db.obtenerSaldosDelGrupo(id);
+            const saldoMiembro = saldos.find((s) => s.user_id === miembroAEliminar.user_id);
+            const saldoNeto = Number(saldoMiembro?.saldo_neto || 0);
+            if (Math.abs(saldoNeto) > 0.009) {
+                setErrorEliminarMiembro(
+                    `${miembroAEliminar.alias || miembroAEliminar.nombre || 'El miembro'} tiene un saldo pendiente de $${saldoNeto.toFixed(2)}. Liquidá la deuda antes de eliminarlo.`
+                );
+                setMiembroAEliminar(null);
+                return;
+            }
+
+            await db.removerMiembro(id, miembroAEliminar.user_id);
+            setMiembroAEliminar(null);
+            await cargarDatos();
+        } catch (err) {
+            console.error('Error al eliminar miembro:', err);
+            setErrorEliminarMiembro(err.message || 'No se pudo eliminar el miembro.');
+            setMiembroAEliminar(null);
+        } finally {
+            setEliminandoMiembro(false);
+        }
     };
 
     // Elimina el grupo y redirige a /grupos
@@ -198,14 +249,6 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
         () => miembros.some((m) => m.user_id === user?.id && m.estado === 'activo'),
         [miembros, user?.id]
     );
-
-    // Cuotas con fecha > hoy: se muestran como "Movimientos futuros", no afectan saldo
-    const hoyStr = new Date().toISOString().split('T')[0];
-    const movimientosFuturos = useMemo(() => {
-        return cuotasGrupo.flatMap(g =>
-            g.cuotasList.filter(c => (c.fecha || '').split('T')[0] > hoyStr)
-        ).sort((a, b) => a.fecha.localeCompare(b.fecha));
-    }, [cuotasGrupo, hoyStr]);
 
     // ── Estado de carga ──
     if (cargando) {
@@ -386,44 +429,6 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                                 onAnuladoExito={cargarGastos}
                             />
 
-                            {/* Movimientos futuros: cuotas que aún no vencieron */}
-                            {movimientosFuturos.length > 0 && (
-                                <div className="glass-card grupo-detalle__futuros">
-                                    <div className="grupo-detalle__futuros-header">
-                                        <span className="material-symbols-outlined">schedule</span>
-                                        <h3 className="table-title">Movimientos futuros</h3>
-                                        <span className="category-tag counter">{movimientosFuturos.length}</span>
-                                    </div>
-                                    <p className="grupo-detalle__futuros-desc">
-                                        Estas cuotas aún no vencieron y no afectan el saldo actual del grupo.
-                                    </p>
-                                    <div className="grupo-detalle__futuros-lista">
-                                        {movimientosFuturos.map((c) => {
-                                            const fechaStr = (c.fecha || '').split('T')[0];
-                                            const fecha = new Date(`${fechaStr}T12:00:00`).toLocaleDateString('es-AR', {
-                                                day: '2-digit', month: 'long', year: 'numeric',
-                                            });
-                                            const descBase = c.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
-                                            return (
-                                                <div key={c.id} className="grupo-detalle__futuro-row">
-                                                    <span className="material-symbols-outlined grupo-detalle__futuro-icon">
-                                                        credit_card
-                                                    </span>
-                                                    <div className="grupo-detalle__futuro-info">
-                                                        <span className="grupo-detalle__futuro-desc">{descBase}</span>
-                                                        <span className="grupo-detalle__futuro-cuota">{c.descripcion.match(/\(\d+\/\d+\)/)?.[0]}</span>
-                                                    </div>
-                                                    <span className="grupo-detalle__futuro-fecha">{fecha}</span>
-                                                    <span className="grupo-detalle__futuro-monto">
-                                                        ${(c.monto || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                                                    </span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-
                             {/* Lista de gastos */}
                             {gastos.length === 0 ? (
                                 <div className="glass-card grupo-detalle__placeholder">
@@ -473,6 +478,21 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                         </div>
                     )}
 
+                    {/* Banner de error al eliminar miembro */}
+                    {errorEliminarMiembro && (
+                        <div className="grupos-page__error-banner">
+                            <span className="material-symbols-outlined">error_outline</span>
+                            {errorEliminarMiembro}
+                            <button
+                                className="btn btn-ghost"
+                                style={{ marginLeft: 'auto', padding: '2px 8px' }}
+                                onClick={() => setErrorEliminarMiembro(null)}
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                    )}
+
                     <div className="glass-card">
                         <h2 className="grupo-detalle__subtitulo">
                             Miembros activos ({miembrosActivos.length})
@@ -487,6 +507,16 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                                         <span className="grupo-detalle__miembro-fecha">
                                             Desde {formatearFecha(miembro.fecha_alta)}
                                         </span>
+                                        {/* Solo admin puede eliminar a otros miembros (no a sí mismo) */}
+                                        {esAdmin && miembro.user_id !== user?.id && (
+                                            <button
+                                                className="btn btn-ghost grupo-detalle__btn-eliminar-miembro"
+                                                title="Eliminar miembro del grupo"
+                                                onClick={() => setMiembroAEliminar(miembro)}
+                                            >
+                                                <span className="material-symbols-outlined">person_remove</span>
+                                            </button>
+                                        )}
                                     </li>
                                 ))}
                             </ul>
@@ -512,6 +542,21 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                                         <span className="grupo-detalle__miembro-fecha">
                                             Vence {formatearFecha(inv.fecha_expiracion)}
                                         </span>
+                                        {/* Admin puede cancelar invitaciones pendientes */}
+                                        {esAdmin && (
+                                            <button
+                                                className="btn btn-ghost grupo-detalle__btn-eliminar-miembro"
+                                                title="Cancelar invitación"
+                                                disabled={cancelandoInvitacionId === inv.id}
+                                                onClick={() => handleCancelarInvitacion(inv.id)}
+                                            >
+                                                {cancelandoInvitacionId === inv.id ? (
+                                                    <div className="loading-spinner loading-spinner--sm" />
+                                                ) : (
+                                                    <span className="material-symbols-outlined">cancel</span>
+                                                )}
+                                            </button>
+                                        )}
                                     </li>
                                 ))}
                             </ul>
@@ -540,6 +585,16 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                     <GrupoSaldos grupoId={grupo.id} miembros={miembros} />
                 </div>
             )}
+
+            {/* Modal de confirmación de eliminación de miembro */}
+            <ConfirmModal
+                isOpen={!!miembroAEliminar}
+                onClose={() => { setMiembroAEliminar(null); setErrorEliminarMiembro(null); }}
+                onConfirm={handleEliminarMiembro}
+                loading={eliminandoMiembro}
+                title="Eliminar miembro"
+                message={`¿Eliminás a ${miembroAEliminar?.alias || miembroAEliminar?.nombre || 'este miembro'} del grupo? Esta acción no se puede deshacer.`}
+            />
         </div>
     );
 };

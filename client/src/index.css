@@ -6431,6 +6431,19 @@ body::after {
   color: var(--text-muted);
 }
 
+.grupo-detalle__btn-eliminar-miembro {
+  padding: 4px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.grupo-detalle__btn-eliminar-miembro:hover {
+  opacity: 1;
+  color: var(--danger, #ef4444);
+}
+
 .grupo-detalle__empty-msg {
   font-size: 13px;
   color: var(--text-muted);
@@ -7596,92 +7609,117 @@ body::after {
   margin-top: 0;
 }
 
+/* ── Header de la card principal ── */
 .cuotas-card-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-5);
   flex-wrap: wrap;
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .cuotas-card-titulo-row {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .cuotas-card-icon {
-  font-size: 20px;
+  font-size: 22px;
   color: var(--primary);
 }
 
+/* Bloque resumen: compromiso del mes */
 .cuotas-card-resumen {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 2px;
+  gap: 3px;
+  background: rgba(var(--primary-rgb, 99, 102, 241), 0.08);
+  border: 1px solid rgba(var(--primary-rgb, 99, 102, 241), 0.18);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
 }
 
 .cuotas-resumen-label {
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
 }
 
 .cuotas-resumen-monto {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 800;
   color: var(--primary);
+  letter-spacing: -0.02em;
 }
 
+/* ── Lista de filas ── */
 .cuotas-lista {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .cuotas-empty-text {
   font-size: 13px;
   color: var(--text-secondary);
   text-align: center;
-  padding: var(--space-4) 0;
+  padding: var(--space-6) 0;
 }
 
-/* Fila de una compra */
+/* ── Fila de una compra ── */
 .cuotas-fila {
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
   overflow: hidden;
-  transition: background 0.2s, border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.cuotas-fila:hover {
+  border-color: rgba(var(--primary-rgb, 99, 102, 241), 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
 .cuotas-fila--finalizada {
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
+.cuotas-fila--finalizada:hover {
+  border-color: var(--glass-border);
+  box-shadow: none;
+}
+
+/* Header de la fila: descripción + montos en una sola línea */
 .cuotas-fila-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
   gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4) var(--space-5);
   cursor: pointer;
   user-select: none;
+  transition: background 0.15s;
 }
 
 .cuotas-fila-header:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(var(--primary-rgb, 99, 102, 241), 0.04);
 }
 
+/* Columna izquierda: info */
 .cuotas-fila-info {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .cuotas-fila-top {
@@ -7692,14 +7730,16 @@ body::after {
 }
 
 .cuotas-descripcion {
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: 700;
+  font-size: 15px;
   color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .cuotas-categoria {
   font-size: 12px;
   color: var(--text-secondary);
+  margin-top: -2px;
 }
 
 .cuotas-badge {
@@ -7707,102 +7747,128 @@ body::after {
   align-items: center;
   gap: 3px;
   font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 99px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.02em;
 }
 
 .cuotas-badge .material-symbols-outlined {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .cuotas-badge--ok {
-  background: rgba(16, 185, 129, 0.15);
+  background: rgba(16, 185, 129, 0.12);
   color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
 .cuotas-badge--pendiente {
-  background: rgba(251, 191, 36, 0.15);
-  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(251, 191, 36, 0.22);
 }
 
 /* Barra de progreso */
 .cuotas-barra-wrap {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .cuotas-barra-track {
   flex: 1;
-  height: 8px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.1);
+  height: 5px;
+  border-radius: var(--radius-full);
+  background: var(--glass-border);
   overflow: hidden;
 }
 
 .cuotas-barra-fill {
   height: 100%;
-  border-radius: 99px;
-  background: linear-gradient(90deg, var(--primary), var(--secondary));
-  transition: width 0.5s ease;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--primary), var(--secondary, var(--primary)));
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .cuotas-barra-label {
   font-size: 11px;
+  font-weight: 600;
   color: var(--text-secondary);
   white-space: nowrap;
-  min-width: 72px;
+  min-width: 56px;
   text-align: right;
 }
 
-/* Montos alineados a la derecha */
+/* Columna derecha: montos + acciones + chevron — todo en fila */
 .cuotas-fila-montos {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.cuotas-monto-bloque {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
-  min-width: 110px;
+  gap: 2px;
 }
 
 .cuotas-monto-mensual {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
   color: var(--text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1;
 }
 
 .cuotas-monto-total {
   font-size: 11px;
   color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .cuotas-chevron {
-  color: var(--text-secondary);
-  transition: transform 0.2s;
-  line-height: 1;
+  color: var(--text-muted);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
-.cuotas-chevron--open .material-symbols-outlined {
+.cuotas-chevron--open {
   transform: rotate(180deg);
-  display: block;
 }
 
-/* Detalle expandido: lista de cuotas */
+.cuotas-chevron .material-symbols-outlined {
+  font-size: 20px;
+}
+
+/* ── Detalle expandido ── */
 .cuotas-detalle {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding: var(--space-2) var(--space-4) var(--space-3);
+  border-top: 1px solid var(--glass-border);
+  padding: var(--space-3) var(--space-5) var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.02);
 }
 
 .cuotas-detalle-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 20px 90px 1fr auto;
   align-items: center;
   gap: var(--space-3);
   font-size: 13px;
   color: var(--text-secondary);
-  padding: 4px 0;
+  padding: 6px var(--space-2);
+  border-radius: var(--radius-sm);
+  transition: background 0.12s;
+}
+
+.cuotas-detalle-row:hover {
+  background: rgba(var(--primary-rgb, 99, 102, 241), 0.05);
 }
 
 .cuotas-detalle-row--pagada {
@@ -7810,8 +7876,9 @@ body::after {
 }
 
 .cuotas-detalle-icon {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.35);
+  font-size: 15px;
+  color: var(--text-muted);
+  justify-self: center;
 }
 
 .cuotas-detalle-row--pagada .cuotas-detalle-icon {
@@ -7819,46 +7886,76 @@ body::after {
 }
 
 .cuotas-detalle-num {
-  min-width: 64px;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 12px;
 }
 
 .cuotas-detalle-fecha {
-  flex: 1;
   text-transform: capitalize;
+  font-size: 12px;
 }
 
 .cuotas-detalle-monto {
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 13px;
   color: var(--text-primary);
+  text-align: right;
 }
 
-/* Botón anular cuotas grupales */
+/* ── Botones de acción (editar / anular) ── */
 .cuotas-fila__btn-anular {
-  padding: var(--space-1) var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   color: var(--text-muted);
   border-radius: var(--radius-sm);
-  transition: color 0.2s, background 0.2s;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.cuotas-fila__btn-anular .material-symbols-outlined {
+  font-size: 18px;
 }
 
 .cuotas-fila__btn-anular:hover {
-  color: var(--danger);
-  background: var(--danger-light);
+  color: var(--danger, #ef4444);
+  background: rgba(239, 68, 68, 0.1);
 }
 
-/* Botón toggle saldadas */
+/* El botón editar tiene su propio color de hover */
+.cuotas-fila__btn-anular:has(.material-symbols-outlined:not([data-icon='block'])):hover {
+  color: var(--primary);
+  background: rgba(var(--primary-rgb, 99, 102, 241), 0.1);
+}
+
+/* ── Separador de acciones ── */
+.cuotas-fila__acciones-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--glass-border);
+  flex-shrink: 0;
+}
+
+/* ── Botón toggle saldadas ── */
 .cuotas-toggle-saldadas {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: var(--space-3);
+  gap: var(--space-2);
+  margin-top: var(--space-4);
   background: none;
   border: none;
   color: var(--text-secondary);
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  padding: var(--space-1) 0;
+  padding: var(--space-2) var(--space-1);
   transition: color 0.2s;
+  border-top: 1px solid var(--glass-border);
+  width: 100%;
+  justify-content: center;
 }
 
 .cuotas-toggle-saldadas:hover {
@@ -7866,28 +7963,38 @@ body::after {
 }
 
 .cuotas-toggle-saldadas .material-symbols-outlined {
-  font-size: 16px;
+  font-size: 15px;
 }
 
+/* ── Responsive ── */
 @media (max-width: 640px) {
   .cuotas-fila-header {
-    flex-direction: column;
-    gap: var(--space-2);
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    padding: var(--space-4);
   }
 
   .cuotas-fila-montos {
-    flex-direction: row;
-    align-items: center;
     justify-content: space-between;
     width: 100%;
-    min-width: 0;
+  }
+
+  .cuotas-monto-bloque {
+    align-items: flex-start;
   }
 
   .cuotas-card-header {
     flex-direction: column;
+    align-items: flex-start;
   }
 
   .cuotas-card-resumen {
     align-items: flex-start;
+    width: 100%;
+  }
+
+  .cuotas-detalle-row {
+    grid-template-columns: 20px 72px 1fr auto;
+    gap: var(--space-2);
   }
 }

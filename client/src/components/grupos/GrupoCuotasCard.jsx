@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../utils/format';
 import ConfirmModal from '../ConfirmModal';
 import * as db from '../../lib/db';
@@ -8,6 +9,7 @@ import * as db from '../../lib/db';
  * Muestra el monto por cuota total y cuánto le corresponde a cada participante.
  */
 const FilaCuotaGrupal = ({ grupo, miembros, grupoId, userId, onAnuladoExito }) => {
+    const navigate = useNavigate();
     const [expandida, setExpandida] = useState(false);
     const [modalAnular, setModalAnular] = useState(false);
     // Segunda confirmación cuando hay cuotas vencidas con historial
@@ -17,6 +19,7 @@ const FilaCuotaGrupal = ({ grupo, miembros, grupoId, userId, onAnuladoExito }) =
     const finalizada = grupo.pendientes === 0;
     const hoyStr = new Date().toISOString().split('T')[0];
     const puedeAnular = grupo.pagadoPor === userId && !finalizada;
+    const puedeEditar = grupo.pagadoPor === userId && !finalizada;
 
     // Resuelve el nombre de un miembro por user_id
     const nombreMiembro = (uid) => {
@@ -81,8 +84,23 @@ const FilaCuotaGrupal = ({ grupo, miembros, grupoId, userId, onAnuladoExito }) =
                     </div>
                 </div>
                 <div className="cuotas-fila-montos">
-                    <span className="cuotas-monto-mensual">${formatCurrency(grupo.montoMensual)}/mes</span>
-                    <span className="cuotas-monto-total">Total: ${formatCurrency(grupo.totalOriginal)}</span>
+                    <div className="cuotas-monto-bloque">
+                        <span className="cuotas-monto-mensual">${formatCurrency(grupo.montoMensual)}/mes</span>
+                        <span className="cuotas-monto-total">Total: ${formatCurrency(grupo.totalOriginal)}</span>
+                    </div>
+                    {(puedeEditar || puedeAnular) && (
+                        <span className="cuotas-fila__acciones-sep" />
+                    )}
+                    {puedeEditar && (
+                        <button
+                            type="button"
+                            className="btn btn-ghost cuotas-fila__btn-anular"
+                            title="Editar compra"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/grupos/${grupoId}/gastos/${grupo.id}/editar`); }}
+                        >
+                            <span className="material-symbols-outlined">edit</span>
+                        </button>
+                    )}
                     {puedeAnular && (
                         <button
                             type="button"

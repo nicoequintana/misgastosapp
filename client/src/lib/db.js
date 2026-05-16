@@ -1893,7 +1893,7 @@ export const obtenerCuotasGrupal = async (grupoId) => {
 
     const { data, error } = await supabase
         .from('grupo_gastos')
-        .select('id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre, metodo_pago, estado')
+        .select('id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre, metodo_pago, estado, pagado_por')
         .eq('grupo_id', grupoId)
         .eq('estado', 'activo')
         .eq('metodo_pago', 'TARJETA DE CREDITO')
@@ -1930,6 +1930,7 @@ export const obtenerCuotasGrupal = async (grupoId) => {
             pagadas,
             pendientes,
             montoMensual:   primera.monto,
+            pagadoPor:      primera.pagado_por,
             cuotasList,
         };
     });
