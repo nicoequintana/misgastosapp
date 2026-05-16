@@ -20,7 +20,8 @@ router.param('grupoId', (req, res, next, value) => {
 });
 
 router.param('gastoId', (req, res, next, value) => {
-    if (!UUID_REGEX.test(value)) {
+    const n = parseInt(value, 10);
+    if (!Number.isFinite(n) || n <= 0) {
         return res.status(400).json({ ok: false, error: 'ID de gasto inválido' });
     }
     next();

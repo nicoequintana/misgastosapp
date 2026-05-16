@@ -1950,6 +1950,7 @@ export const obtenerGastosDelGrupo = async (grupoId, { limite = 50, offset = 0 }
         .select('*')
         .eq('grupo_id', grupoId)
         .eq('estado', 'activo')
+        .is('id_gasto_padre', null)
         .order('fecha', { ascending: false })
         .range(offset, offset + limite - 1);
 
