@@ -36,14 +36,14 @@ export const AuthProvider = ({ children }) => {
             // AuthProvider vive fuera del Router, por lo que usamos window.location en lugar de useNavigate.
             // La bandera invitacionRedirigida evita el loop cuando Supabase re-emite SIGNED_IN.
             if (event === 'SIGNED_IN' && !invitacionRedirigida) {
-                const tokenPendiente = localStorage.getItem('pending_invitation_token');
+                const tokenPendiente = sessionStorage.getItem('pending_invitation_token');
                 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                 if (tokenPendiente && uuidRegex.test(tokenPendiente)) {
                     invitacionRedirigida = true;
-                    localStorage.removeItem('pending_invitation_token');
+                    sessionStorage.removeItem('pending_invitation_token');
                     window.location.replace(`/grupos/invitaciones/${tokenPendiente}`);
                 } else if (tokenPendiente) {
-                    localStorage.removeItem('pending_invitation_token');
+                    sessionStorage.removeItem('pending_invitation_token');
                 }
             }
         });

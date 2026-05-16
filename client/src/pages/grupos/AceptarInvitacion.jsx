@@ -6,10 +6,10 @@ import { useAuth } from '../../context/AuthContext';
  * Página pública que maneja el flujo de aceptación de invitaciones a grupos.
  *
  * Flujo:
- * 1. Sin sesión → guarda el token en localStorage y redirige a /welcome para login.
+ * 1. Sin sesión → guarda el token en sessionStorage y redirige a /welcome para login.
  * 2. Con sesión → llama al backend para aceptar la invitación y redirige al grupo.
  *
- * La clave de localStorage es 'pending_invitation_token'.
+ * La clave de sessionStorage es 'pending_invitation_token'.
  * AuthContext lee esa clave tras el login y redirige de vuelta aquí.
  */
 const AceptarInvitacion = () => {
@@ -34,7 +34,7 @@ const AceptarInvitacion = () => {
         const procesarInvitacion = async () => {
             // 1. Sin sesión → guardar token y redirigir a login
             if (!session?.access_token) {
-                localStorage.setItem('pending_invitation_token', token);
+                sessionStorage.setItem('pending_invitation_token', token);
                 navigate('/welcome', { replace: true });
                 return;
             }
@@ -54,7 +54,7 @@ const AceptarInvitacion = () => {
                 const datos = await response.json();
 
                 if (!datos.ok) {
-                    localStorage.removeItem('pending_invitation_token');
+                    sessionStorage.removeItem('pending_invitation_token');
                     if (response.status === 410) {
                         setEstado('error');
                         setMensaje('Esta invitación ya venció. Pedile al admin del grupo que te reenvíe una nueva.');
@@ -69,7 +69,7 @@ const AceptarInvitacion = () => {
                 }
 
                 // Éxito → navegar al grupo
-                localStorage.removeItem('pending_invitation_token');
+                sessionStorage.removeItem('pending_invitation_token');
                 navigate(`/grupos/${datos.grupo_id}`, { replace: true });
 
             } catch (err) {
