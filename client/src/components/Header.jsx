@@ -30,7 +30,7 @@ const Header = ({ title, toggleSidebar, isMobile }) => {
                         <span className="material-symbols-outlined">menu</span>
                     </button>
                 )}
-                <h2 style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.5px' }}>
+                <h2 className="header-title">
                     {title}
                 </h2>
             </div>
