@@ -762,6 +762,7 @@ body::after {
 
 /* Sidebar Styles (Premium) */
 .sidebar {
+  --sb-pad-x: var(--space-4);
   width: var(--sidebar-width);
   height: 100vh;
   position: fixed;
@@ -772,19 +773,13 @@ body::after {
   backdrop-filter: blur(32px) saturate(1.4);
   -webkit-backdrop-filter: blur(32px) saturate(1.4);
   border-right: 1px solid var(--sidebar-border);
-  padding: var(--space-5) var(--space-4);
+  padding: var(--space-5) var(--sb-pad-x);
   display: flex;
   flex-direction: column;
-  transition: width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-              padding 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.32s ease;
   overflow: hidden;
+  transition: width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.32s ease;
   will-change: width;
-}
-
-/* Sidebar abierto — padding explícito (para que la transición funcione desde un valor conocido) */
-.sidebar.open {
-  padding: var(--space-5) var(--space-4);
 }
 
 .sidebar-logo {
@@ -2421,14 +2416,8 @@ body::after {
   --sidebar-width: 288px;
 }
 
-/* Sidebar — overflow para que el texto colapsado no rompa el layout */
-.sidebar {
-  overflow: hidden;
-  white-space: nowrap;
-}
-
 /* ============================================================
-   SIDEBAR — elementos de texto: siempre en DOM, animables
+   SIDEBAR — elementos de texto animables
    ============================================================ */
 .sidebar-text,
 .sidebar-logo-text,
@@ -2437,79 +2426,59 @@ body::after {
 .sidebar-credits {
   opacity: 1;
   transform: translateX(0);
-  overflow: hidden;
   white-space: nowrap;
-  transition: opacity 0.22s ease,
-              transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-              max-width 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
   max-width: 200px;
   pointer-events: auto;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 /* ============================================================
-   SIDEBAR COLAPSADO — solo íconos, layout centrado
+   SIDEBAR COLAPSADO
+   Estrategia: el sidebar mantiene su padding. Los nav-links
+   son position:relative dentro del flujo. Centramos usando
+   un wrapper interno de ancho fijo en vez de pelear el padding.
    ============================================================ */
 .sidebar.closed {
   width: var(--sidebar-collapsed-width);
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-  align-items: center;
 }
 
+/* Logo: centrado */
 .sidebar.closed .sidebar-logo {
-  width: var(--sidebar-collapsed-width);
-  justify-content: center;
-  padding: 0;
-  margin: 0;
-}
-
-.sidebar.closed .sidebar-nav {
-  width: var(--sidebar-collapsed-width);
-  align-items: center;
-}
-
-.sidebar.closed .nav-link {
-  width: 44px;
-  height: 44px;
-  padding: 0 !important;
-  margin: 0 auto;
   justify-content: center;
   gap: 0;
-  overflow: visible;
 }
 
-.sidebar.closed .sidebar-footer {
-  width: var(--sidebar-collapsed-width);
-  display: flex;
-  justify-content: center;
-  padding: 0;
-}
-
+/* Cada nav-link ocupa todo el ancho disponible del sidebar colapsado
+   y centra su contenido — sin importar el padding del padre */
+.sidebar.closed .nav-link,
 .sidebar.closed .sidebar-footer .nav-link {
-  width: 44px;
-  height: 44px;
-  margin: 0 auto;
+  justify-content: center;
+  gap: 0;
+  /* Compensar el padding del sidebar para ocupar el ancho total */
+  margin-left: calc(-1 * var(--sb-pad-x));
+  margin-right: calc(-1 * var(--sb-pad-x));
+  width: var(--sidebar-collapsed-width);
+  border-radius: 0;
+  padding-left: 0;
+  padding-right: 0;
 }
 
-/* Texto: desvanece */
+/* Indicador activo: solo fondo, sin barra lateral */
+.sidebar.closed .nav-link.active::before {
+  display: none;
+}
+
+/* Texto: oculto */
 .sidebar.closed .sidebar-text,
 .sidebar.closed .sidebar-logo-text,
 .sidebar.closed .nav-chevron,
 .sidebar.closed .nav-soon-badge,
 .sidebar.closed .sidebar-credits {
   opacity: 0;
-  transform: translateX(-8px);
+  transform: translateX(-6px);
   max-width: 0;
   pointer-events: none;
-}
-
-/* Indicador activo: solo fondo, sin barras ni dots */
-.sidebar.closed .nav-link.active::before {
-  opacity: 0;
-}
-
-.sidebar.closed .nav-link.active::after {
-  display: none;
 }
 
 /* ============================================================
@@ -2518,43 +2487,32 @@ body::after {
 @media (min-width: 1025px) {
   .sidebar.closed:hover {
     width: var(--sidebar-width);
-    padding-left: var(--space-4) !important;
-    padding-right: var(--space-4) !important;
-    align-items: stretch;
     box-shadow: 8px 0 40px rgba(0, 0, 0, 0.3);
   }
 
   .sidebar.closed:hover .sidebar-logo {
-    width: auto;
-    justify-content: flex-start;
-    padding: 0 var(--space-2);
-  }
-
-  .sidebar.closed:hover .sidebar-nav {
-    width: auto;
-    align-items: stretch;
-  }
-
-  .sidebar.closed:hover .nav-link {
-    width: auto;
-    height: auto;
-    padding: 10px var(--space-3);
     justify-content: flex-start;
     gap: var(--space-3);
-    overflow: hidden;
   }
 
-  .sidebar.closed:hover .sidebar-footer {
-    width: auto;
-    justify-content: stretch;
-  }
-
+  .sidebar.closed:hover .nav-link,
   .sidebar.closed:hover .sidebar-footer .nav-link {
+    justify-content: flex-start;
+    gap: var(--space-3);
+    margin-left: 0;
+    margin-right: 0;
     width: auto;
-    height: auto;
+    border-radius: var(--radius-sm);
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
   }
 
-  /* Texto: aparece deslizándose desde la izquierda */
+  /* Restaurar barra indicadora */
+  .sidebar.closed:hover .nav-link.active::before {
+    display: block;
+  }
+
+  /* Texto: aparece */
   .sidebar.closed:hover .sidebar-text,
   .sidebar.closed:hover .sidebar-logo-text,
   .sidebar.closed:hover .nav-chevron,
@@ -2564,11 +2522,6 @@ body::after {
     transform: translateX(0);
     max-width: 200px;
     pointer-events: auto;
-  }
-
-  /* Restaurar barra indicadora, ocultar dot */
-  .sidebar.closed:hover .nav-link.active::before {
-    opacity: 1;
   }
 
   .sidebar.closed:hover .nav-link.active::after {
