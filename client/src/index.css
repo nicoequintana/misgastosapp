@@ -775,7 +775,16 @@ body::after {
   padding: var(--space-5) var(--space-4);
   display: flex;
   flex-direction: column;
-  transition: var(--transition);
+  transition: width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.32s ease;
+  overflow: hidden;
+  will-change: width;
+}
+
+/* Sidebar abierto — padding explícito (para que la transición funcione desde un valor conocido) */
+.sidebar.open {
+  padding: var(--space-5) var(--space-4);
 }
 
 .sidebar-logo {
@@ -2412,15 +2421,10 @@ body::after {
   --sidebar-width: 288px;
 }
 
-/* Sidebar — transición base */
+/* Sidebar — overflow para que el texto colapsado no rompa el layout */
 .sidebar {
-  width: var(--sidebar-width);
-  transition: width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-              padding 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.32s ease;
   overflow: hidden;
   white-space: nowrap;
-  will-change: width;
 }
 
 /* ============================================================
@@ -2447,7 +2451,8 @@ body::after {
    ============================================================ */
 .sidebar.closed {
   width: var(--sidebar-collapsed-width);
-  padding: var(--space-5) 0;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
   align-items: center;
 }
 
@@ -2521,7 +2526,8 @@ body::after {
 @media (min-width: 1025px) {
   .sidebar.closed:hover {
     width: var(--sidebar-width);
-    padding: var(--space-5) var(--space-4);
+    padding-left: var(--space-4) !important;
+    padding-right: var(--space-4) !important;
     align-items: stretch;
     box-shadow: 8px 0 40px rgba(0, 0, 0, 0.3);
   }
