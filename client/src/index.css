@@ -58,7 +58,6 @@
 
   /* Layout Constants */
   --sidebar-width: 288px;
-  --sidebar-collapsed-width: 72px;
   --header-height: 72px;
   --container-max: 1400px;
 
@@ -762,7 +761,6 @@ body::after {
 
 /* Sidebar Styles (Premium) */
 .sidebar {
-  --sb-pad-x: var(--space-4);
   width: var(--sidebar-width);
   height: 100vh;
   position: fixed;
@@ -773,13 +771,11 @@ body::after {
   backdrop-filter: blur(32px) saturate(1.4);
   -webkit-backdrop-filter: blur(32px) saturate(1.4);
   border-right: 1px solid var(--sidebar-border);
-  padding: var(--space-5) var(--sb-pad-x);
+  padding: var(--space-5) var(--space-4);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.32s ease;
-  will-change: width;
+  transition: box-shadow 0.32s ease;
 }
 
 .sidebar-logo {
@@ -865,17 +861,6 @@ body::after {
   background: var(--gradient-primary);
   border-radius: 0 3px 3px 0;
   box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.5);
-}
-
-/* Sidebar cerrado — centrar íconos */
-.sidebar.closed .nav-link {
-  justify-content: center;
-  padding: 10px;
-}
-
-.sidebar.closed .sidebar-logo {
-  justify-content: center;
-  padding: var(--space-2) 0;
 }
 
 /* Header Styles */
@@ -2433,104 +2418,6 @@ body::after {
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-/* ============================================================
-   SIDEBAR COLAPSADO
-   Estrategia: el sidebar mantiene su padding. Los nav-links
-   son position:relative dentro del flujo. Centramos usando
-   un wrapper interno de ancho fijo en vez de pelear el padding.
-   ============================================================ */
-.sidebar.closed {
-  width: var(--sidebar-collapsed-width);
-}
-
-/* Logo: centrado */
-.sidebar.closed .sidebar-logo {
-  justify-content: center;
-  gap: 0;
-}
-
-/* Cada nav-link ocupa todo el ancho disponible del sidebar colapsado
-   y centra su contenido — sin importar el padding del padre */
-.sidebar.closed .nav-link,
-.sidebar.closed .sidebar-footer .nav-link {
-  justify-content: center;
-  gap: 0;
-  /* Compensar el padding del sidebar para ocupar el ancho total */
-  margin-left: calc(-1 * var(--sb-pad-x));
-  margin-right: calc(-1 * var(--sb-pad-x));
-  width: var(--sidebar-collapsed-width);
-  border-radius: 0;
-  padding-left: 0;
-  padding-right: 0;
-}
-
-/* Indicador activo: solo fondo, sin barra lateral */
-.sidebar.closed .nav-link.active::before {
-  display: none;
-}
-
-/* Texto: oculto */
-.sidebar.closed .sidebar-text,
-.sidebar.closed .sidebar-logo-text,
-.sidebar.closed .nav-chevron,
-.sidebar.closed .nav-soon-badge,
-.sidebar.closed .sidebar-credits {
-  opacity: 0;
-  transform: translateX(-6px);
-  max-width: 0;
-  pointer-events: none;
-}
-
-/* ============================================================
-   HOVER EXPAND — desktop only
-   ============================================================ */
-@media (min-width: 1025px) {
-  .sidebar.closed:hover {
-    width: var(--sidebar-width);
-    box-shadow: 8px 0 40px rgba(0, 0, 0, 0.3);
-  }
-
-  .sidebar.closed:hover .sidebar-logo {
-    justify-content: flex-start;
-    gap: var(--space-3);
-  }
-
-  .sidebar.closed:hover .nav-link,
-  .sidebar.closed:hover .sidebar-footer .nav-link {
-    justify-content: flex-start;
-    gap: var(--space-3);
-    margin-left: 0;
-    margin-right: 0;
-    width: auto;
-    border-radius: var(--radius-sm);
-    padding-left: var(--space-3);
-    padding-right: var(--space-3);
-  }
-
-  /* Restaurar barra indicadora */
-  .sidebar.closed:hover .nav-link.active::before {
-    display: block;
-  }
-
-  /* Texto: aparece */
-  .sidebar.closed:hover .sidebar-text,
-  .sidebar.closed:hover .sidebar-logo-text,
-  .sidebar.closed:hover .nav-chevron,
-  .sidebar.closed:hover .nav-soon-badge,
-  .sidebar.closed:hover .sidebar-credits {
-    opacity: 1;
-    transform: translateX(0);
-    max-width: 200px;
-    pointer-events: auto;
-  }
-
-  .sidebar.closed:hover .nav-link.active::after {
-    opacity: 0;
-  }
-}
-
-/* Estado Mobile — gestionado exclusivamente por el media query ≤1024px */
-
 /* TABLET & MOBILE (< 1024px) */
 @media (max-width: 1024px) {
   :root {
@@ -3110,8 +2997,8 @@ body::after {
   }
 
   .sidebar-closed .main-content-wrapper {
-    margin-left: var(--sidebar-collapsed-width);
-    width: calc(100% - var(--sidebar-collapsed-width));
+    margin-left: 0;
+    width: 100%;
   }
 }
 
