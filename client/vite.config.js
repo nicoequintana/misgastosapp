@@ -39,6 +39,9 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Toma control inmediato al detectar nueva versión — evita que chunks viejos queden cacheados
+        skipWaiting: true,
+        clientsClaim: true,
         // Cachea assets estáticos del build
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         // Estrategia network-first para rutas de la app (requiere auth activa)
