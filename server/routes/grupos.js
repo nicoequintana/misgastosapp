@@ -951,9 +951,9 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
         // Si la compra tiene cuotas (primeraCuota informada), recalcular las fechas de todas.
         // La cuota 1 queda en el mes elegido por el usuario; cada cuota N desplaza (N-1) meses.
         if (gasto.cuotas > 1 && primeraCuota) {
-            const inicio = new Date(`${primeraCuota.slice(0, 7)}-01T00:00:00`);
-            const anioCuota1 = inicio.getFullYear();
-            const mesCuota1  = inicio.getMonth(); // 0-indexed
+            // Parseo directo del string para evitar ambigüedades de timezone en el servidor.
+            const [anioCuota1, mesCuota1Num] = primeraCuota.slice(0, 7).split('-').map(Number);
+            const mesCuota1 = mesCuota1Num - 1; // 0-indexed para los cálculos de offset
 
             // Actualizar la cuota 1 (la editada) con la fecha del mes elegido
             const fechaCuota1 = `${primeraCuota.slice(0, 7)}-01T12:00:00-03:00`;
@@ -1340,18 +1340,21 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
 
         const descripcionBase = descripcion.trim().toUpperCase();
 
-        // Calcular cuotas: la primera vence en el mes elegido por el usuario, cada cuota desplaza 1 mes
+        // Calcular cuotas: la primera vence en el mes elegido por el usuario, cada cuota desplaza 1 mes.
+        // Se parsea el string directamente para evitar ambigüedades de timezone en el servidor.
         const montoPorCuota = Math.floor((montoNum / cantCuotas) * 100) / 100;
         const diferencia = Math.round((montoNum - montoPorCuota * cantCuotas) * 100) / 100;
-        const inicio = new Date(`${primeraCuota.slice(0, 7)}-01T00:00:00`);
+        const [anioInicio, mesInicio] = primeraCuota.slice(0, 7).split('-').map(Number);
 
         const cuotasCalculadas = Array.from({ length: cantCuotas }, (_, i) => {
-            const fechaCuota = new Date(inicio);
-            fechaCuota.setMonth(inicio.getMonth() + i);
+            const mesTotal  = mesInicio - 1 + i; // 0-indexed acumulado
+            const anio      = anioInicio + Math.floor(mesTotal / 12);
+            const mes       = (mesTotal % 12) + 1;
+            const fechaStr  = `${anio}-${String(mes).padStart(2, '0')}-01`;
             return {
                 numero:      i + 1,
                 monto:       i === 0 ? Math.round((montoPorCuota + diferencia) * 100) / 100 : montoPorCuota,
-                fecha:       `${fechaCuota.toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })}T12:00:00-03:00`,
+                fecha:       `${fechaStr}T12:00:00-03:00`,
                 descripcion: `${descripcionBase} (${i + 1}/${cantCuotas})`,
             };
         });

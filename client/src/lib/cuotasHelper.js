@@ -25,12 +25,14 @@ export function calcularCuotas(monto, cantCuotas, fechaPrimeraCuota, descripcion
     const montoPorCuota = Math.floor((monto / n) * 100) / 100;
     const diferencia = Math.round((monto - montoPorCuota * n) * 100) / 100;
 
-    // Normalizar al 1er día del mes indicado por el usuario
-    const inicio = new Date(`${fechaPrimeraCuota.slice(0, 7)}-01T00:00:00`);
+    // Parsear año y mes directamente del string para evitar ambigüedades de timezone.
+    const [anioInicio, mesInicio] = fechaPrimeraCuota.slice(0, 7).split('-').map(Number);
 
     return Array.from({ length: n }, (_, i) => {
-        const fechaCuota = new Date(inicio);
-        fechaCuota.setMonth(inicio.getMonth() + i);
+        const mesTotal  = mesInicio - 1 + i; // 0-indexed acumulado
+        const anio      = anioInicio + Math.floor(mesTotal / 12);
+        const mes       = (mesTotal % 12) + 1;
+        const fechaStr  = `${anio}-${String(mes).padStart(2, '0')}-01`;
 
         const montoCuota = i === 0
             ? Math.round((montoPorCuota + diferencia) * 100) / 100
@@ -43,7 +45,7 @@ export function calcularCuotas(monto, cantCuotas, fechaPrimeraCuota, descripcion
         return {
             numero:      i + 1,
             monto:       montoCuota,
-            fecha:       fechaCuota.toISOString().split('T')[0],
+            fecha:       fechaStr,
             descripcion: descCuota,
         };
     });
