@@ -58,7 +58,6 @@
 
   /* Layout Constants */
   --sidebar-width: 288px;
-  --sidebar-collapsed-width: 72px;
   --header-height: 72px;
   --container-max: 1400px;
 
@@ -762,7 +761,6 @@ body::after {
 
 /* Sidebar Styles (Premium) */
 .sidebar {
-  --sb-pad-x: var(--space-4);
   width: var(--sidebar-width);
   height: 100vh;
   position: fixed;
@@ -773,13 +771,11 @@ body::after {
   backdrop-filter: blur(32px) saturate(1.4);
   -webkit-backdrop-filter: blur(32px) saturate(1.4);
   border-right: 1px solid var(--sidebar-border);
-  padding: var(--space-5) var(--sb-pad-x);
+  padding: var(--space-5) var(--space-4);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.32s ease;
-  will-change: width;
+  transition: box-shadow 0.32s ease;
 }
 
 .sidebar-logo {
@@ -865,17 +861,6 @@ body::after {
   background: var(--gradient-primary);
   border-radius: 0 3px 3px 0;
   box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.5);
-}
-
-/* Sidebar cerrado — centrar íconos */
-.sidebar.closed .nav-link {
-  justify-content: center;
-  padding: 10px;
-}
-
-.sidebar.closed .sidebar-logo {
-  justify-content: center;
-  padding: var(--space-2) 0;
 }
 
 /* Header Styles */
@@ -2095,10 +2080,6 @@ body::after {
 }
 
 /* ==========================================================================
-   FASE 9: ANIMACIONES FLUIDAS (New)
-   ========================================================================== */
-
-/* ==========================================================================
    TRANSICIONES iOS — slide lateral con curva de deceleración Apple
    Curva: cubic-bezier(0.25, 0.46, 0.45, 0.94) — arranque vivo, frenado suave
    ========================================================================== */
@@ -2224,38 +2205,6 @@ body::after {
 
   100% {
     transform: translateY(0px);
-  }
-}
-
-/* Refined Modal Animation */
-.modal-overlay {
-  animation: modalFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.modal-content {
-  animation: modalSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  /* Elastic effect */
-}
-
-@keyframes modalFadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes modalSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px) scale(0.95);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 
@@ -2432,104 +2381,6 @@ body::after {
   pointer-events: auto;
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
-
-/* ============================================================
-   SIDEBAR COLAPSADO
-   Estrategia: el sidebar mantiene su padding. Los nav-links
-   son position:relative dentro del flujo. Centramos usando
-   un wrapper interno de ancho fijo en vez de pelear el padding.
-   ============================================================ */
-.sidebar.closed {
-  width: var(--sidebar-collapsed-width);
-}
-
-/* Logo: centrado */
-.sidebar.closed .sidebar-logo {
-  justify-content: center;
-  gap: 0;
-}
-
-/* Cada nav-link ocupa todo el ancho disponible del sidebar colapsado
-   y centra su contenido — sin importar el padding del padre */
-.sidebar.closed .nav-link,
-.sidebar.closed .sidebar-footer .nav-link {
-  justify-content: center;
-  gap: 0;
-  /* Compensar el padding del sidebar para ocupar el ancho total */
-  margin-left: calc(-1 * var(--sb-pad-x));
-  margin-right: calc(-1 * var(--sb-pad-x));
-  width: var(--sidebar-collapsed-width);
-  border-radius: 0;
-  padding-left: 0;
-  padding-right: 0;
-}
-
-/* Indicador activo: solo fondo, sin barra lateral */
-.sidebar.closed .nav-link.active::before {
-  display: none;
-}
-
-/* Texto: oculto */
-.sidebar.closed .sidebar-text,
-.sidebar.closed .sidebar-logo-text,
-.sidebar.closed .nav-chevron,
-.sidebar.closed .nav-soon-badge,
-.sidebar.closed .sidebar-credits {
-  opacity: 0;
-  transform: translateX(-6px);
-  max-width: 0;
-  pointer-events: none;
-}
-
-/* ============================================================
-   HOVER EXPAND — desktop only
-   ============================================================ */
-@media (min-width: 1025px) {
-  .sidebar.closed:hover {
-    width: var(--sidebar-width);
-    box-shadow: 8px 0 40px rgba(0, 0, 0, 0.3);
-  }
-
-  .sidebar.closed:hover .sidebar-logo {
-    justify-content: flex-start;
-    gap: var(--space-3);
-  }
-
-  .sidebar.closed:hover .nav-link,
-  .sidebar.closed:hover .sidebar-footer .nav-link {
-    justify-content: flex-start;
-    gap: var(--space-3);
-    margin-left: 0;
-    margin-right: 0;
-    width: auto;
-    border-radius: var(--radius-sm);
-    padding-left: var(--space-3);
-    padding-right: var(--space-3);
-  }
-
-  /* Restaurar barra indicadora */
-  .sidebar.closed:hover .nav-link.active::before {
-    display: block;
-  }
-
-  /* Texto: aparece */
-  .sidebar.closed:hover .sidebar-text,
-  .sidebar.closed:hover .sidebar-logo-text,
-  .sidebar.closed:hover .nav-chevron,
-  .sidebar.closed:hover .nav-soon-badge,
-  .sidebar.closed:hover .sidebar-credits {
-    opacity: 1;
-    transform: translateX(0);
-    max-width: 200px;
-    pointer-events: auto;
-  }
-
-  .sidebar.closed:hover .nav-link.active::after {
-    opacity: 0;
-  }
-}
-
-/* Estado Mobile — gestionado exclusivamente por el media query ≤1024px */
 
 /* TABLET & MOBILE (< 1024px) */
 @media (max-width: 1024px) {
@@ -3110,8 +2961,8 @@ body::after {
   }
 
   .sidebar-closed .main-content-wrapper {
-    margin-left: var(--sidebar-collapsed-width);
-    width: calc(100% - var(--sidebar-collapsed-width));
+    margin-left: 0;
+    width: 100%;
   }
 }
 
@@ -3413,10 +3264,6 @@ body::after {
 }
 
 /* Text Alignment Utilities */
-.text-right {
-  text-align: right;
-}
-
 .text-left {
   text-align: left;
 }
@@ -3903,10 +3750,6 @@ body::after {
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 /* Utilities */
@@ -5227,7 +5070,7 @@ body::after {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border-radius: 18px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--glass-bg) 78%, transparent);
   border: 1px solid var(--glass-border);
   box-shadow: 0 1px 0 rgba(255,255,255,0.35) inset;
@@ -6386,14 +6229,6 @@ body::after {
   max-width: 560px;
 }
 
-.form-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-main);
-  margin-bottom: var(--space-2);
-}
-
 .form-label--req {
   color: var(--danger);
 }
@@ -6903,7 +6738,7 @@ body::after {
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--input-bg);
   border: 1px solid var(--glass-border);
   flex-wrap: wrap;
@@ -7089,7 +6924,7 @@ body::after {
   padding: var(--space-3) var(--space-4);
   background: var(--input-bg);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   transition: border-color 0.2s;
 }
 
@@ -7250,7 +7085,7 @@ body::after {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--glass-border);
   border-left: 3px solid var(--primary);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   transition: background 0.2s, border-color 0.2s;
 }
 
@@ -7425,13 +7260,6 @@ body::after {
   border-radius: var(--radius-md);
   color: var(--danger);
   font-size: 14px;
-}
-
-/* Spinner pequeño inline para botones */
-.loading-spinner--sm {
-  width: 16px;
-  height: 16px;
-  border-width: 2px;
 }
 
 /* ── Responsive fase 4 ── */
@@ -7802,7 +7630,7 @@ body::after {
   padding: var(--space-3) var(--space-4);
   background: rgba(251, 191, 36, 0.05);
   border: 1px solid rgba(251, 191, 36, 0.2);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   transition: background 0.2s, border-color 0.2s;
 }
 
@@ -7913,7 +7741,7 @@ body::after {
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
-  border-radius: 99px;
+  border-radius: var(--radius-full);
 }
 
 .futuros-total {
