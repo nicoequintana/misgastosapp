@@ -2080,10 +2080,6 @@ body::after {
 }
 
 /* ==========================================================================
-   FASE 9: ANIMACIONES FLUIDAS (New)
-   ========================================================================== */
-
-/* ==========================================================================
    TRANSICIONES iOS — slide lateral con curva de deceleración Apple
    Curva: cubic-bezier(0.25, 0.46, 0.45, 0.94) — arranque vivo, frenado suave
    ========================================================================== */
@@ -2209,38 +2205,6 @@ body::after {
 
   100% {
     transform: translateY(0px);
-  }
-}
-
-/* Refined Modal Animation */
-.modal-overlay {
-  animation: modalFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.modal-content {
-  animation: modalSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  /* Elastic effect */
-}
-
-@keyframes modalFadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes modalSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px) scale(0.95);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 
@@ -3300,10 +3264,6 @@ body::after {
 }
 
 /* Text Alignment Utilities */
-.text-right {
-  text-align: right;
-}
-
 .text-left {
   text-align: left;
 }
@@ -3790,10 +3750,6 @@ body::after {
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 /* Utilities */
@@ -5114,7 +5070,7 @@ body::after {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border-radius: 18px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--glass-bg) 78%, transparent);
   border: 1px solid var(--glass-border);
   box-shadow: 0 1px 0 rgba(255,255,255,0.35) inset;
@@ -6273,14 +6229,6 @@ body::after {
   max-width: 560px;
 }
 
-.form-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-main);
-  margin-bottom: var(--space-2);
-}
-
 .form-label--req {
   color: var(--danger);
 }
@@ -6790,7 +6738,7 @@ body::after {
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--input-bg);
   border: 1px solid var(--glass-border);
   flex-wrap: wrap;
@@ -6976,7 +6924,7 @@ body::after {
   padding: var(--space-3) var(--space-4);
   background: var(--input-bg);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   transition: border-color 0.2s;
 }
 
@@ -7137,7 +7085,7 @@ body::after {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--glass-border);
   border-left: 3px solid var(--primary);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   transition: background 0.2s, border-color 0.2s;
 }
 
@@ -7312,13 +7260,6 @@ body::after {
   border-radius: var(--radius-md);
   color: var(--danger);
   font-size: 14px;
-}
-
-/* Spinner pequeño inline para botones */
-.loading-spinner--sm {
-  width: 16px;
-  height: 16px;
-  border-width: 2px;
 }
 
 /* ── Responsive fase 4 ── */
@@ -7689,7 +7630,7 @@ body::after {
   padding: var(--space-3) var(--space-4);
   background: rgba(251, 191, 36, 0.05);
   border: 1px solid rgba(251, 191, 36, 0.2);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   transition: background 0.2s, border-color 0.2s;
 }
 
@@ -7800,7 +7741,7 @@ body::after {
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
-  border-radius: 99px;
+  border-radius: var(--radius-full);
 }
 
 .futuros-total {
