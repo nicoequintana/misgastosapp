@@ -7753,6 +7753,7 @@ body::after {
    TARJETAS EN CUOTAS — Card de seguimiento
    ============================================================ */
 
+
 .cuotas-card {
   margin-top: 0;
 }
@@ -7805,6 +7806,39 @@ body::after {
   font-weight: 800;
   color: var(--primary);
   letter-spacing: -0.02em;
+}
+
+/* Separador entre bloque mes en curso y bloque mes siguiente */
+.cuotas-seccion-divider {
+  border: none;
+  border-top: 1px solid var(--glass-border);
+  margin: var(--space-5) 0;
+}
+
+/* Header del bloque futuro reutiliza cuotas-card-header sin border-bottom */
+.cuotas-card-header--futuro {
+  border-bottom: none;
+  margin-bottom: var(--space-4);
+  padding-bottom: 0;
+}
+
+.cuotas-card-icon--futuro {
+  color: var(--warning, #d97706);
+}
+
+/* Variante para la card de gastos futuros */
+.cuotas-card-resumen--futuro {
+  background: rgba(var(--warning-rgb, 234, 179, 8), 0.08);
+  border-color: rgba(var(--warning-rgb, 234, 179, 8), 0.22);
+}
+
+.cuotas-resumen-monto--futuro {
+  color: var(--warning, #d97706);
+}
+
+.cuotas-monto-mensual--futuro {
+  color: var(--warning, #d97706);
+  font-weight: 700;
 }
 
 /* ── Lista de filas ── */

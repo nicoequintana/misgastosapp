@@ -80,20 +80,36 @@ const FilaCuota = ({ grupo }) => {
 };
 
 /**
- * Card de seguimiento de compras en cuotas con tarjeta de crédito.
- * Muestra todas las compras (activas y saldadas) con progreso visual.
+ * Card unificada de tarjeta de crédito.
+ * Bloque superior: cuotas del mes en curso.
+ * Bloque inferior: cuotas que impactan el mes siguiente.
  */
-const TarjetasCuotasCard = ({ grupos }) => {
+const TarjetasCuotasCard = ({ grupos, gastosFuturos }) => {
     const [verSaldadas, setVerSaldadas] = useState(false);
 
-    const activas   = grupos.filter(g => g.pendientes > 0);
-    const saldadas  = grupos.filter(g => g.pendientes === 0);
-    const visibles  = verSaldadas ? grupos : activas;
+    const activas  = grupos.filter(g => g.pendientes > 0);
+    const saldadas = grupos.filter(g => g.pendientes === 0);
+    const visibles = verSaldadas ? grupos : activas;
 
-    const totalPendienteMes = activas.reduce((s, g) => s + g.montoMensual, 0);
+    // Solo suma cuotas cuya fecha cae en el mes en curso
+    const totalPendienteMes = activas.reduce((s, g) => s + (g.montoMesCorriente ?? 0), 0);
+
+    // Mes siguiente para el label del bloque futuro
+    const hoy = new Date();
+    const anioSig = hoy.getMonth() === 11 ? hoy.getFullYear() + 1 : hoy.getFullYear();
+    const mesSig  = hoy.getMonth() === 11 ? 1 : hoy.getMonth() + 2;
+    const nombreMesSig = new Date(anioSig, mesSig - 1, 1).toLocaleDateString('es-AR', {
+        month: 'long',
+        year: 'numeric',
+    });
+
+    const gruposFuturos     = (gastosFuturos ?? []).filter(g => g.montoMesSiguiente > 0);
+    const totalMesSiguiente = gruposFuturos.reduce((s, g) => s + g.montoMesSiguiente, 0);
 
     return (
         <GlassCard className="cuotas-card">
+
+            {/* ── Bloque: mes en curso ── */}
             <div className="cuotas-card-header">
                 <div className="cuotas-card-titulo-row">
                     <span className="material-symbols-outlined cuotas-card-icon">credit_card</span>
@@ -122,7 +138,6 @@ const TarjetasCuotasCard = ({ grupos }) => {
                             visibles.map(g => <FilaCuota key={g.id} grupo={g} />)
                         )}
                     </div>
-
                     {saldadas.length > 0 && (
                         <button
                             type="button"
@@ -139,6 +154,51 @@ const TarjetasCuotasCard = ({ grupos }) => {
                     )}
                 </>
             )}
+
+            {/* ── Separador ── */}
+            <div className="cuotas-seccion-divider" />
+
+            {/* ── Bloque: mes siguiente ── */}
+            <div className="cuotas-card-header cuotas-card-header--futuro">
+                <div className="cuotas-card-titulo-row">
+                    <span className="material-symbols-outlined cuotas-card-icon cuotas-card-icon--futuro">event_upcoming</span>
+                    <h3 className="table-title">Gastos Futuros — Tarjeta</h3>
+                </div>
+                {gruposFuturos.length > 0 && (
+                    <div className="cuotas-card-resumen cuotas-card-resumen--futuro">
+                        <span className="cuotas-resumen-label">{nombreMesSig}</span>
+                        <span className="cuotas-resumen-monto cuotas-resumen-monto--futuro">
+                            ${formatCurrency(totalMesSiguiente)}
+                        </span>
+                    </div>
+                )}
+            </div>
+
+            {gruposFuturos.length === 0 ? (
+                <div className="dashboard-table-empty">
+                    <span className="material-symbols-outlined dashboard-table-empty-icon">event_available</span>
+                    <p>Sin cuotas programadas para {nombreMesSig}</p>
+                </div>
+            ) : (
+                <div className="cuotas-lista">
+                    {gruposFuturos.map(g => (
+                        <div key={g.id} className="cuotas-fila">
+                            <div className="cuotas-fila-header cuotas-fila-header--static">
+                                <div className="cuotas-fila-info">
+                                    <span className="cuotas-descripcion">{g.descripcionBase}</span>
+                                    <span className="cuotas-categoria">{g.categoria}</span>
+                                </div>
+                                <div className="cuotas-fila-montos">
+                                    <span className="cuotas-monto-mensual cuotas-monto-mensual--futuro">
+                                        ${formatCurrency(g.montoMesSiguiente)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
         </GlassCard>
     );
 };

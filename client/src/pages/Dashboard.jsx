@@ -4,7 +4,7 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import CurrencyInput from '../components/CurrencyInput';
 import * as db from '../lib/db';
-import { getTarjetasEnCuotas } from '../lib/db';
+import { getTarjetasEnCuotas, getGastosFuturos } from '../lib/db';
 import SummaryCard from '../components/dashboard/SummaryCard';
 import DashboardTable from '../components/dashboard/DashboardTable';
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton';
@@ -181,6 +181,8 @@ const Dashboard = () => {
 
     // Grupos de cuotas para la card de tarjeta de crédito
     const [cuotasGrupos, setCuotasGrupos] = useState([]);
+    // Grupos de cuotas futuras para la card de gastos del mes siguiente
+    const [gastosFuturos, setGastosFuturos] = useState([]);
 
     // ==================== DATA FETCHING ====================
 
@@ -225,16 +227,18 @@ const Dashboard = () => {
      */
     const fetchOpciones = useCallback(async () => {
         try {
-            const [cats, metodos, cuotas, catIngresos] = await Promise.all([
+            const [cats, metodos, cuotas, catIngresos, futuros] = await Promise.all([
                 db.getCategories(),
                 db.getPaymentMethods(),
                 getTarjetasEnCuotas(),
                 db.getIncomeCategories(),
+                getGastosFuturos(),
             ]);
             setCategories(cats);
             setPaymentMethods(metodos);
             setCuotasGrupos(cuotas);
             setCategoriaIngresos(catIngresos);
+            setGastosFuturos(futuros);
         } catch (err) {
             console.error('❌ Error al obtener opciones:', err);
         }
@@ -339,7 +343,9 @@ const Dashboard = () => {
             setExpenseForm(ESTADO_INICIAL_GASTO);
             // Recargar cuotas si el nuevo gasto es con tarjeta de crédito
             if (expenseForm.esTarjetaCredito) {
-                getTarjetasEnCuotas().then(setCuotasGrupos).catch(console.error);
+                Promise.all([getTarjetasEnCuotas(), getGastosFuturos()])
+                    .then(([cuotas, futuros]) => { setCuotasGrupos(cuotas); setGastosFuturos(futuros); })
+                    .catch(console.error);
             }
             // Al recargar stats verificamos alertas de saldo y porcentaje
             await fetchStats({ verificarAlertas: true });
@@ -575,8 +581,8 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* Card de seguimiento de cuotas con tarjeta de crédito */}
-            <TarjetasCuotasCard grupos={cuotasGrupos} />
+            {/* Card unificada de tarjeta de crédito: mes en curso + mes siguiente */}
+            <TarjetasCuotasCard grupos={cuotasGrupos} gastosFuturos={gastosFuturos} />
 
             {/* Botón de acción peligrosa: eliminar todos los gastos variables */}
             {/* <div className="dashboard-footer">

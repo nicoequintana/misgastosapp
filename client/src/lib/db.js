@@ -228,6 +228,9 @@ export const getTarjetasEnCuotas = async () => {
 
     const hoy = new Date();
     const hoyStr = hoy.toISOString().split('T')[0];
+    // Rango del mes en curso para filtrar cuotas que caen este mes
+    const mesCorrienteInicio = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
+    const mesCorrienteFin = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-31`;
 
     return Object.values(grupos).map(cuotas => {
         const ordenadas = cuotas.sort((a, b) => a.numero_cuota - b.numero_cuota);
@@ -236,6 +239,13 @@ export const getTarjetasEnCuotas = async () => {
         const descripcionBase = primera.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
         const totalOriginal = ordenadas.reduce((s, c) => s + parseFloat(c.monto || 0), 0);
         const pagadas = ordenadas.filter(c => c.fecha.split('T')[0] <= hoyStr).length;
+        // Suma solo las cuotas cuya fecha cae dentro del mes en curso
+        const montoMesCorriente = ordenadas
+            .filter(c => {
+                const f = c.fecha.split('T')[0];
+                return f >= mesCorrienteInicio && f <= mesCorrienteFin;
+            })
+            .reduce((s, c) => s + parseFloat(c.monto || 0), 0);
 
         return {
             id: primera.id_gasto_padre,
@@ -246,6 +256,7 @@ export const getTarjetasEnCuotas = async () => {
             pagadas,
             pendientes: ordenadas.length - pagadas,
             montoMensual: parseFloat(primera.monto || 0),
+            montoMesCorriente,
             cuotasList: ordenadas,
         };
     }).sort((a, b) => a.pendientes - b.pendientes || a.descripcionBase.localeCompare(b.descripcionBase));
@@ -292,16 +303,31 @@ export const getGastosFuturos = async () => {
         return acc;
     }, {});
 
+    // Rango del mes siguiente para calcular el total que impacta en ese mes
+    const hoyF = new Date();
+    const anioSig = hoyF.getMonth() === 11 ? hoyF.getFullYear() + 1 : hoyF.getFullYear();
+    const mesSig = hoyF.getMonth() === 11 ? 1 : hoyF.getMonth() + 2;
+    const mesSigInicio = `${anioSig}-${String(mesSig).padStart(2, '0')}-01`;
+    const mesSigFin = `${anioSig}-${String(mesSig).padStart(2, '0')}-31`;
+
     return Object.values(grupos).map(cuotas => {
         const ordenadas = cuotas.sort((a, b) => (a.numero_cuota ?? 0) - (b.numero_cuota ?? 0));
         const primera = ordenadas[0];
         const descripcionBase = primera.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
+        // Suma las cuotas que caen exactamente en el mes siguiente
+        const montoMesSiguiente = ordenadas
+            .filter(c => {
+                const f = (c.fecha || '').split('T')[0];
+                return f >= mesSigInicio && f <= mesSigFin;
+            })
+            .reduce((s, c) => s + parseFloat(c.monto || 0), 0);
         return {
             id: primera.id_gasto_padre,
             descripcionBase,
             categoria: primera.categorias?.nombre || '—',
             idCategoria: primera.categorias?.id || null,
             montoMensual: parseFloat(primera.monto || 0),
+            montoMesSiguiente,
             cuotasFuturas: ordenadas,
         };
     }).sort((a, b) => a.cuotasFuturas[0]?.fecha?.localeCompare(b.cuotasFuturas[0]?.fecha));
