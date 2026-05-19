@@ -130,15 +130,13 @@ Formulario con los campos:
 
 ### Historial de Movimientos
 
-Página `/movimientos` con:
-
 - Listado completo de gastos de todos los meses, con filtros por período.
 - Búsqueda por descripción, categoría y método de pago.
 - Edición y eliminación de gastos (solo variables).
 
 ### Reportes
 
-Página `/reportes` con análisis por período configurable:
+Análisis por período configurable:
 
 - Períodos predefinidos: este mes, mes anterior, últimos 3 meses, últimos 6 meses, este año.
 - Rango personalizado por fechas.
@@ -147,11 +145,10 @@ Página `/reportes` con análisis por período configurable:
 
 ### Grupos de Gastos Compartidos
 
-Módulo completo en `/grupos` para administrar gastos entre varias personas:
+Módulo para administrar gastos entre varias personas:
 
 - **Crear grupos** con nombre y descripción.
-- **Invitar miembros** por email mediante un token de invitación único.
-- **Aceptar invitaciones** desde un link (ruta pública `/grupos/invitaciones/:token`).
+- **Invitar miembros** por email.
 - **Registrar gastos grupales** con soporte para cuotas.
 - **Tab Resumen:** totales del grupo y estado de saldos.
 - **Tab Gastos:** listado de gastos del grupo con edición y eliminación.
@@ -169,8 +166,6 @@ Sistema de alertas financieras configurable:
 - **Notificaciones por email** opcionales para resumen diario, semanal y mensual.
 
 ### Configuración de Usuario
-
-Página `/configuracion` con:
 
 - Información de perfil del usuario.
 - **Selector de tema visual:** 18 temas disponibles — 9 claros (Azure, Sage, Rose, Violet, Amber, Slate, Coral, Mint, Peach) y 9 oscuros (Ocean, Aurora, Crimson, Amethyst, Gold, Carbon, Neon, Volcanic, Midnight). El tema se sincroniza con Supabase y persiste entre dispositivos.
