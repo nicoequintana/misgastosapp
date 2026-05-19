@@ -1,6 +1,6 @@
 # TusGastosApp — Control Financiero Personal
 
-Plataforma web para la gestión de finanzas personales, con diseño **Glassmorphism**, autenticación segura y soporte para gastos compartidos en grupo.
+Plataforma web para la gestión de finanzas personales, con diseño **Glassmorphism** y soporte para gastos compartidos en grupo.
 
 ---
 
@@ -20,7 +20,7 @@ TusGastosApp permite a cada usuario tener control total sobre sus flujos de caja
 | Vite | Bundler y dev server |
 | JavaScript (sin TypeScript) | Lenguaje principal |
 | React Router DOM | Enrutamiento SPA |
-| Supabase JS | Cliente de base de datos y auth |
+| Supabase JS | Cliente de base de datos |
 | Lucide React + Material Symbols | Iconografía vectorial |
 | CSS puro (variables CSS, Flexbox, Grid) | Estilos — sin Tailwind, Bootstrap ni MUI |
 
@@ -40,7 +40,7 @@ TusGastosApp permite a cada usuario tener control total sobre sus flujos de caja
 | Tecnología | Rol |
 |---|---|
 | Supabase PostgreSQL | Base de datos principal |
-| Supabase Auth | Autenticación (Google OAuth + email/password) |
+| Supabase Auth | Gestión de sesiones de usuario |
 | Row Level Security (RLS) | Aislamiento de datos por usuario — obligatorio en todas las tablas |
 
 ---
@@ -172,103 +172,16 @@ Sistema de alertas financieras configurable:
 
 Página `/configuracion` con:
 
-- Información de perfil (nombre, avatar de Google si aplica).
+- Información de perfil del usuario.
 - **Selector de tema visual:** 18 temas disponibles — 9 claros (Azure, Sage, Rose, Violet, Amber, Slate, Coral, Mint, Peach) y 9 oscuros (Ocean, Aurora, Crimson, Amethyst, Gold, Carbon, Neon, Volcanic, Midnight). El tema se sincroniza con Supabase y persiste entre dispositivos.
 - **Gestión de categorías personales:** agregar y eliminar categorías propias.
 - **Preferencias de notificaciones:** activar/desactivar cada tipo de alerta y configurar umbrales.
-
-### Autenticación
-
-- **Google OAuth** mediante Supabase Auth.
-- **Email / contraseña** con verificación de email.
-- Rutas protegidas por `ProtectedRoute` — redirige a `/welcome` si no hay sesión.
-- `AppLoader` con splash screen durante la resolución inicial de auth.
 
 ---
 
 ## Seguridad
 
 La aplicación implementa múltiples capas de protección a nivel de base de datos, API y transporte. El acceso a los datos está restringido por usuario autenticado — ningún dato es accesible sin sesión válida. Las credenciales sensibles nunca se exponen al cliente.
-
----
-
-## Instalación y Desarrollo
-
-### Prerrequisitos
-
-- Node.js 18 o superior
-- Cuenta en [Supabase](https://supabase.com) con un proyecto creado
-
-### Variables de entorno
-
-**`client/.env`**
-```env
-VITE_SUPABASE_URL=tu_url_de_supabase
-VITE_SUPABASE_ANON_KEY=tu_anon_key
-VITE_BACKEND_URL=http://localhost:3001
-```
-
-**`server/.env`**
-```env
-PORT=3001
-SUPABASE_URL=tu_url_de_supabase
-SUPABASE_KEY=tu_service_role_key
-FRONTEND_URL=http://localhost:5173
-```
-
-> Nunca commitear archivos `.env` reales. Están incluidos en `.gitignore`.
-
-### Comandos
-
-```bash
-# Instalar dependencias de cliente y servidor
-npm run install-all
-
-# Iniciar cliente (:5173) y servidor (:3001) en paralelo
-npm run dev
-
-# Solo cliente
-npm --prefix client run dev
-
-# Solo servidor
-npm --prefix server run dev
-
-# Lint del frontend
-npm --prefix client run lint
-
-# Build de producción del frontend
-npm --prefix client run build
-
-# Verificar salud del backend
-curl http://localhost:3001/health
-```
-
-### Tests
-
-```bash
-# Ejecutar tests unitarios del frontend
-npm --prefix client run test
-```
-
-Los tests cubren: cálculo de cuotas (`cuotasHelper`), agrupación de cuotas grupales (`cuotasGroupHelper`), cálculo de saldos entre miembros (`saldos`), proyección de ingresos, cálculo de reportes y formateo de moneda.
-
----
-
-## Rutas
-
-| Ruta | Acceso | Descripción |
-|---|---|---|
-| `/welcome` | Pública | Pantalla de login / registro |
-| `/grupos/invitaciones/:token` | Pública | Aceptar invitación a un grupo |
-| `/` | Privada | Dashboard principal |
-| `/movimientos` | Privada | Historial de movimientos |
-| `/reportes` | Privada | Análisis y reportes por período |
-| `/configuracion` | Privada | Perfil, tema y notificaciones |
-| `/grupos` | Privada | Lista de grupos compartidos |
-| `/grupos/nuevo` | Privada | Crear nuevo grupo |
-| `/grupos/:id` | Privada | Detalle del grupo (Resumen / Gastos / Miembros / Saldos) |
-| `/grupos/:id/gastos/nuevo` | Privada | Registrar gasto en el grupo |
-| `/grupos/:id/gastos/:gastoId/editar` | Privada | Editar gasto grupal |
 
 ---
 
