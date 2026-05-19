@@ -741,6 +741,7 @@ body::after {
 
 /* Glassmorphism Styles (Premium) */
 .glass-card {
+  margin-bottom: 2em;
   background: var(--glass-bg);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);

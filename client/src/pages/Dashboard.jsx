@@ -4,11 +4,12 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import CurrencyInput from '../components/CurrencyInput';
 import * as db from '../lib/db';
-import { getTarjetasEnCuotas, getGastosFuturos } from '../lib/db';
+import { getTarjetasEnCuotas, getGastosFuturos, getPrestamosEnCuotas, getPrestamosGastosFuturos } from '../lib/db';
 import SummaryCard from '../components/dashboard/SummaryCard';
 import DashboardTable from '../components/dashboard/DashboardTable';
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton';
 import TarjetasCuotasCard from '../components/dashboard/TarjetasCuotasCard';
+import PrestamosCard from '../components/dashboard/PrestamosCard';
 import { useNotificaciones } from '../context/NotificacionesContext';
 import { useAppReady } from '../context/AppReadyContext';
 import { fechaHoyArgentina } from '../utils/format';
@@ -25,6 +26,7 @@ const ESTADO_INICIAL_GASTO = {
     fecha: fechaHoyArgentina(),
     cuotas: 1,
     esTarjetaCredito: false,
+    esPrestamo: false,
     primeraCuota: '',
 };
 
@@ -183,6 +185,9 @@ const Dashboard = () => {
     const [cuotasGrupos, setCuotasGrupos] = useState([]);
     // Grupos de cuotas futuras para la card de gastos del mes siguiente
     const [gastosFuturos, setGastosFuturos] = useState([]);
+    // Grupos de préstamos en cuotas
+    const [prestamosGrupos, setPrestamosGrupos] = useState([]);
+    const [prestamosFuturos, setPrestamosFuturos] = useState([]);
 
     // ==================== DATA FETCHING ====================
 
@@ -227,16 +232,20 @@ const Dashboard = () => {
      */
     const fetchOpciones = useCallback(async () => {
         try {
-            const [cats, metodos, cuotas, catIngresos, futuros] = await Promise.all([
+            const [cats, metodos, cuotas, catIngresos, futuros, prestamos, prestamosFut] = await Promise.all([
                 db.getCategories(),
                 db.getPaymentMethods(),
                 getTarjetasEnCuotas(),
                 db.getIncomeCategories(),
                 getGastosFuturos(),
+                getPrestamosEnCuotas(),
+                getPrestamosGastosFuturos(),
             ]);
             setCategories(cats);
             setPaymentMethods(metodos);
             setCuotasGrupos(cuotas);
+            setPrestamosGrupos(prestamos);
+            setPrestamosFuturos(prestamosFut);
             setCategoriaIngresos(catIngresos);
             setGastosFuturos(futuros);
         } catch (err) {
@@ -322,7 +331,7 @@ const Dashboard = () => {
             return;
         }
 
-        if (expenseForm.esTarjetaCredito && !expenseForm.primeraCuota) {
+        if ((expenseForm.esTarjetaCredito || expenseForm.esPrestamo) && !expenseForm.primeraCuota) {
             alert('Indicá en qué mes vence la primera cuota.');
             return;
         }
@@ -345,6 +354,12 @@ const Dashboard = () => {
             if (expenseForm.esTarjetaCredito) {
                 Promise.all([getTarjetasEnCuotas(), getGastosFuturos()])
                     .then(([cuotas, futuros]) => { setCuotasGrupos(cuotas); setGastosFuturos(futuros); })
+                    .catch(console.error);
+            }
+            // Recargar préstamos si el nuevo gasto es de categoría PRESTAMOS
+            if (expenseForm.esPrestamo) {
+                Promise.all([getPrestamosEnCuotas(), getPrestamosGastosFuturos()])
+                    .then(([prest, prestFut]) => { setPrestamosGrupos(prest); setPrestamosFuturos(prestFut); })
                     .catch(console.error);
             }
             // Al recargar stats verificamos alertas de saldo y porcentaje
@@ -492,6 +507,21 @@ const Dashboard = () => {
         }));
     };
 
+    // Detecta si la categoría seleccionada es PRESTAMOS y activa el modo cuotas
+    const handleCambioCategoria = (id) => {
+        const cat = categories.find(c => c.id === Number(id) || c.id === id);
+        const esPrestamo = cat?.nombre?.toUpperCase() === 'PRESTAMOS';
+        setExpenseForm(prev => ({
+            ...prev,
+            id_categoria: id,
+            esPrestamo,
+            // Al cambiar categoría, reseteamos cuotas y primeraCuota si ya no aplica
+            cuotas: esPrestamo ? prev.cuotas : (prev.esPrestamo ? 1 : prev.cuotas),
+            primeraCuota: esPrestamo ? prev.primeraCuota : (prev.esPrestamo ? '' : prev.primeraCuota),
+            es_fijo: esPrestamo ? true : prev.es_fijo,
+        }));
+    };
+
     // Gastos separados por tipo para las tablas inferiores
     const gastosRecientes = stats.gastos.filter(g => !g.es_fijo).slice(0, 5);
     const gastosFijos = stats.gastos.filter(g => g.es_fijo);
@@ -584,6 +614,11 @@ const Dashboard = () => {
             {/* Card unificada de tarjeta de crédito: mes en curso + mes siguiente */}
             <TarjetasCuotasCard grupos={cuotasGrupos} gastosFuturos={gastosFuturos} />
 
+            {/* Card de préstamos en cuotas: solo se muestra si hay al menos un préstamo registrado */}
+            {prestamosGrupos.length > 0 && (
+                <PrestamosCard grupos={prestamosGrupos} gastosFuturos={prestamosFuturos} />
+            )}
+
             {/* Botón de acción peligrosa: eliminar todos los gastos variables */}
             {/* <div className="dashboard-footer">
                 <button onClick={() => setConfirmDeleteAll(true)} className="btn btn-danger-gradient">
@@ -647,7 +682,7 @@ const Dashboard = () => {
                             <label className="form-label-box">Categoría</label>
                             <select
                                 value={expenseForm.id_categoria}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, id_categoria: e.target.value }))}
+                                onChange={(e) => handleCambioCategoria(e.target.value)}
                                 required
                                 className="form-select"
                             >
@@ -703,7 +738,38 @@ const Dashboard = () => {
                         </div>
                         </>
                     )}
-                    {!expenseForm.esTarjetaCredito && (
+                    {expenseForm.esPrestamo && (
+                        <>
+                        <div className="form-group">
+                            <label className="form-label-box">Cuotas</label>
+                            <select
+                                value={expenseForm.cuotas}
+                                onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
+                                className="form-select"
+                            >
+                                {Array.from({ length: 120 }, (_, i) => i + 1).map(n => (
+                                    <option key={n} value={n}>
+                                        {n === 1 ? '1 cuota (pago único)' : `${n} cuotas`}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label-box">Mes del primer pago <span style={{ color: 'var(--danger)' }}>*</span></label>
+                            <input
+                                type="month"
+                                className="form-select"
+                                value={expenseForm.primeraCuota}
+                                onChange={(e) => setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }))}
+                                required
+                            />
+                            <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
+                                El 1° del mes elegido es la fecha del primer pago del préstamo.
+                            </small>
+                        </div>
+                        </>
+                    )}
+                    {!expenseForm.esTarjetaCredito && !expenseForm.esPrestamo && (
                         <div className="form-checkbox-group">
                             <input
                                 type="checkbox"

@@ -1,6 +1,13 @@
 import { supabase } from './supabase';
 import { fechaHoyArgentina } from '../utils/format';
 import { calcularCuotas } from './cuotasHelper';
+import {
+    agruparPorPadre,
+    filtrarTarjetaCredito,
+    filtrarPrestamos,
+    transformarGrupoCuotas,
+    transformarGrupoCuotasFuturas,
+} from './cuotasGroupHelper';
 
 /**
  * Capa de acceso a datos (Data Access Layer) para Supabase.
@@ -100,10 +107,12 @@ export const createExpense = async (gasto) => {
     }
 
     const esTarjetaCredito = gasto.esTarjetaCredito === true;
-    const cuotas = esTarjetaCredito ? Math.max(1, Math.min(18, parseInt(gasto.cuotas) || 1)) : 1;
+    const esPrestamo = gasto.esPrestamo === true;
+    const esCuotas = esTarjetaCredito || esPrestamo;
+    const cuotas = esCuotas ? Math.max(1, Math.min(120, parseInt(gasto.cuotas) || 1)) : 1;
     const descripcionBase = gasto.descripcion.trim().toUpperCase();
 
-    if (!esTarjetaCredito) {
+    if (!esCuotas) {
         // Gasto normal: inserción única
         const { data, error } = await supabase
             .from('gastos')
@@ -129,7 +138,7 @@ export const createExpense = async (gasto) => {
         return data;
     }
 
-    // Gasto con tarjeta de crédito: el usuario define en qué mes vence la primera cuota.
+    // Gasto en cuotas (tarjeta de crédito o préstamo): el usuario define en qué mes vence la primera cuota.
     if (!gasto.primeraCuota) throw new Error('Indicá en qué mes vence la primera cuota');
     const cuotasCalculadas = calcularCuotas(
         montoNumero,
@@ -212,54 +221,93 @@ export const getTarjetasEnCuotas = async () => {
 
     if (error) throw error;
 
-    // Filtramos en cliente para asegurarnos que solo vienen gastos con tarjeta de crédito,
-    // ya que el filtro .ilike sobre una relación puede no funcionar en todos los casos con Supabase.
-    const soloTarjeta = (data ?? []).filter(g =>
-        g.metodos_pago?.nombre?.toUpperCase() === 'TARJETA DE CREDITO'
-    );
-
-    // Agrupar por id_gasto_padre
-    const grupos = soloTarjeta.reduce((acc, g) => {
-        const padreId = g.id_gasto_padre;
-        if (!acc[padreId]) acc[padreId] = [];
-        acc[padreId].push(g);
-        return acc;
-    }, {});
-
     const hoy = new Date();
     const hoyStr = hoy.toISOString().split('T')[0];
-    // Rango del mes en curso para filtrar cuotas que caen este mes
     const mesCorrienteInicio = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
     const mesCorrienteFin = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-31`;
 
-    return Object.values(grupos).map(cuotas => {
-        const ordenadas = cuotas.sort((a, b) => a.numero_cuota - b.numero_cuota);
-        const primera = ordenadas[0];
-        // Descripción sin el sufijo "(1/N)"
-        const descripcionBase = primera.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
-        const totalOriginal = ordenadas.reduce((s, c) => s + parseFloat(c.monto || 0), 0);
-        const pagadas = ordenadas.filter(c => c.fecha.split('T')[0] <= hoyStr).length;
-        // Suma solo las cuotas cuya fecha cae dentro del mes en curso
-        const montoMesCorriente = ordenadas
-            .filter(c => {
-                const f = c.fecha.split('T')[0];
-                return f >= mesCorrienteInicio && f <= mesCorrienteFin;
-            })
-            .reduce((s, c) => s + parseFloat(c.monto || 0), 0);
+    const grupos = agruparPorPadre(filtrarTarjetaCredito(data ?? []));
 
-        return {
-            id: primera.id_gasto_padre,
-            descripcionBase,
-            categoria: primera.categorias?.nombre || '—',
-            totalOriginal,
-            cuotas: ordenadas.length,
-            pagadas,
-            pendientes: ordenadas.length - pagadas,
-            montoMensual: parseFloat(primera.monto || 0),
-            montoMesCorriente,
-            cuotasList: ordenadas,
-        };
-    }).sort((a, b) => a.pendientes - b.pendientes || a.descripcionBase.localeCompare(b.descripcionBase));
+    return Object.values(grupos)
+        .map(c => transformarGrupoCuotas(c, hoyStr, mesCorrienteInicio, mesCorrienteFin))
+        .sort((a, b) => a.pendientes - b.pendientes || a.descripcionBase.localeCompare(b.descripcionBase));
+};
+
+/**
+ * Obtiene todos los préstamos en cuotas del usuario, agrupados por id_gasto_padre.
+ * Filtra por categoría PRESTAMOS en lugar de método de pago.
+ *
+ * @returns {Array} Grupos de cuotas: [{ descripcionBase, totalOriginal, cuotas, pagadas, pendientes, montoMensual, cuotasList }]
+ */
+export const getPrestamosEnCuotas = async () => {
+    const usuario = await obtenerUsuarioActivo();
+
+    const { data, error } = await supabase
+        .from('gastos')
+        .select(`
+            id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre,
+            categorias:id_categoria (id, nombre),
+            metodos_pago:id_metodo_pago (id, nombre)
+        `)
+        .eq('user_id', usuario.id)
+        .not('id_gasto_padre', 'is', null)
+        .order('id_gasto_padre', { ascending: true })
+        .order('numero_cuota', { ascending: true });
+
+    if (error) throw error;
+
+    const hoy = new Date();
+    const hoyStr = hoy.toISOString().split('T')[0];
+    const mesCorrienteInicio = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
+    const mesCorrienteFin = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-31`;
+
+    const grupos = agruparPorPadre(filtrarPrestamos(data ?? []));
+
+    return Object.values(grupos)
+        .map(c => transformarGrupoCuotas(c, hoyStr, mesCorrienteInicio, mesCorrienteFin))
+        .sort((a, b) => a.pendientes - b.pendientes || a.descripcionBase.localeCompare(b.descripcionBase));
+};
+
+/**
+ * Obtiene los préstamos en cuotas futuros (mes siguiente en adelante),
+ * agrupados por id_gasto_padre.
+ *
+ * @returns {Array} Grupos con las cuotas pendientes de cada préstamo
+ */
+export const getPrestamosGastosFuturos = async () => {
+    const usuario = await obtenerUsuarioActivo();
+
+    const hoy = new Date();
+    const anio = hoy.getMonth() === 11 ? hoy.getFullYear() + 1 : hoy.getFullYear();
+    const mes = hoy.getMonth() === 11 ? 1 : hoy.getMonth() + 2;
+    const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
+
+    const { data, error } = await supabase
+        .from('gastos')
+        .select(`
+            id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre,
+            categorias:id_categoria (id, nombre),
+            metodos_pago:id_metodo_pago (id, nombre)
+        `)
+        .eq('user_id', usuario.id)
+        .not('id_gasto_padre', 'is', null)
+        .gte('fecha', desde)
+        .order('id_gasto_padre', { ascending: true })
+        .order('numero_cuota', { ascending: true });
+
+    if (error) throw error;
+
+    const hoyF = new Date();
+    const anioSig = hoyF.getMonth() === 11 ? hoyF.getFullYear() + 1 : hoyF.getFullYear();
+    const mesSig = hoyF.getMonth() === 11 ? 1 : hoyF.getMonth() + 2;
+    const mesSigInicio = `${anioSig}-${String(mesSig).padStart(2, '0')}-01`;
+    const mesSigFin = `${anioSig}-${String(mesSig).padStart(2, '0')}-31`;
+
+    const grupos = agruparPorPadre(filtrarPrestamos(data ?? []));
+
+    return Object.values(grupos)
+        .map(c => transformarGrupoCuotasFuturas(c, mesSigInicio, mesSigFin))
+        .sort((a, b) => a.cuotasFuturas[0]?.fecha?.localeCompare(b.cuotasFuturas[0]?.fecha));
 };
 
 /**
@@ -292,45 +340,17 @@ export const getGastosFuturos = async () => {
 
     if (error) throw error;
 
-    const soloTarjeta = (data ?? []).filter(
-        g => g.metodos_pago?.nombre?.toUpperCase() === 'TARJETA DE CREDITO'
-    );
+    const hoyF2 = new Date();
+    const anioSig2 = hoyF2.getMonth() === 11 ? hoyF2.getFullYear() + 1 : hoyF2.getFullYear();
+    const mesSig2 = hoyF2.getMonth() === 11 ? 1 : hoyF2.getMonth() + 2;
+    const mesSigInicio2 = `${anioSig2}-${String(mesSig2).padStart(2, '0')}-01`;
+    const mesSigFin2 = `${anioSig2}-${String(mesSig2).padStart(2, '0')}-31`;
 
-    const grupos = soloTarjeta.reduce((acc, g) => {
-        const k = g.id_gasto_padre;
-        if (!acc[k]) acc[k] = [];
-        acc[k].push(g);
-        return acc;
-    }, {});
+    const gruposTarjeta = agruparPorPadre(filtrarTarjetaCredito(data ?? []));
 
-    // Rango del mes siguiente para calcular el total que impacta en ese mes
-    const hoyF = new Date();
-    const anioSig = hoyF.getMonth() === 11 ? hoyF.getFullYear() + 1 : hoyF.getFullYear();
-    const mesSig = hoyF.getMonth() === 11 ? 1 : hoyF.getMonth() + 2;
-    const mesSigInicio = `${anioSig}-${String(mesSig).padStart(2, '0')}-01`;
-    const mesSigFin = `${anioSig}-${String(mesSig).padStart(2, '0')}-31`;
-
-    return Object.values(grupos).map(cuotas => {
-        const ordenadas = cuotas.sort((a, b) => (a.numero_cuota ?? 0) - (b.numero_cuota ?? 0));
-        const primera = ordenadas[0];
-        const descripcionBase = primera.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
-        // Suma las cuotas que caen exactamente en el mes siguiente
-        const montoMesSiguiente = ordenadas
-            .filter(c => {
-                const f = (c.fecha || '').split('T')[0];
-                return f >= mesSigInicio && f <= mesSigFin;
-            })
-            .reduce((s, c) => s + parseFloat(c.monto || 0), 0);
-        return {
-            id: primera.id_gasto_padre,
-            descripcionBase,
-            categoria: primera.categorias?.nombre || '—',
-            idCategoria: primera.categorias?.id || null,
-            montoMensual: parseFloat(primera.monto || 0),
-            montoMesSiguiente,
-            cuotasFuturas: ordenadas,
-        };
-    }).sort((a, b) => a.cuotasFuturas[0]?.fecha?.localeCompare(b.cuotasFuturas[0]?.fecha));
+    return Object.values(gruposTarjeta)
+        .map(c => transformarGrupoCuotasFuturas(c, mesSigInicio2, mesSigFin2))
+        .sort((a, b) => a.cuotasFuturas[0]?.fecha?.localeCompare(b.cuotasFuturas[0]?.fecha));
 };
 
 /**
