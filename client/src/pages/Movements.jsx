@@ -5,7 +5,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import { formatCurrency } from '../utils/format';
 import CurrencyInput from '../components/CurrencyInput';
 import * as db from '../lib/db';
-import { getGastosFuturos, deleteExpenseGroup, updateExpenseGroup } from '../lib/db';
+import { getGastosFuturos, getPrestamosGastosFuturos, deleteExpenseGroup, updateExpenseGroup } from '../lib/db';
 import { useNotificaciones } from '../context/NotificacionesContext';
 
 /**
@@ -36,6 +36,12 @@ const Movements = () => {
     // Estado para movimientos futuros (cuotas de tarjeta de crédito)
     const [gastosFuturos, setGastosFuturos] = useState([]);
     const [cargandoFuturos, setCargandoFuturos] = useState(true);
+
+    // Estado para movimientos futuros de préstamos
+    const [prestamosFuturos, setPrestamosFuturos] = useState([]);
+    const [cargandoPrestamosFuturos, setCargandoPrestamosFuturos] = useState(true);
+
+    // Modales compartidos para editar/eliminar grupos (tarjeta y préstamos)
     const [grupoEditando, setGrupoEditando] = useState(null);
     const [isEditGrupoOpen, setIsEditGrupoOpen] = useState(false);
     const [guardandoGrupo, setGuardandoGrupo] = useState(false);
@@ -71,6 +77,18 @@ const Movements = () => {
         }
     }, []);
 
+    const fetchPrestamosFuturos = useCallback(async () => {
+        try {
+            setCargandoPrestamosFuturos(true);
+            const data = await getPrestamosGastosFuturos();
+            setPrestamosFuturos(data);
+        } catch (err) {
+            console.error('❌ Error al obtener préstamos futuros:', err);
+        } finally {
+            setCargandoPrestamosFuturos(false);
+        }
+    }, []);
+
     /**
      * Obtiene las categorías y métodos de pago para los selects del formulario.
      */
@@ -91,7 +109,8 @@ const Movements = () => {
         fetchMovimientos();
         fetchOpciones();
         fetchFuturos();
-    }, [fetchMovimientos, fetchOpciones, fetchFuturos]);
+        fetchPrestamosFuturos();
+    }, [fetchMovimientos, fetchOpciones, fetchFuturos, fetchPrestamosFuturos]);
 
     // ── Handlers de movimientos futuros ──
 
@@ -128,7 +147,7 @@ const Movements = () => {
             });
             setIsEditGrupoOpen(false);
             setTimeout(() => setGrupoEditando(null), 300);
-            await fetchFuturos();
+            await Promise.all([fetchFuturos(), fetchPrestamosFuturos()]);
             agregarNotificacion({
                 titulo: 'Compra actualizada',
                 mensaje: `Se actualizaron las cuotas de "${grupoEditando.descripcion}".`,
@@ -156,7 +175,7 @@ const Movements = () => {
             await deleteExpenseGroup(grupoEliminando.id);
             setIsDeleteGrupoOpen(false);
             setTimeout(() => setGrupoEliminando(null), 300);
-            await fetchFuturos();
+            await Promise.all([fetchFuturos(), fetchPrestamosFuturos()]);
             agregarNotificacion({
                 titulo: 'Compra eliminada',
                 mensaje: `Se eliminaron todas las cuotas de "${desc}".`,
@@ -513,6 +532,119 @@ const Movements = () => {
                             {/* Vista mobile */}
                             <div className="movements-cards-mobile">
                                 {gastosFuturos.map((grupo) => {
+                                    const totalRestante = grupo.cuotasFuturas.reduce((s, c) => s + parseFloat(c.monto), 0);
+                                    const primerFecha = new Date(`${grupo.cuotasFuturas[0].fecha.split('T')[0]}T12:00:00Z`);
+                                    const ultimaFecha = new Date(`${grupo.cuotasFuturas[grupo.cuotasFuturas.length - 1].fecha.split('T')[0]}T12:00:00Z`);
+                                    return (
+                                        <div key={grupo.id} className="mov-card">
+                                            <div className="mov-card-row">
+                                                <span className="mov-card-desc">{grupo.descripcionBase}</span>
+                                                <span className="mov-card-amount">-${formatCurrency(totalRestante)}</span>
+                                            </div>
+                                            <div className="mov-card-row mov-card-meta">
+                                                <div className="mov-card-tags">
+                                                    <span className="category-tag-small">{grupo.categoria}</span>
+                                                    <span className="futuros-cuotas-badge">{grupo.cuotasFuturas.length} cuota{grupo.cuotasFuturas.length !== 1 ? 's' : ''}</span>
+                                                    <span className="method-tag-small">
+                                                        {primerFecha.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })}
+                                                        {' → '}
+                                                        {ultimaFecha.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <div className="mov-card-actions">
+                                                    <button type="button" onClick={() => handleEditarGrupo(grupo)} className="action-btn edit" title="Editar">
+                                                        <span className="material-symbols-outlined">edit</span>
+                                                    </button>
+                                                    <button type="button" onClick={() => handleEliminarGrupo(grupo)} className="action-btn delete" title="Eliminar">
+                                                        <span className="material-symbols-outlined">delete</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    )}
+                </GlassCard>
+            )}
+
+            {/* Card: Préstamos Futuros */}
+            {(cargandoPrestamosFuturos || prestamosFuturos.length > 0) && (
+                <GlassCard className="futuros-card">
+                    <div className="futuros-header">
+                        <div className="futuros-titulo-row">
+                            <span className="material-symbols-outlined futuros-icon">handshake</span>
+                            <h3 className="table-title">Préstamos Futuros</h3>
+                            {!cargandoPrestamosFuturos && (
+                                <span className="category-tag counter">{prestamosFuturos.length} préstamo{prestamosFuturos.length !== 1 ? 's' : ''}</span>
+                            )}
+                        </div>
+                        <p className="futuros-subtitulo">Cuotas de préstamos pendientes de pago</p>
+                    </div>
+
+                    {cargandoPrestamosFuturos ? (
+                        <div className="empty-state" style={{ padding: '24px 0' }}>
+                            <div className="loader mx-auto"></div>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Vista desktop */}
+                            <div className="table-responsive movements-table-desktop">
+                                <table className="movements-table">
+                                    <thead>
+                                        <tr>
+                                            <th className="td-desc">Préstamo</th>
+                                            <th>Categoría</th>
+                                            <th className="text-center">Cuotas pendientes</th>
+                                            <th className="td-amount">Monto/mes</th>
+                                            <th className="td-amount">Total restante</th>
+                                            <th className="td-actions">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {prestamosFuturos.map((grupo) => {
+                                            const primerFecha = new Date(`${grupo.cuotasFuturas[0].fecha.split('T')[0]}T12:00:00Z`);
+                                            const ultimaFecha = new Date(`${grupo.cuotasFuturas[grupo.cuotasFuturas.length - 1].fecha.split('T')[0]}T12:00:00Z`);
+                                            const totalRestante = grupo.cuotasFuturas.reduce((s, c) => s + parseFloat(c.monto), 0);
+                                            return (
+                                                <tr key={grupo.id}>
+                                                    <td className="td-desc">
+                                                        <span style={{ fontWeight: 600 }}>{grupo.descripcionBase}</span>
+                                                        <span className="futuros-rango">
+                                                            {primerFecha.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })}
+                                                            {' → '}
+                                                            {ultimaFecha.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <span className="category-tag-small">{grupo.categoria}</span>
+                                                    </td>
+                                                    <td className="text-center">
+                                                        <span className="futuros-cuotas-badge">{grupo.cuotasFuturas.length}</span>
+                                                    </td>
+                                                    <td className="td-amount">-${formatCurrency(grupo.montoMensual)}</td>
+                                                    <td className="td-amount futuros-total">-${formatCurrency(totalRestante)}</td>
+                                                    <td className="td-actions">
+                                                        <div className="action-buttons-group">
+                                                            <button type="button" onClick={() => handleEditarGrupo(grupo)} className="action-btn edit" title="Editar">
+                                                                <span className="material-symbols-outlined">edit</span>
+                                                            </button>
+                                                            <button type="button" onClick={() => handleEliminarGrupo(grupo)} className="action-btn delete" title="Eliminar todas las cuotas">
+                                                                <span className="material-symbols-outlined">delete</span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Vista mobile */}
+                            <div className="movements-cards-mobile">
+                                {prestamosFuturos.map((grupo) => {
                                     const totalRestante = grupo.cuotasFuturas.reduce((s, c) => s + parseFloat(c.monto), 0);
                                     const primerFecha = new Date(`${grupo.cuotasFuturas[0].fecha.split('T')[0]}T12:00:00Z`);
                                     const ultimaFecha = new Date(`${grupo.cuotasFuturas[grupo.cuotasFuturas.length - 1].fecha.split('T')[0]}T12:00:00Z`);
