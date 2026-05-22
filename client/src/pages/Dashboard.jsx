@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -56,6 +56,11 @@ const ESTADO_INICIAL_STATS = {
  * - Mostrar tablas de gastos recientes y fijos (solo lectura)
  * - Eliminar todos los gastos variables (acción de reseteo)
  */
+
+// Opciones estáticas de cuotas — se definen fuera del componente para evitar recrearlas en cada render
+const OPCIONES_CUOTAS_TARJETA = Array.from({ length: 18 }, (_, i) => i + 1);
+const OPCIONES_CUOTAS_PRESTAMO = Array.from({ length: 120 }, (_, i) => i + 1);
+
 const Dashboard = () => {
     const [stats, setStats] = useState(ESTADO_INICIAL_STATS);
     const [cargando, setCargando] = useState(true);
@@ -551,8 +556,11 @@ const Dashboard = () => {
     };
 
     // Gastos separados por tipo para las tablas inferiores
-    const gastosRecientes = stats.gastos.filter(g => !g.es_fijo).slice(0, 5);
-    const gastosFijos = stats.gastos.filter(g => g.es_fijo);
+    const gastosRecientes = useMemo(() => stats.gastos.filter(g => !g.es_fijo).slice(0, 5), [stats.gastos]);
+    const gastosFijos = useMemo(() => stats.gastos.filter(g => g.es_fijo), [stats.gastos]);
+
+    // Recurrentes activos para el modal de ingresos
+    const recurrentesActivos = useMemo(() => recurrentes.filter(r => r.activo), [recurrentes]);
 
     // ==================== RENDER ====================
 
@@ -762,7 +770,7 @@ const Dashboard = () => {
                                 onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
                                 className="form-select"
                             >
-                                {Array.from({ length: 18 }, (_, i) => i + 1).map(n => (
+                                {OPCIONES_CUOTAS_TARJETA.map(n => (
                                     <option key={n} value={n}>
                                         {n === 1 ? '1 cuota (pago único)' : `${n} cuotas`}
                                     </option>
@@ -793,7 +801,7 @@ const Dashboard = () => {
                                 onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
                                 className="form-select"
                             >
-                                {Array.from({ length: 120 }, (_, i) => i + 1).map(n => (
+                                {OPCIONES_CUOTAS_PRESTAMO.map(n => (
                                     <option key={n} value={n}>
                                         {n === 1 ? '1 cuota (pago único)' : `${n} cuotas`}
                                     </option>
@@ -947,12 +955,12 @@ const Dashboard = () => {
                     )}
 
                     {/* Lista de recurrentes activos — informativo */}
-                    {recurrentes.filter(r => r.activo).length > 0 && (
+                    {recurrentesActivos.length > 0 && (
                         <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                             <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                 Recurrentes configurados
                             </div>
-                            {recurrentes.filter(r => r.activo).map(rec => (
+                            {recurrentesActivos.map(rec => (
                                 <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '4px 0', color: 'var(--text-secondary)' }}>
                                     <span>{rec.descripcion}</span>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

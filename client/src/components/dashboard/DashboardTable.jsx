@@ -63,4 +63,4 @@ const DashboardTable = ({ title, expenses }) => (
     </GlassCard>
 );
 
-export default DashboardTable;
+export default React.memo(DashboardTable);

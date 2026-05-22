@@ -24,4 +24,4 @@ const SummaryCard = ({ title, amount, icon, color, dominant = false, subtitle, h
     </div>
 );
 
-export default SummaryCard;
+export default React.memo(SummaryCard);

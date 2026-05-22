@@ -43,7 +43,8 @@ export const ThemeProvider = ({ children }) => {
         };
 
         sincronizarTheme();
-    }, [session]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [session?.user?.id]); // Solo re-sincronizar al cambiar de usuario, no en cada refresh de token
 
     // Cambia el tema localmente y lo persiste en Supabase
     const applyTheme = async (id) => {

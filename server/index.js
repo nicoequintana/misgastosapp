@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -84,6 +85,7 @@ app.use(helmet({
         },
     },
 }));
+app.use(compression());
 app.use(cors(corsOptions));
 // Límite estricto de payload — el endpoint n8n nunca necesita más de 10kb
 app.use(express.json({ limit: '10kb' }));

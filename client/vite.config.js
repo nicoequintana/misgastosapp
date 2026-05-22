@@ -54,6 +54,25 @@ export default defineConfig({
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: 'NetworkOnly',
           },
+          {
+            // Stylesheets de Google Fonts — stale-while-revalidate para actualizar en background
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'google-fonts-stylesheets',
+              expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+          {
+            // Archivos de fuente binarios de gstatic — cache-first, no cambian nunca
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-webfonts',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
     }),

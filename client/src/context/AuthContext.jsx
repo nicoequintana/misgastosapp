@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -80,13 +80,10 @@ export const AuthProvider = ({ children }) => {
         setSession(null);
     };
 
-    const value = {
-        session,
-        user,
-        signOut,
-        signInWithGoogle,
-        loading
-    };
+    const value = useMemo(
+        () => ({ session, user, signOut, signInWithGoogle, loading }),
+        [session, user, loading] // signOut y signInWithGoogle son referencias estables
+    );
 
     return (
         <AuthContext.Provider value={value}>

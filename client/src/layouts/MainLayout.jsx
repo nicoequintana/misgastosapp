@@ -5,6 +5,63 @@ import Header from '../components/Header';
 import WelcomeTour from '../components/WelcomeTour';
 import { setSeo } from '../utils/seo';
 
+// Funciones puras de pathname — se definen fuera del componente para evitar recrearlas en cada render
+const getPageTitle = (path) => {
+    switch (path) {
+        case '/': return 'Dashboard';
+        case '/movimientos': return 'Movimientos';
+        case '/reportes': return 'Reportes';
+        case '/presupuestos': return 'Presupuestos';
+        case '/configuracion': return 'Configuración';
+        default: return 'Tus Gastos';
+    }
+};
+
+const getPageSeo = (path) => {
+    switch (path) {
+        case '/':
+            return {
+                title: 'Dashboard - Tus Gastos',
+                description: 'Resumen financiero, ingresos y gastos fijos/variables en un solo lugar.'
+            };
+        case '/movimientos':
+            return {
+                title: 'Movimientos - Tus Gastos',
+                description: 'Historial completo de gastos con búsqueda y filtros por categoría.'
+            };
+        case '/configuracion':
+            return {
+                title: 'Configuración - Tus Gastos',
+                description: 'Perfil del usuario y personalización del tema visual.'
+            };
+        case '/reportes':
+            return {
+                title: 'Reportes - Tus Gastos',
+                description: 'Analizá tus gastos por período con gráficos y rankings de categorías.'
+            };
+        case '/presupuestos':
+            return {
+                title: 'Presupuestos - Tus Gastos',
+                description: 'Planificá gastos mensuales y mantené el control del presupuesto.'
+            };
+        case '/informes':
+            return {
+                title: 'Informes - Tus Gastos',
+                description: 'Informes detallados para analizar tu comportamiento financiero.'
+            };
+        case '/ahorros':
+            return {
+                title: 'Ahorros - Tus Gastos',
+                description: 'Seguimiento de metas y progreso de ahorro personal.'
+            };
+        default:
+            return {
+                title: 'Tus Gastos - Control Personal',
+                description: 'Registrá gastos, analizá tus finanzas y tomá decisiones con claridad.'
+            };
+    }
+};
+
 /**
  * Esquema principal (Layout) de la aplicación.
  * Define la estructura común con Sidebar y Header, y utiliza Outlet para renderizar las páginas.
@@ -52,67 +109,6 @@ const MainLayout = () => {
     }, [location.pathname, isMobile]);
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-
-    /**
-     * Mapea la ruta actual a un título amigable para el usuario.
-     * @param {string} path - La ruta de la URL actual.
-     * @returns {string} El título de la página.
-     */
-    const getPageTitle = (path) => {
-        switch (path) {
-            case '/': return 'Dashboard';
-            case '/movimientos': return 'Movimientos';
-            case '/reportes': return 'Reportes';
-            case '/presupuestos': return 'Presupuestos';
-            case '/configuracion': return 'Configuración';
-            default: return 'Tus Gastos';
-        }
-    };
-
-    const getPageSeo = (path) => {
-        switch (path) {
-            case '/':
-                return {
-                    title: 'Dashboard - Tus Gastos',
-                    description: 'Resumen financiero, ingresos y gastos fijos/variables en un solo lugar.'
-                };
-            case '/movimientos':
-                return {
-                    title: 'Movimientos - Tus Gastos',
-                    description: 'Historial completo de gastos con búsqueda y filtros por categoría.'
-                };
-            case '/configuracion':
-                return {
-                    title: 'Configuración - Tus Gastos',
-                    description: 'Perfil del usuario y personalización del tema visual.'
-                };
-            case '/reportes':
-                return {
-                    title: 'Reportes - Tus Gastos',
-                    description: 'Analizá tus gastos por período con gráficos y rankings de categorías.'
-                };
-            case '/presupuestos':
-                return {
-                    title: 'Presupuestos - Tus Gastos',
-                    description: 'Planificá gastos mensuales y mantené el control del presupuesto.'
-                };
-            case '/informes':
-                return {
-                    title: 'Informes - Tus Gastos',
-                    description: 'Informes detallados para analizar tu comportamiento financiero.'
-                };
-            case '/ahorros':
-                return {
-                    title: 'Ahorros - Tus Gastos',
-                    description: 'Seguimiento de metas y progreso de ahorro personal.'
-                };
-            default:
-                return {
-                    title: 'Tus Gastos - Control Personal',
-                    description: 'Registrá gastos, analizá tus finanzas y tomá decisiones con claridad.'
-                };
-        }
-    };
 
     React.useEffect(() => {
         setSeo(getPageSeo(location.pathname));
