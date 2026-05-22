@@ -67,7 +67,8 @@ const calcularMesSiguiente = (year, month) => {
     const mes   = month === 12 ? 1 : month + 1;
     const anio  = month === 12 ? year + 1 : year;
     const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
-    const hasta  = `${anio}-${String(mes).padStart(2, '0')}-31`;
+    const ultimoDia = new Date(anio, mes, 0).getDate();
+    const hasta  = `${anio}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
     return { anio, mes, desde, hasta };
 };
 
@@ -197,6 +198,8 @@ export const createExpense = async (gasto) => {
             console.error('❌ Error en createExpense:', error);
             throw error;
         }
+        // Supabase devuelve data: null sin error cuando RLS rechaza el insert silenciosamente.
+        if (!data) throw new Error('No se pudo guardar el gasto. Verificá tu conexión o permisos.');
         return data;
     }
 
@@ -233,6 +236,7 @@ export const createExpense = async (gasto) => {
         console.error('❌ Error al insertar primera cuota:', errPrimero);
         throw errPrimero;
     }
+    if (!primero) throw new Error('No se pudo guardar el gasto. Verificá tu conexión o permisos.');
 
     // Siempre vinculamos la primera cuota a sí misma como padre para que
     // getTarjetasEnCuotas pueda encontrarla (filtra por id_gasto_padre != null).
@@ -253,15 +257,17 @@ export const createExpense = async (gasto) => {
     // Las cuotas 2..N apuntan al primer registro como padre
     const restantes = registros.slice(1).map(r => ({ ...r, id_gasto_padre: primero.id }));
 
-    const { error: errRestantes } = await supabase
+    const { data: dataRestantes, error: errRestantes } = await supabase
         .from('gastos')
-        .insert(restantes);
+        .insert(restantes)
+        .select();
 
-    if (errRestantes) {
-        // Rollback: eliminar la cuota 1 para no dejar huérfana.
-        await supabase.from('gastos').delete().eq('id', primero.id);
-        console.error('❌ Error al insertar cuotas restantes:', errRestantes);
-        throw errRestantes;
+    if (errRestantes || !dataRestantes?.length) {
+        // Rollback: eliminar padre e hijos parcialmente insertados por id_gasto_padre.
+        await supabase.from('gastos').delete().eq('id_gasto_padre', primero.id);
+        const motivo = errRestantes || new Error('No se pudo guardar el gasto. Verificá tu conexión o permisos.');
+        console.error('❌ Error al insertar cuotas restantes:', motivo);
+        throw motivo;
     }
 
     return primero;
@@ -421,8 +427,8 @@ export const deleteExpenseGroup = async (idGastoPadre) => {
 
     const usuario = await obtenerUsuarioActivo();
 
-    // El CASCADE en la FK elimina los hijos, pero eliminamos todos explícitamente
-    // para no depender de que el FK CASCADE esté activo en todas las instancias.
+    // El padre tiene id_gasto_padre = id (autoref), por lo que este único delete
+    // elimina tanto el padre como todos sus hijos en una sola operación atómica.
     const { error } = await supabase
         .from('gastos')
         .delete()
@@ -430,15 +436,6 @@ export const deleteExpenseGroup = async (idGastoPadre) => {
         .eq('id_gasto_padre', idGastoPadre);
 
     if (error) throw error;
-
-    // Eliminar también el registro padre
-    const { error: errPadre } = await supabase
-        .from('gastos')
-        .delete()
-        .eq('user_id', usuario.id)
-        .eq('id', idGastoPadre);
-
-    if (errPadre) throw errPadre;
 };
 
 /**
@@ -605,6 +602,11 @@ export const deleteVariableExpenses = async () => {
  */
 export const getCategories = async () => {
     const usuario = await obtenerUsuarioActivo();
+
+    // Validamos que el ID sea un UUID antes de interpolarlo en el filtro PostgREST.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(usuario.id)) {
+        throw new Error('ID de usuario inválido');
+    }
 
     // Traemos globales (user_id IS NULL) y propias del usuario autenticado
     const { data, error } = await supabase
