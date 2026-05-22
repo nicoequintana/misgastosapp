@@ -30,6 +30,9 @@ const ESTADO_INICIAL_GASTO = {
     primeraCuota: '',
 };
 
+/** Estado inicial vacío para el formulario de ingresos */
+const INCOME_FORM_INICIAL = { monto: '', descripcion: '', categoria_id: '', es_recurrente: false };
+
 /** Estado inicial vacío para las estadísticas */
 const ESTADO_INICIAL_STATS = {
     totalGastos: 0,
@@ -177,7 +180,6 @@ const Dashboard = () => {
     const [errorForm, setErrorForm] = useState(null);
 
     // Estado del panel de ingresos
-    const INCOME_FORM_INICIAL = { monto: '', descripcion: '', categoria_id: '', es_recurrente: false };
     const [ingresosMes, setIngresosMes]             = useState([]);
     const [recurrentes, setRecurrentes]             = useState([]);
     const [categoriaIngresos, setCategoriaIngresos] = useState([]);

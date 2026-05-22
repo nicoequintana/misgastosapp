@@ -221,7 +221,7 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
         if (isSupabaseConfigured) {
             // Verificar que el user_id existe en auth.users antes de insertar.
             // Mensaje genérico para no confirmar existencia de UUIDs (evita user enumeration).
-            const { data: usuarioExiste, error: errorUser } = await supabase
+            const { data: usuarioExiste, error: errorUser } = await supabaseAdmin
                 .from('usuarios')
                 .select('id')
                 .eq('id', user_id)
@@ -232,7 +232,7 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
             }
 
             // Verificar duplicados por fingerprint
-            const { data: existing } = await supabase
+            const { data: existing } = await supabaseAdmin
                 .from('gastos')
                 .select('id')
                 .eq('huella_digital', fingerprint)

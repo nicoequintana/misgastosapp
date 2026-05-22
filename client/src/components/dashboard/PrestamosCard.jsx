@@ -1,83 +1,7 @@
 import React, { useState } from 'react';
 import GlassCard from '../GlassCard';
-import { formatCurrency } from '../../utils/format';
-
-/**
- * Fila de un préstamo en cuotas con progreso visual y detalle expandible.
- */
-const FilaCuotaPrestamo = ({ grupo }) => {
-    const [expandida, setExpandida] = useState(false);
-    const progreso = grupo.cuotas > 0 ? (grupo.pagadas / grupo.cuotas) * 100 : 0;
-    const finalizada = grupo.pendientes === 0;
-
-    const hoy = new Date();
-    const hoyStr = hoy.toISOString().split('T')[0];
-
-    return (
-        <div className={`cuotas-fila${finalizada ? ' cuotas-fila--finalizada' : ''}`}>
-            <div className="cuotas-fila-header" onClick={() => setExpandida(v => !v)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && setExpandida(v => !v)}>
-                <div className="cuotas-fila-info">
-                    <div className="cuotas-fila-top">
-                        <span className="cuotas-descripcion">{grupo.descripcionBase}</span>
-                        {finalizada && (
-                            <span className="cuotas-badge cuotas-badge--ok">
-                                <span className="material-symbols-outlined">check_circle</span>
-                                Saldado
-                            </span>
-                        )}
-                        {!finalizada && (
-                            <span className="cuotas-badge cuotas-badge--pendiente">
-                                {grupo.pendientes} restante{grupo.pendientes > 1 ? 's' : ''}
-                            </span>
-                        )}
-                    </div>
-                    <span className="cuotas-categoria">{grupo.categoria}</span>
-                    <div className="cuotas-barra-wrap">
-                        <div className="cuotas-barra-track">
-                            <div
-                                className="cuotas-barra-fill"
-                                style={{ width: `${progreso}%` }}
-                            />
-                        </div>
-                        <span className="cuotas-barra-label">
-                            {grupo.pagadas}/{grupo.cuotas} cuotas
-                        </span>
-                    </div>
-                </div>
-                <div className="cuotas-fila-montos">
-                    <span className="cuotas-monto-mensual">${formatCurrency(grupo.montoMensual)}/mes</span>
-                    <span className="cuotas-monto-total">Total: ${formatCurrency(grupo.totalOriginal)}</span>
-                    <span className={`cuotas-chevron${expandida ? ' cuotas-chevron--open' : ''}`}>
-                        <span className="material-symbols-outlined">expand_more</span>
-                    </span>
-                </div>
-            </div>
-
-            {expandida && (
-                <div className="cuotas-detalle">
-                    {grupo.cuotasList.map((c) => {
-                        const fechaStr = (c.fecha || '').split('T')[0];
-                        const pagada = fechaStr <= hoyStr;
-                        const fecha = new Date(`${fechaStr}T12:00:00`).toLocaleDateString('es-AR', {
-                            month: 'short',
-                            year: 'numeric',
-                        });
-                        return (
-                            <div key={c.id} className={`cuotas-detalle-row${pagada ? ' cuotas-detalle-row--pagada' : ''}`}>
-                                <span className="material-symbols-outlined cuotas-detalle-icon">
-                                    {pagada ? 'check_circle' : 'radio_button_unchecked'}
-                                </span>
-                                <span className="cuotas-detalle-num">Cuota {c.numero_cuota}</span>
-                                <span className="cuotas-detalle-fecha">{fecha}</span>
-                                <span className="cuotas-detalle-monto">${formatCurrency(parseFloat(c.monto))}</span>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
-    );
-};
+import FilaCuotaItem from './FilaCuotaItem';
+import { formatCurrency, calcularMesSiguiente } from '../../utils/format';
 
 /**
  * Card de préstamos en cuotas.
@@ -93,14 +17,7 @@ const PrestamosCard = ({ grupos, gastosFuturos }) => {
 
     const totalPendienteMes = activos.reduce((s, g) => s + (g.montoMesCorriente ?? 0), 0);
 
-    const hoy = new Date();
-    const anioSig = hoy.getMonth() === 11 ? hoy.getFullYear() + 1 : hoy.getFullYear();
-    const mesSig  = hoy.getMonth() === 11 ? 1 : hoy.getMonth() + 2;
-    const nombreMesSig = new Date(anioSig, mesSig - 1, 1).toLocaleDateString('es-AR', {
-        month: 'long',
-        year: 'numeric',
-    });
-
+    const { nombre: nombreMesSig } = calcularMesSiguiente();
     const gruposFuturos     = (gastosFuturos ?? []).filter(g => g.montoMesSiguiente > 0);
     const totalMesSiguiente = gruposFuturos.reduce((s, g) => s + g.montoMesSiguiente, 0);
 
@@ -133,7 +50,7 @@ const PrestamosCard = ({ grupos, gastosFuturos }) => {
                         {visibles.length === 0 ? (
                             <p className="cuotas-empty-text">No hay préstamos activos.</p>
                         ) : (
-                            visibles.map(g => <FilaCuotaPrestamo key={g.id} grupo={g} />)
+                            visibles.map(g => <FilaCuotaItem key={g.id} grupo={g} labelSaldado="Saldado" />)
                         )}
                     </div>
                     {saldados.length > 0 && (

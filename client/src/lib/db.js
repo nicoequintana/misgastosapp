@@ -22,10 +22,12 @@ import {
 
 // ==================== HELPERS INTERNOS ====================
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
+
 /**
  * Obtiene el usuario autenticado actual.
  * Lanza un error descriptivo si no hay sesión activa.
- * 
+ *
  * @returns {Object} Objeto de usuario de Supabase
  * @throws {Error} Si no hay sesión activa
  */
@@ -41,6 +43,70 @@ const obtenerUsuarioActivo = async () => {
     }
 
     return user;
+};
+
+/**
+ * Obtiene el access_token de la sesión activa.
+ * Lanza error si no hay sesión — usado por operaciones que llaman al backend.
+ * @returns {string} JWT access token
+ */
+const obtenerTokenActivo = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('No hay sesión activa');
+    return session.access_token;
+};
+
+/**
+ * Calcula el año y mes del mes siguiente a partir de un año y mes dados.
+ * Maneja el salto de diciembre a enero.
+ * @param {number} year  - Año de referencia
+ * @param {number} month - Mes 1-indexado (1-12)
+ * @returns {{ anio: number, mes: number, desde: string, hasta: string }}
+ */
+const calcularMesSiguiente = (year, month) => {
+    const mes   = month === 12 ? 1 : month + 1;
+    const anio  = month === 12 ? year + 1 : year;
+    const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
+    const hasta  = `${anio}-${String(mes).padStart(2, '0')}-31`;
+    return { anio, mes, desde, hasta };
+};
+
+/**
+ * Valida que un valor sea un número mayor a cero.
+ * @param {any} valor
+ * @throws {Error} Si el valor no es válido
+ */
+const validarMonto = (valor) => {
+    const num = Number(valor);
+    if (isNaN(num) || num <= 0) throw new Error('El monto debe ser mayor a cero');
+};
+
+/**
+ * Agrupa gastos por nombre de categoría.
+ * @param {Array} gastos
+ * @param {boolean} conPorcentaje - Si true, agrega el campo porcentaje
+ * @returns {Object} Mapa { [nombreCategoria]: { total, cantidad, porcentaje? } }
+ */
+const agruparPorCategoria = (gastos, conPorcentaje = false) => {
+    const totalGlobal = conPorcentaje
+        ? gastos.reduce((s, g) => s + parseFloat(g.monto || 0), 0)
+        : 0;
+
+    const mapa = gastos.reduce((acc, g) => {
+        const nombre = g.categorias?.nombre || 'Sin categoría';
+        if (!acc[nombre]) acc[nombre] = { total: 0, cantidad: 0 };
+        acc[nombre].total    += parseFloat(g.monto || 0);
+        acc[nombre].cantidad += 1;
+        return acc;
+    }, {});
+
+    if (conPorcentaje) {
+        Object.values(mapa).forEach(c => {
+            c.porcentaje = totalGlobal > 0 ? (c.total / totalGlobal) * 100 : 0;
+        });
+    }
+
+    return mapa;
 };
 
 // ==================== GASTOS ====================
@@ -59,10 +125,8 @@ export const getExpenses = async () => {
     const hoy = new Date();
     const anio = hoy.getFullYear();
     const mes = String(hoy.getMonth() + 1).padStart(2, '0');
-    const mesSiguiente = hoy.getMonth() === 11 ? 1 : hoy.getMonth() + 2;
-    const anioSiguiente = hoy.getMonth() === 11 ? anio + 1 : anio;
     const desde = `${anio}-${mes}-01`;
-    const hasta = `${anioSiguiente}-${String(mesSiguiente).padStart(2, '0')}-01`;
+    const { desde: hasta } = calcularMesSiguiente(anio, hoy.getMonth() + 1);
 
     const { data, error } = await supabase
         .from('gastos')
@@ -101,10 +165,8 @@ export const createExpense = async (gasto) => {
         throw new Error('La descripción debe ser un texto válido');
     }
 
+    validarMonto(gasto.monto);
     const montoNumero = Number(gasto.monto);
-    if (isNaN(montoNumero) || montoNumero <= 0) {
-        throw new Error('El monto debe ser mayor a cero');
-    }
 
     const esTarjetaCredito = gasto.esTarjetaCredito === true;
     const esPrestamo = gasto.esPrestamo === true;
@@ -287,8 +349,7 @@ export const getPrestamosGastosFuturos = async () => {
     const usuario = await obtenerUsuarioActivo();
 
     const hoy = new Date();
-    const anio = hoy.getMonth() === 11 ? hoy.getFullYear() + 1 : hoy.getFullYear();
-    const mes = hoy.getMonth() === 11 ? 1 : hoy.getMonth() + 2;
+    const { anio, mes, desde: mesSigInicio, hasta: mesSigFin } = calcularMesSiguiente(hoy.getFullYear(), hoy.getMonth() + 1);
     const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
 
     const { data, error } = await supabase
@@ -305,12 +366,6 @@ export const getPrestamosGastosFuturos = async () => {
         .order('numero_cuota', { ascending: true });
 
     if (error) throw error;
-
-    const hoyF = new Date();
-    const anioSig = hoyF.getMonth() === 11 ? hoyF.getFullYear() + 1 : hoyF.getFullYear();
-    const mesSig = hoyF.getMonth() === 11 ? 1 : hoyF.getMonth() + 2;
-    const mesSigInicio = `${anioSig}-${String(mesSig).padStart(2, '0')}-01`;
-    const mesSigFin = `${anioSig}-${String(mesSig).padStart(2, '0')}-31`;
 
     const grupos = agruparPorPadre(filtrarPrestamos(data ?? []));
 
@@ -330,8 +385,7 @@ export const getGastosFuturos = async () => {
 
     // Primer día del mes siguiente como límite inferior
     const hoy = new Date();
-    const anio = hoy.getMonth() === 11 ? hoy.getFullYear() + 1 : hoy.getFullYear();
-    const mes = hoy.getMonth() === 11 ? 1 : hoy.getMonth() + 2;
+    const { anio, mes, desde: mesSigInicio, hasta: mesSigFin } = calcularMesSiguiente(hoy.getFullYear(), hoy.getMonth() + 1);
     const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
 
     const { data, error } = await supabase
@@ -349,16 +403,10 @@ export const getGastosFuturos = async () => {
 
     if (error) throw error;
 
-    const hoyF2 = new Date();
-    const anioSig2 = hoyF2.getMonth() === 11 ? hoyF2.getFullYear() + 1 : hoyF2.getFullYear();
-    const mesSig2 = hoyF2.getMonth() === 11 ? 1 : hoyF2.getMonth() + 2;
-    const mesSigInicio2 = `${anioSig2}-${String(mesSig2).padStart(2, '0')}-01`;
-    const mesSigFin2 = `${anioSig2}-${String(mesSig2).padStart(2, '0')}-31`;
-
     const gruposTarjeta = agruparPorPadre(filtrarTarjetaCredito(data ?? []));
 
     return Object.values(gruposTarjeta)
-        .map(c => transformarGrupoCuotasFuturas(c, mesSigInicio2, mesSigFin2))
+        .map(c => transformarGrupoCuotasFuturas(c, mesSigInicio, mesSigFin))
         .sort((a, b) => a.cuotasFuturas[0]?.fecha?.localeCompare(b.cuotasFuturas[0]?.fecha));
 };
 
@@ -473,13 +521,7 @@ export const updateExpense = async (id, gasto) => {
 
     const usuario = await obtenerUsuarioActivo();
 
-    // Validar monto si se proporciona
-    if (gasto.monto !== undefined) {
-        const montoNumero = Number(gasto.monto);
-        if (isNaN(montoNumero) || montoNumero <= 0) {
-            throw new Error('El monto debe ser mayor a cero');
-        }
-    }
+    if (gasto.monto !== undefined) validarMonto(gasto.monto);
 
     // Validar fecha si se proporciona — previene fechas arbitrarias que corrompen estadísticas
     if (gasto.fecha !== undefined) {
@@ -664,12 +706,9 @@ export const getPaymentMethods = async () => {
 export const getIncomesByMonth = async (year, month) => {
     const usuario = await obtenerUsuarioActivo();
 
-    const mesStr        = String(month).padStart(2, '0');
-    const mesSigNum     = month === 12 ? 1  : month + 1;
-    const anioSig       = month === 12 ? year + 1 : year;
-    const mesSigStr     = String(mesSigNum).padStart(2, '0');
-    const desde         = `${year}-${mesStr}-01`;
-    const hasta         = `${anioSig}-${mesSigStr}-01`;
+    const mesStr = String(month).padStart(2, '0');
+    const desde  = `${year}-${mesStr}-01`;
+    const { desde: hasta } = calcularMesSiguiente(year, month);
 
     const { data, error } = await supabase
         .from('ingresos')
@@ -714,10 +753,8 @@ export const getIncomeTotalByMonth = async (year, month) => {
 export const createIncome = async ({ monto, fecha, descripcion, categoria_id }) => {
     const usuario = await obtenerUsuarioActivo();
 
+    validarMonto(monto);
     const montoNum = Number(monto);
-    if (isNaN(montoNum) || montoNum <= 0) {
-        throw new Error('El ingreso debe ser mayor a cero');
-    }
 
     // Validar que la fecha no sea de un mes anterior al actual
     const hoy        = new Date();
@@ -763,10 +800,7 @@ export const createIncome = async ({ monto, fecha, descripcion, categoria_id }) 
 export const updateIncome = async (id, { monto, fecha, descripcion, categoria_id }) => {
     const usuario = await obtenerUsuarioActivo();
 
-    if (monto !== undefined) {
-        const montoNum = Number(monto);
-        if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
-    }
+    if (monto !== undefined) validarMonto(monto);
 
     if (fecha) {
         const hoy        = new Date();
@@ -827,6 +861,8 @@ export const deleteIncome = async (id) => {
  * @returns {Array} Lista de categorías con flag es_propia
  */
 export const getIncomeCategories = async () => {
+    const usuario = await obtenerUsuarioActivo();
+
     const { data, error } = await supabase
         .from('categorias_ingresos')
         .select('*')
@@ -838,7 +874,6 @@ export const getIncomeCategories = async () => {
         throw error;
     }
 
-    const usuario = await obtenerUsuarioActivo();
     return (data ?? []).map(c => ({ ...c, es_propia: c.user_id === usuario.id }));
 };
 
@@ -891,8 +926,8 @@ export const getRecurringIncomes = async () => {
 export const createRecurringIncome = async ({ descripcion, monto, categoria_id, dia_estimado, fecha_inicio }) => {
     const usuario = await obtenerUsuarioActivo();
 
+    validarMonto(monto);
     const montoNum = Number(monto);
-    if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
     if (!descripcion?.trim()) throw new Error('La descripción es obligatoria');
 
     const hoy = new Date();
@@ -932,10 +967,9 @@ export const updateRecurringIncome = async (id, data) => {
 
     const payload = { fecha_actualizacion: new Date().toISOString() };
     if (data.descripcion !== undefined) payload.descripcion = data.descripcion.trim().toUpperCase();
-    if (data.monto       !== undefined) {
-        const m = Number(data.monto);
-        if (isNaN(m) || m <= 0) throw new Error('El monto debe ser mayor a cero');
-        payload.monto = m;
+    if (data.monto !== undefined) {
+        validarMonto(data.monto);
+        payload.monto = Number(data.monto);
     }
     if (data.categoria_id  !== undefined) payload.categoria_id  = data.categoria_id  || null;
     if (data.dia_estimado  !== undefined) payload.dia_estimado  = data.dia_estimado  || null;
@@ -1002,11 +1036,9 @@ export const deleteRecurringIncome = async (id) => {
  * @returns {{ proyectados: Array, totalProyectado: number, totalReal: number, totalCombinado: number }}
  */
 export const getProjectedIncomeByMonth = async (year, month) => {
-    const mesStr    = String(month).padStart(2, '0');
+    const mesStr     = String(month).padStart(2, '0');
     const periodoStr = `${year}-${mesStr}-01`;
-    const mesSigNum  = month === 12 ? 1 : month + 1;
-    const anioSig    = month === 12 ? year + 1 : year;
-    const hasta      = `${anioSig}-${String(mesSigNum).padStart(2, '0')}-01`;
+    const { desde: hasta } = calcularMesSiguiente(year, month);
 
     const [recurrentes, ingresosReales] = await Promise.all([
         getRecurringIncomes(),
@@ -1162,14 +1194,6 @@ export const getStats = async () => {
     const gastosVariables = totalGastos - gastosFijos;
     const saldoDisponible = ingresoMensual - totalGastos;
 
-    const porCategoria = gastos.reduce((acc, gasto) => {
-        const nombre = gasto.categorias?.nombre || 'Sin categoría';
-        if (!acc[nombre]) acc[nombre] = { total: 0, cantidad: 0 };
-        acc[nombre].total    += parseFloat(gasto.monto || 0);
-        acc[nombre].cantidad += 1;
-        return acc;
-    }, {});
-
     return {
         totalGastos,
         gastosFijos,
@@ -1177,7 +1201,7 @@ export const getStats = async () => {
         saldoDisponible,
         ingresoMensual,
         gastos,
-        porCategoria,
+        porCategoria: agruparPorCategoria(gastos),
     };
 };
 
@@ -1243,16 +1267,7 @@ export const getReporteByRango = async (desde, hasta) => {
     const gastosVariables = totalGastos - gastosFijos;
 
     // Desglose por categoría con porcentaje sobre el total
-    const porCategoria = gastos.reduce((acc, g) => {
-        const nombre = g.categorias?.nombre || 'Sin categoría';
-        if (!acc[nombre]) acc[nombre] = { total: 0, cantidad: 0, porcentaje: 0 };
-        acc[nombre].total    += parseFloat(g.monto || 0);
-        acc[nombre].cantidad += 1;
-        return acc;
-    }, {});
-    Object.values(porCategoria).forEach(c => {
-        c.porcentaje = totalGastos > 0 ? (c.total / totalGastos) * 100 : 0;
-    });
+    const porCategoria = agruparPorCategoria(gastos, true);
 
     // Desglose por método de pago
     const porMetodoPago = gastos.reduce((acc, g) => {
@@ -1297,11 +1312,8 @@ export const getStatsByMonth = async (year, month) => {
 
     // Construimos las fechas como strings YYYY-MM-DD para evitar desfases UTC en Argentina (UTC-3).
     const mesStr = String(month).padStart(2, '0');
-    const mesSiguienteNum = month === 12 ? 1 : month + 1;
-    const anioSiguiente = month === 12 ? year + 1 : year;
-    const mesSiguienteStr = String(mesSiguienteNum).padStart(2, '0');
     const desde = `${year}-${mesStr}-01`;
-    const hasta = `${anioSiguiente}-${mesSiguienteStr}-01`;
+    const { desde: hasta } = calcularMesSiguiente(year, month);
 
     const { data, error } = await supabase
         .from('gastos')
@@ -1323,15 +1335,7 @@ export const getStatsByMonth = async (year, month) => {
     const gastosFijos = gastosFijosLista.reduce((s, g) => s + parseFloat(g.monto || 0), 0);
     const gastosVariables = totalGastos - gastosFijos;
 
-    const porCategoria = gastos.reduce((acc, g) => {
-        const nombre = g.categorias?.nombre || 'Sin categoría';
-        if (!acc[nombre]) acc[nombre] = { total: 0, cantidad: 0 };
-        acc[nombre].total += parseFloat(g.monto || 0);
-        acc[nombre].cantidad += 1;
-        return acc;
-    }, {});
-
-    return { totalGastos, gastosFijos, gastosVariables, gastosFijosLista, porCategoria };
+    return { totalGastos, gastosFijos, gastosVariables, gastosFijosLista, porCategoria: agruparPorCategoria(gastos) };
 };
 
 // ============================================================
@@ -1653,8 +1657,7 @@ export const obtenerMiembrosDelGrupo = async (grupoId) => {
         const token = sessionData?.session?.access_token;
         if (!token) return miembros;
 
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
-        const response = await fetch(`${backendUrl}/api/grupos/${grupoId}/miembros/perfiles`, {
+        const response = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}/miembros/perfiles`, {
             headers: {
                 Authorization: `Bearer ${token}`,
             },
@@ -1852,20 +1855,18 @@ export const crearGastoGrupal = async ({
 }) => {
     if (!grupoId) throw new Error('ID de grupo requerido');
     if (!descripcion || !descripcion.trim()) throw new Error('La descripción es requerida');
+    validarMonto(monto);
     const montoNum = Number(monto);
-    if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
     if (!pagadoPor) throw new Error('El pagador es requerido');
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         throw new Error('Debe haber al menos un participante');
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('No hay sesión activa');
+    const token = await obtenerTokenActivo();
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
-    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/gastos`, {
+    const res = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}/gastos`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, nota, idCategoria, participantesUserIds }),
     });
 
@@ -1905,8 +1906,8 @@ export const crearGastoGrupalEnCuotas = async ({
 }) => {
     if (!grupoId) throw new Error('ID de grupo requerido');
     if (!descripcion || !descripcion.trim()) throw new Error('La descripción es requerida');
+    validarMonto(monto);
     const montoNum = Number(monto);
-    if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
     const cantCuotas = Math.max(1, Math.min(18, parseInt(cuotas) || 1));
     if (!pagadoPor) throw new Error('El pagador es requerido');
     if (!primeraCuota) throw new Error('Indicá en qué mes vence la primera cuota');
@@ -1914,13 +1915,11 @@ export const crearGastoGrupalEnCuotas = async ({
         throw new Error('Debe haber al menos un participante');
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('No hay sesión activa');
+    const token = await obtenerTokenActivo();
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
-    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/gastos-cuotas`, {
+    const res = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}/gastos-cuotas`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
             descripcion,
             monto: montoNum,
@@ -2059,13 +2058,11 @@ export const anularGastoGrupal = async (gastoId, grupoId) => {
     if (!gastoId) throw new Error('ID de gasto inválido');
     if (!grupoId) throw new Error('ID de grupo inválido');
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('No hay sesión activa');
+    const token = await obtenerTokenActivo();
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
-    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/gastos/${gastoId}/anular`, {
+    const res = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}/gastos/${gastoId}/anular`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     });
 
     const json = await res.json();
@@ -2086,13 +2083,11 @@ export const anularCuotasGrupales = async (gastoId, grupoId, force = false) => {
     if (!gastoId) throw new Error('ID de gasto inválido');
     if (!grupoId) throw new Error('ID de grupo inválido');
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('No hay sesión activa');
+    const token = await obtenerTokenActivo();
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
-    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/gastos/${gastoId}/anular-cuotas`, {
+    const res = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}/gastos/${gastoId}/anular-cuotas`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ force }),
     });
 
@@ -2120,16 +2115,14 @@ export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, mon
     if (!gastoId) throw new Error('ID de gasto inválido');
     if (!grupoId) throw new Error('ID de grupo inválido');
     if (!participantesUserIds?.length) throw new Error('Se requiere al menos un participante');
+    validarMonto(monto);
     const montoNum = Number(monto);
-    if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('No hay sesión activa');
+    const token = await obtenerTokenActivo();
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
-    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/gastos/${gastoId}`, {
+    const res = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}/gastos/${gastoId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, primeraCuota, idCategoria, nota, participantesUserIds }),
     });
 
@@ -2148,14 +2141,13 @@ export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, mon
 export const eliminarGrupo = async (grupoId) => {
     if (!grupoId) throw new Error('ID de grupo inválido');
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('No hay sesión activa');
+    const token = await obtenerTokenActivo();
 
     const res = await fetch(`/api/grupos/${grupoId}`, {
         method: 'DELETE',
         headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${token}`,
         },
     });
 
@@ -2183,16 +2175,14 @@ export const registrarLiquidacion = async ({ grupoId, deUserId, paraUserId, mont
     if (!grupoId) throw new Error('ID de grupo requerido');
     if (!deUserId || !paraUserId) throw new Error('deUserId y paraUserId son requeridos');
     if (deUserId === paraUserId) throw new Error('El pagador y el receptor no pueden ser la misma persona');
+    validarMonto(monto);
     const montoNum = Number(monto);
-    if (isNaN(montoNum) || montoNum <= 0) throw new Error('El monto debe ser mayor a cero');
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('No hay sesión activa');
+    const token = await obtenerTokenActivo();
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
-    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/liquidaciones`, {
+    const res = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}/liquidaciones`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ deUserId, paraUserId, monto: montoNum, fecha, nota }),
     });
 
@@ -2231,13 +2221,11 @@ export const anularLiquidacion = async (liquidacionId, grupoId) => {
     if (!liquidacionId) throw new Error('ID de liquidación inválido');
     if (!grupoId) throw new Error('ID de grupo inválido');
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('No hay sesión activa');
+    const token = await obtenerTokenActivo();
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
-    const res = await fetch(`${backendUrl}/api/grupos/${grupoId}/liquidaciones/${liquidacionId}/anular`, {
+    const res = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}/liquidaciones/${liquidacionId}/anular`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     });
 
     const json = await res.json();

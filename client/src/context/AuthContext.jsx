@@ -72,12 +72,12 @@ export const AuthProvider = ({ children }) => {
         // scope: 'global' invalida todos los tokens del usuario en todos los dispositivos.
         // Usar cuando se sospecha exposición de tokens (URL filtrada, sesión comprometida).
         const { error } = await supabase.auth.signOut({ scope: 'global' });
-        if (!error) {
-            setUser(null);
-            setSession(null);
-        } else {
+        if (error) {
             console.error('❌ Error al cerrar sesión:', error.message);
+            throw error;
         }
+        setUser(null);
+        setSession(null);
     };
 
     const value = {

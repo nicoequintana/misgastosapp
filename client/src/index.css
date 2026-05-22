@@ -678,13 +678,16 @@
   padding: 0;
 }
 
+html {
+  height: 100%;
+}
+
 body {
   min-height: 100vh;
   background: var(--app-bg);
   background-attachment: fixed;
   color: var(--text-main);
   overflow-x: hidden;
-  position: relative;
   transition: background 0.3s ease, color 0.3s ease;
 }
 
@@ -697,7 +700,6 @@ body::after {
   filter: blur(120px);
   z-index: -1;
   pointer-events: none;
-  will-change: transform;
 }
 
 body::before {
@@ -4866,7 +4868,10 @@ body::after {
 /* Overlay que cubre toda la pantalla durante la carga inicial */
 .app-loader-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   z-index: 9999;
   display: flex;
   align-items: center;

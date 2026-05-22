@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 
 /**
  * Loader de primer nivel que cubre toda la pantalla mientras la app inicializa.
@@ -26,21 +27,26 @@ const AppLoader = ({ loading, children }) => {
         }
     }, [loading]);
 
-    return (
-        <>
-            {visible && (
-                <div className={`app-loader-overlay${exiting ? ' app-loader-overlay--exit' : ''}`}>
-                    <div className="app-loader-card">
-                        <div className="app-loader-logo">
-                            <span className="material-symbols-outlined app-loader-icon">account_balance_wallet</span>
-                        </div>
-                        <p className="app-loader-brand">Tus Gastos</p>
-                        <div className="app-loader-bar">
-                            <div className="app-loader-bar-fill" />
-                        </div>
+    const overlay = visible
+        ? ReactDOM.createPortal(
+            <div className={`app-loader-overlay${exiting ? ' app-loader-overlay--exit' : ''}`}>
+                <div className="app-loader-card">
+                    <div className="app-loader-logo">
+                        <span className="material-symbols-outlined app-loader-icon">account_balance_wallet</span>
+                    </div>
+                    <p className="app-loader-brand">Tus Gastos</p>
+                    <div className="app-loader-bar">
+                        <div className="app-loader-bar-fill" />
                     </div>
                 </div>
-            )}
+            </div>,
+            document.body
+        )
+        : null;
+
+    return (
+        <>
+            {overlay}
             {children}
         </>
     );
