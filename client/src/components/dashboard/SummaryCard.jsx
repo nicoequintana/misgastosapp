@@ -1,33 +1,26 @@
 import React from 'react';
-import GlassCard from '../GlassCard';
 import { formatCurrency } from '../../utils/format';
 
 /**
- * Tarjeta de resumen financiero.
- * La prop `dominant` aplica jerarquía visual destacada (para Saldo Disponible).
- * La prop `subtitle` muestra una línea de contexto debajo del monto.
+ * Fila de dato financiero dentro del summary-panel.
+ * La prop `dominant` aplica jerarquía visual destacada (Saldo Disponible).
  */
 const SummaryCard = ({ title, amount, icon, color, dominant = false, subtitle }) => (
-    <GlassCard className={`summary-card${dominant ? ' summary-card--dominant' : ''}`}>
-        <div className="summary-card-top">
-            <div className="summary-icon" style={{
-                backgroundColor: `var(--${color}-light)`,
-                color: `var(--${color})`
-            }}>
-                <span className="material-symbols-outlined">{icon}</span>
-            </div>
-            {dominant && (
-                <span className="summary-card-badge">Principal</span>
-            )}
+    <div className={`summary-row${dominant ? ' summary-row--dominant' : ''}`}>
+        <div className="summary-row-icon" style={{
+            backgroundColor: `var(--${color}-light)`,
+            color: `var(--${color})`
+        }}>
+            <span className="material-symbols-outlined">{icon}</span>
         </div>
-        <p className="summary-label">{title}</p>
-        <h3 className="summary-amount" style={{ color: dominant ? `var(--${color})` : undefined }}>
+        <div className="summary-row-label">
+            <span className="summary-row-title">{title}</span>
+            {subtitle && <span className="summary-row-subtitle">{subtitle}</span>}
+        </div>
+        <span className="summary-row-amount" style={{ color: dominant ? `var(--${color})` : undefined }}>
             ${formatCurrency(amount)}
-        </h3>
-        {subtitle && (
-            <p className="summary-subtitle">{subtitle}</p>
-        )}
-    </GlassCard>
+        </span>
+    </div>
 );
 
 export default SummaryCard;

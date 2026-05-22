@@ -584,7 +584,7 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            <div className="summary-grid">
+            <div className="summary-panel">
                 <SummaryCard
                     title="Ingresos"
                     amount={stats.ingresoMensual}

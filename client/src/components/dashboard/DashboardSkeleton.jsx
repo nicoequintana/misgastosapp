@@ -12,15 +12,15 @@ const Bone = ({ w = '100%', h = '14px', radius = '6px', style = {} }) => (
     <div className="sk-bone" style={{ width: w, height: h, borderRadius: radius, ...style }} />
 );
 
-const SummaryCardSkeleton = ({ dominant = false }) => (
-    <GlassCard className={`summary-card${dominant ? ' summary-card--dominant' : ''}`}>
-        <div className="summary-card-top">
-            <Bone w="40px" h="40px" radius="12px" />
+const SummaryRowSkeleton = ({ dominant = false }) => (
+    <div className={`summary-row${dominant ? ' summary-row--dominant' : ''}`}>
+        <Bone w="36px" h="36px" radius="10px" style={{ flexShrink: 0 }} />
+        <div className="summary-row-label">
+            <Bone w="60%" h="11px" />
+            <Bone w="45%" h="10px" style={{ marginTop: '4px' }} />
         </div>
-        <Bone w="60%" h="12px" style={{ marginTop: '12px' }} />
-        <Bone w="75%" h="28px" radius="8px" style={{ marginTop: '8px' }} />
-        <Bone w="50%" h="11px" style={{ marginTop: '8px' }} />
-    </GlassCard>
+        <Bone w="72px" h="16px" radius="6px" />
+    </div>
 );
 
 const TableRowSkeleton = () => (
@@ -65,12 +65,12 @@ const DashboardSkeleton = () => (
             </div>
         </div>
 
-        {/* Summary cards */}
-        <div className="summary-grid">
-            <SummaryCardSkeleton />
-            <SummaryCardSkeleton dominant />
-            <SummaryCardSkeleton />
-            <SummaryCardSkeleton />
+        {/* Summary panel */}
+        <div className="summary-panel">
+            <SummaryRowSkeleton />
+            <SummaryRowSkeleton dominant />
+            <SummaryRowSkeleton />
+            <SummaryRowSkeleton />
         </div>
 
         {/* Tables */}
