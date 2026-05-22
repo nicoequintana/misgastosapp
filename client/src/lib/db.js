@@ -1004,11 +1004,16 @@ export const deleteRecurringIncome = async (id) => {
     const usuario = await obtenerUsuarioActivo();
 
     // Verificar si tiene ingresos reales generados por este recurrente
-    const { count } = await supabase
+    const { count, error: errCount } = await supabase
         .from('ingresos')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', usuario.id)
         .eq('recurrente_id', id);
+
+    if (errCount) {
+        console.error('❌ Error al verificar historial de ingreso recurrente:', errCount);
+        throw errCount;
+    }
 
     if (count > 0) {
         // Tiene historial — desactivar en vez de borrar

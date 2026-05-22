@@ -63,7 +63,7 @@ const GrupoFuturosCard = ({
                                 </tr>
                             </thead>
                             <tbody>
-                                {grupos.map((grupo) => {
+                                {grupos.filter(g => g.cuotasFuturas?.length).map((grupo) => {
                                     const primerFecha   = new Date(`${grupo.cuotasFuturas[0].fecha.split('T')[0]}T12:00:00Z`);
                                     const ultimaFecha   = new Date(`${grupo.cuotasFuturas[grupo.cuotasFuturas.length - 1].fecha.split('T')[0]}T12:00:00Z`);
                                     const totalRestante = grupo.cuotasFuturas.reduce((s, c) => s + parseFloat(c.monto), 0);
@@ -101,7 +101,7 @@ const GrupoFuturosCard = ({
 
                     {/* Vista mobile */}
                     <div className="movements-cards-mobile">
-                        {grupos.map((grupo) => {
+                        {grupos.filter(g => g.cuotasFuturas?.length).map((grupo) => {
                             const primerFecha   = new Date(`${grupo.cuotasFuturas[0].fecha.split('T')[0]}T12:00:00Z`);
                             const ultimaFecha   = new Date(`${grupo.cuotasFuturas[grupo.cuotasFuturas.length - 1].fecha.split('T')[0]}T12:00:00Z`);
                             const totalRestante = grupo.cuotasFuturas.reduce((s, c) => s + parseFloat(c.monto), 0);
