@@ -490,16 +490,20 @@ export const updateExpenseGroup = async (idGastoPadre, { descripcion, idCategori
         return { id: c.id, ...update };
     });
 
-    // Actualizar secuencialmente para detectar el primer error y detener antes de mayor daño.
-    // Promise.all no detecta errores de Supabase (devuelve { error } en lugar de lanzar).
-    for (const { id, ...fields } of actualizaciones) {
-        const { error: errUpdate } = await supabase
-            .from('gastos')
-            .update(fields)
-            .eq('id', id)
-            .eq('user_id', usuario.id);
-        if (errUpdate) throw errUpdate;
-    }
+    // Updates en paralelo — Supabase devuelve { error } en lugar de lanzar, por eso
+    // recolectamos todos los resultados y buscamos el primer error al final.
+    // La consistencia es equivalente al loop anterior: tampoco había rollback.
+    const resultados = await Promise.all(
+        actualizaciones.map(({ id, ...fields }) =>
+            supabase
+                .from('gastos')
+                .update(fields)
+                .eq('id', id)
+                .eq('user_id', usuario.id)
+        )
+    );
+    const primerError = resultados.find(r => r.error);
+    if (primerError) throw primerError.error;
 };
 
 /**
