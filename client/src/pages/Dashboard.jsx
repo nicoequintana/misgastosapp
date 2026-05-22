@@ -160,6 +160,9 @@ const Dashboard = () => {
     // Mantener el ref sincronizado para que fetchStats lo use sin dependencia directa
     dispararResumenesRef.current = dispararResumenesAutomaticos;
 
+    // Ocultar importes del summary-panel — activado por defecto para privacidad
+    const [importesOcultos, setImportesOcultos] = useState(true);
+
     // Control de los modales de la UI
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
@@ -581,6 +584,19 @@ const Dashboard = () => {
                         <span className="material-symbols-outlined">add</span>
                         <span>Nuevo Gasto</span>
                     </button>
+                    <button
+                        onClick={() => setImportesOcultos(v => !v)}
+                        className="btn btn-secondary btn-toggle-amounts"
+                        title={importesOcultos ? 'Mostrar importes' : 'Ocultar importes'}
+                        aria-label={importesOcultos ? 'Mostrar importes' : 'Ocultar importes'}
+                    >
+                        <span className="material-symbols-outlined">
+                            {importesOcultos ? 'visibility' : 'visibility_off'}
+                        </span>
+                        <span className="btn-toggle-amounts__label">
+                            {importesOcultos ? 'Mostrar importes' : 'Ocultar importes'}
+                        </span>
+                    </button>
                 </div>
             </div>
 
@@ -591,6 +607,7 @@ const Dashboard = () => {
                     icon="trending_up"
                     color="success"
                     subtitle="Ingreso registrado"
+                    hidden={importesOcultos}
                 />
                 <SummaryCard
                     title="Saldo Disponible"
@@ -599,6 +616,7 @@ const Dashboard = () => {
                     color="primary"
                     dominant
                     subtitle={stats.saldoDisponible >= 0 ? 'Estás en positivo' : 'Superaste el ingreso'}
+                    hidden={importesOcultos}
                 />
                 <SummaryCard
                     title="Gastos Fijos"
@@ -606,6 +624,7 @@ const Dashboard = () => {
                     icon="lock"
                     color="warning"
                     subtitle="Compromisos del mes"
+                    hidden={importesOcultos}
                 />
                 <SummaryCard
                     title="Gastos Variables"
@@ -613,6 +632,7 @@ const Dashboard = () => {
                     icon="payments"
                     color="danger"
                     subtitle="Gastos discrecionales"
+                    hidden={importesOcultos}
                 />
                 {gastoDiarioDisponible !== null && (
                     <SummaryCard
@@ -621,6 +641,7 @@ const Dashboard = () => {
                         icon="calendar_today"
                         color={gastoDiarioDisponible > 0 ? 'primary' : 'danger'}
                         subtitle="Hasta fin de mes"
+                        hidden={importesOcultos}
                     />
                 )}
             </div>

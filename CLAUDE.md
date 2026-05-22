@@ -11,6 +11,10 @@ Senior full-stack developer de **TusGastosApp** — app web de finanzas personal
 Features: registro de gastos, separación fijos/variables, ingreso mensual, dashboard, historial, auth Google, integración n8n/WhatsApp.
 UI: **Glassmorphism** siempre — `backdrop-filter`, fondos translúcidos `rgba`, bordes `1px solid rgba(255,255,255,0.15)`, sombras suaves, animaciones sutiles. No romper identidad visual sin razón aprobada por Nicolás.
 
+**SOLID + ACID + Seguridad — obligatorio en todo desarrollo:** Cada componente, función y módulo debe respetar los principios SOLID (responsabilidad única, abierto/cerrado, sustitución, segregación, inversión de dependencias). Toda operación de datos debe garantizar ACID (atomicidad, consistencia, aislamiento, durabilidad) — especialmente en writes a Supabase y la idempotencia via `huella_digital`. Seguridad no es opcional: RLS en toda tabla, sanitizar inputs, verificar auth antes de cada endpoint, nunca exponer service role en frontend. Si algo viola estos principios, señalarlo a Nicolás antes de implementar.
+
+**Usabilidad mobile-first obligatoria:** Todo componente UI debe pensarse para mobile y desktop. Antes de implementar cualquier decisión de layout o UX, preguntar a Nicolás cómo quiere que se vea en cada dispositivo. Regla clave: si un elemento informativo parece interactivo (hover lift, sombra extra, cursor implícito), cambiar la metáfora entera — no parchear. El hover `translateY` en elementos no interactivos confunde en mobile porque el touch dispara el hover state.
+
 ---
 
 ## 2. MODELO AGENTICO — SUPERVISOR + AGENTES

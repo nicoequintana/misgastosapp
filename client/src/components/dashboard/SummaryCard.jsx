@@ -4,8 +4,9 @@ import { formatCurrency } from '../../utils/format';
 /**
  * Fila de dato financiero dentro del summary-panel.
  * La prop `dominant` aplica jerarquía visual destacada (Saldo Disponible).
+ * La prop `hidden` oculta el importe mostrando puntos en su lugar.
  */
-const SummaryCard = ({ title, amount, icon, color, dominant = false, subtitle }) => (
+const SummaryCard = ({ title, amount, icon, color, dominant = false, subtitle, hidden = false }) => (
     <div className={`summary-row${dominant ? ' summary-row--dominant' : ''}`}>
         <div className="summary-row-icon" style={{
             backgroundColor: `var(--${color}-light)`,
@@ -18,7 +19,7 @@ const SummaryCard = ({ title, amount, icon, color, dominant = false, subtitle })
             {subtitle && <span className="summary-row-subtitle">{subtitle}</span>}
         </div>
         <span className="summary-row-amount" style={{ color: dominant ? `var(--${color})` : undefined }}>
-            ${formatCurrency(amount)}
+            {hidden ? '••••••' : `$${formatCurrency(amount)}`}
         </span>
     </div>
 );
