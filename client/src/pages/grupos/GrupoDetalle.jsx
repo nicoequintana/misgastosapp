@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import GrupoTabs from '../../components/grupos/GrupoTabs';
 import MiembroChip from '../../components/grupos/MiembroChip';
@@ -7,7 +7,7 @@ import GrupoCuotasCard from '../../components/grupos/GrupoCuotasCard';
 import GrupoSaldos from './GrupoSaldos';
 import InvitarMiembroModal from '../../components/grupos/InvitarMiembroModal';
 import ConfirmModal from '../../components/ConfirmModal';
-import { AuthContext } from '../../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import * as db from '../../lib/db';
 
 // Definición de los tabs disponibles en el detalle del grupo
@@ -32,7 +32,7 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
     const { id } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
-    const { user } = useContext(AuthContext);
+    const { user } = useAuth();
 
     // Determina el tab inicial: prioridad → location.state.tab → defaultTab → 'resumen'
     const tabInicial = (() => {
@@ -66,7 +66,12 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
     const [eliminandoGrupo, setEliminandoGrupo] = useState(false);
     const [errorEliminar, setErrorEliminar] = useState(null);
 
+    // Estado para anular gasto grupal
+    const [gastoAAnular, setGastoAAnular] = useState(null);
+    const [anulandoGasto, setAnulandoGasto] = useState(false);
+
     // Estado para cancelar invitación pendiente
+    const [invitacionACancelar, setInvitacionACancelar] = useState(null);
     const [cancelandoInvitacionId, setCancelandoInvitacionId] = useState(null);
 
     // Estado para eliminar miembro
@@ -156,17 +161,28 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
         }
     }, [tabActivo, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Anula un gasto grupal y recarga la lista
-    const handleAnular = async (gastoId) => {
-        await db.anularGastoGrupal(gastoId, id);
-        await cargarGastos();
+    // Confirma y anula un gasto grupal
+    const handleConfirmarAnular = async () => {
+        if (!gastoAAnular) return;
+        try {
+            setAnulandoGasto(true);
+            await db.anularGastoGrupal(gastoAAnular.id, id);
+            setGastoAAnular(null);
+            await cargarGastos();
+        } catch (err) {
+            console.error('Error al anular gasto:', err);
+        } finally {
+            setAnulandoGasto(false);
+        }
     };
 
-    // Cancela una invitación pendiente
-    const handleCancelarInvitacion = async (invitacionId) => {
+    // Confirma y cancela una invitación pendiente
+    const handleConfirmarCancelarInvitacion = async () => {
+        if (!invitacionACancelar) return;
         try {
-            setCancelandoInvitacionId(invitacionId);
-            await db.cancelarInvitacion(invitacionId);
+            setCancelandoInvitacionId(invitacionACancelar.id);
+            await db.cancelarInvitacion(invitacionACancelar.id);
+            setInvitacionACancelar(null);
             await cargarInvitaciones();
         } catch (err) {
             console.error('Error al cancelar invitación:', err);
@@ -451,7 +467,7 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                                             miembros={miembros}
                                             userId={user?.id}
                                             esAdmin={esAdmin}
-                                            onAnular={handleAnular}
+                                            onAnular={(gastoId) => setGastoAAnular(gastos.find(g => g.id === gastoId) ?? { id: gastoId })}
                                             grupoId={grupo.id}
                                         />
                                     ))}
@@ -548,7 +564,7 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                                                 className="btn btn-ghost grupo-detalle__btn-eliminar-miembro"
                                                 title="Cancelar invitación"
                                                 disabled={cancelandoInvitacionId === inv.id}
-                                                onClick={() => handleCancelarInvitacion(inv.id)}
+                                                onClick={() => setInvitacionACancelar(inv)}
                                             >
                                                 {cancelandoInvitacionId === inv.id ? (
                                                     <div className="loading-spinner loading-spinner--sm" />
@@ -585,6 +601,26 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                     <GrupoSaldos grupoId={grupo.id} miembros={miembros} />
                 </div>
             )}
+
+            {/* Modal de confirmación de anular gasto grupal */}
+            <ConfirmModal
+                isOpen={!!gastoAAnular}
+                onClose={() => setGastoAAnular(null)}
+                onConfirm={handleConfirmarAnular}
+                loading={anulandoGasto}
+                title="Anular gasto"
+                message={`¿Anulás el gasto "${gastoAAnular?.descripcion || ''}"? Esta acción no se puede deshacer.`}
+            />
+
+            {/* Modal de confirmación de cancelar invitación */}
+            <ConfirmModal
+                isOpen={!!invitacionACancelar}
+                onClose={() => setInvitacionACancelar(null)}
+                onConfirm={handleConfirmarCancelarInvitacion}
+                loading={cancelandoInvitacionId === invitacionACancelar?.id}
+                title="Cancelar invitación"
+                message={`¿Cancelás la invitación enviada a ${invitacionACancelar?.email_invitado || ''}?`}
+            />
 
             {/* Modal de confirmación de eliminación de miembro */}
             <ConfirmModal

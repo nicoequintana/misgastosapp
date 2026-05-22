@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Modal from '../Modal';
-import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * Modal para invitar un nuevo miembro a un grupo por email.
@@ -14,6 +14,7 @@ import { supabase } from '../../lib/supabase';
  * @param {Function} props.onExito  - Callback al enviar exitosamente la invitación
  */
 const InvitarMiembroModal = ({ grupoId, isOpen, onClose, onExito }) => {
+    const { session } = useAuth();
     const [email, setEmail]       = useState('');
     const [buscando, setBuscando] = useState(false);
     const [enviando, setEnviando] = useState(false);
@@ -37,10 +38,7 @@ const InvitarMiembroModal = ({ grupoId, isOpen, onClose, onExito }) => {
         onClose();
     };
 
-    const obtenerTokenSesion = async () => {
-        const { data: sessionData } = await supabase.auth.getSession();
-        return sessionData?.session?.access_token || null;
-    };
+    const obtenerTokenSesion = () => session?.access_token || null;
 
     const buscarUsuario = async () => {
         setError(null);
@@ -61,7 +59,7 @@ const InvitarMiembroModal = ({ grupoId, isOpen, onClose, onExito }) => {
 
         setBuscando(true);
         try {
-            const token = await obtenerTokenSesion();
+            const token = obtenerTokenSesion();
             if (!token) {
                 setError('No se encontró tu sesión. Por favor recargá la página.');
                 return;
@@ -126,7 +124,7 @@ const InvitarMiembroModal = ({ grupoId, isOpen, onClose, onExito }) => {
 
         try {
             // Obtener el JWT del usuario autenticado
-            const token = await obtenerTokenSesion();
+            const token = obtenerTokenSesion();
 
             if (!token) {
                 setError('No se encontró tu sesión. Por favor recargá la página.');
@@ -180,7 +178,7 @@ const InvitarMiembroModal = ({ grupoId, isOpen, onClose, onExito }) => {
 
         setEnviandoRegistro(true);
         try {
-            const token = await obtenerTokenSesion();
+            const token = obtenerTokenSesion();
             if (!token) {
                 setError('No se encontró tu sesión. Por favor recargá la página.');
                 return;

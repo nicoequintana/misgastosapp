@@ -50,6 +50,39 @@ const procesarEnvioEmail = async (emailUsuario, notificacion, config) => {
 };
 
 /**
+ * Mapa de estrategias de envío de email por origen.
+ * Agregar un nuevo origen = agregar una entrada al mapa, sin tocar la función despachadora.
+ */
+const EMAIL_STRATEGIES = {
+    n8n:       (config) => !!config.email_notificaciones_n8n,
+    whatsapp:  (config) => !!config.email_notificaciones_n8n,
+    ingresos:  (config) => !!config.email_habilitado,
+    grupos:    ()       => true,
+    proyeccion: (config) => !!(config.email_habilitado && config.email_resumen_diario),
+
+    alertas_financieras: (config, metadata) => {
+        if (!config.email_habilitado) return false;
+        if (metadata?.saldo_disponible !== undefined) return !!config.email_saldo_bajo;
+        if (metadata?.monto !== undefined && metadata?.umbral_configurado !== undefined) return !!config.email_gasto_alto;
+        if (
+            metadata?.fijos_mes_anterior !== undefined ||
+            metadata?.variables_actual !== undefined ||
+            metadata?.categoria !== undefined ||
+            metadata?.porcentaje_fijos !== undefined
+        ) return !!config.email_alertas_gastos_fijos;
+        return false;
+    },
+
+    resumen: (config, metadata) => {
+        if (!config.email_habilitado) return false;
+        if (metadata?.fecha && !metadata?.desde) return !!config.email_resumen_diario;
+        if (metadata?.desde !== undefined) return !!config.email_resumen_semanal;
+        if (metadata?.mes !== undefined) return !!config.email_resumen_mensual;
+        return false;
+    },
+};
+
+/**
  * Determina si corresponde enviar email según la configuración del usuario
  * y el origen/tipo de la notificación.
  *
@@ -59,50 +92,10 @@ const procesarEnvioEmail = async (emailUsuario, notificacion, config) => {
  */
 const determinarSiEnviarEmail = (notificacion, config) => {
     const { origen, metadata } = notificacion;
-
-    switch (origen) {
-        case 'n8n':
-        case 'whatsapp':
-            return !!config.email_notificaciones_n8n;
-
-        case 'ingresos':
-            return !!config.email_habilitado;
-
-        case 'alertas_financieras': {
-            if (!config.email_habilitado) return false;
-            // Detectar sub-tipo por estructura del metadata
-            if (metadata?.saldo_disponible !== undefined) return !!config.email_saldo_bajo;
-            if (metadata?.monto !== undefined && metadata?.umbral_configurado !== undefined) return !!config.email_gasto_alto;
-            // Alertas de Fase 4: gastos fijos/variables/categoría
-            if (
-                metadata?.fijos_mes_anterior !== undefined ||
-                metadata?.variables_actual !== undefined ||
-                metadata?.categoria !== undefined ||
-                metadata?.porcentaje_fijos !== undefined
-            ) return !!config.email_alertas_gastos_fijos;
-            // Sub-tipo no identificable — no enviar para evitar falsos positivos
-            return false;
-        }
-
-        case 'proyeccion':
-            // Proyecciones y resúmenes usan el toggle de resúmenes
-            return !!(config.email_habilitado && config.email_resumen_diario);
-
-        case 'resumen': {
-            if (!config.email_habilitado) return false;
-            if (metadata?.fecha && !metadata?.desde) return !!config.email_resumen_diario;
-            if (metadata?.desde !== undefined) return !!config.email_resumen_semanal;
-            if (metadata?.mes !== undefined) return !!config.email_resumen_mensual;
-            return false;
-        }
-
-        case 'grupos':
-            return true;
-
-        // gastos, app, sistema, manual → no enviar email por defecto
-        default:
-            return false;
-    }
+    const estrategia = EMAIL_STRATEGIES[origen];
+    // gastos, app, sistema, manual → no enviar email por defecto
+    if (!estrategia) return false;
+    return estrategia(config, metadata);
 };
 
 /**

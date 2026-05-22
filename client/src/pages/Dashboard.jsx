@@ -171,6 +171,7 @@ const Dashboard = () => {
 
     // Estado del formulario de nuevo gasto
     const [expenseForm, setExpenseForm] = useState(ESTADO_INICIAL_GASTO);
+    const [errorForm, setErrorForm] = useState(null);
 
     // Estado del panel de ingresos
     const INCOME_FORM_INICIAL = { monto: '', descripcion: '', categoria_id: '', es_recurrente: false };
@@ -309,30 +310,31 @@ const Dashboard = () => {
      */
     const handleSubmitExpense = async (e) => {
         e.preventDefault();
-        
+        setErrorForm(null);
+
         // Validar que todos los campos requeridos estén completos
         if (!expenseForm.descripcion || !expenseForm.descripcion.trim()) {
-            alert('Por favor, ingresá una descripción para el gasto.');
+            setErrorForm('Ingresá una descripción para el gasto.');
             return;
         }
 
         if (!expenseForm.monto || Number(expenseForm.monto) <= 0) {
-            alert('El monto debe ser mayor a cero.');
+            setErrorForm('El monto debe ser mayor a cero.');
             return;
         }
 
         if (!expenseForm.id_categoria) {
-            alert('Por favor, seleccioná una categoría.');
+            setErrorForm('Seleccioná una categoría.');
             return;
         }
 
         if (!expenseForm.id_metodo_pago) {
-            alert('Por favor, seleccioná un método de pago.');
+            setErrorForm('Seleccioná un método de pago.');
             return;
         }
 
         if ((expenseForm.esTarjetaCredito || expenseForm.esPrestamo) && !expenseForm.primeraCuota) {
-            alert('Indicá en qué mes vence la primera cuota.');
+            setErrorForm('Indicá en qué mes vence la primera cuota.');
             return;
         }
 
@@ -350,6 +352,7 @@ const Dashboard = () => {
             // Verificar si el gasto supera el umbral de gasto alto
             verificarAlertaGastoAlto({ descripcion: expenseForm.descripcion, monto: expenseForm.monto });
             setExpenseForm(ESTADO_INICIAL_GASTO);
+            setErrorForm(null);
             // Recargar cuotas si el nuevo gasto es con tarjeta de crédito
             if (expenseForm.esTarjetaCredito) {
                 Promise.all([getTarjetasEnCuotas(), getGastosFuturos()])
@@ -366,7 +369,7 @@ const Dashboard = () => {
             await fetchStats({ verificarAlertas: true });
         } catch (err) {
             console.error('❌ Error al guardar gasto:', err);
-            alert(`Error al guardar el gasto: ${err.message || 'Por favor, intentá de nuevo.'}`);
+            setErrorForm(err.message || 'No se pudo guardar el gasto. Intentá de nuevo.');
         }
     };
 
@@ -420,7 +423,12 @@ const Dashboard = () => {
             await Promise.all([fetchIngresosMes(), fetchRecurrentes(), fetchStats({ verificarAlertas: true })]);
         } catch (err) {
             console.error('❌ Error al guardar ingreso:', err);
-            alert(`Error: ${err.message || 'Intentá de nuevo.'}`);
+            agregarNotificacion({
+                titulo: 'Error al guardar ingreso',
+                mensaje: err.message || 'No se pudo guardar el ingreso. Intentá de nuevo.',
+                tipo: 'error',
+                origen: 'ingresos',
+            });
         }
     };
 
@@ -444,7 +452,12 @@ const Dashboard = () => {
             await Promise.all([fetchIngresosMes(), fetchStats({ verificarAlertas: true })]);
         } catch (err) {
             console.error('❌ Error al eliminar ingreso:', err);
-            alert('No se pudo eliminar el ingreso. Intentá de nuevo.');
+            agregarNotificacion({
+                titulo: 'Error al eliminar ingreso',
+                mensaje: 'No se pudo eliminar el ingreso. Intentá de nuevo.',
+                tipo: 'error',
+                origen: 'ingresos',
+            });
         }
     };
 
@@ -457,7 +470,12 @@ const Dashboard = () => {
             await Promise.all([fetchRecurrentes()]);
         } catch (err) {
             console.error('❌ Error al eliminar recurrente:', err);
-            alert('No se pudo eliminar el recurrente.');
+            agregarNotificacion({
+                titulo: 'Error al eliminar recurrente',
+                mensaje: 'No se pudo eliminar el ingreso recurrente. Intentá de nuevo.',
+                tipo: 'error',
+                origen: 'ingresos',
+            });
         }
     };
 
@@ -478,7 +496,12 @@ const Dashboard = () => {
             });
         } catch (err) {
             console.error('❌ Error al eliminar gastos variables:', err);
-            alert('No se pudieron eliminar los gastos variables. Por favor, intentá de nuevo.');
+            agregarNotificacion({
+                titulo: 'Error al eliminar',
+                mensaje: 'No se pudieron eliminar los gastos variables. Intentá de nuevo.',
+                tipo: 'error',
+                origen: 'gastos',
+            });
         } finally {
             setConfirmDeleteAll(false);
         }
@@ -632,7 +655,7 @@ const Dashboard = () => {
             {/* Modal: Nuevo Gasto */}
             <Modal
                 isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
+                onClose={() => { setIsModalOpen(false); setErrorForm(null); }}
                 title="Nuevo Gasto"
                 subtitle="Completá los detalles del movimiento"
                 footer={
@@ -779,6 +802,9 @@ const Dashboard = () => {
                             />
                             <label htmlFor="es_fijo">Gasto Fijo</label>
                         </div>
+                    )}
+                    {errorForm && (
+                        <p className="edit-form-error" role="alert">{errorForm}</p>
                     )}
                 </form>
             </Modal>

@@ -35,12 +35,8 @@ router.param('liqId', (req, res, next, value) => {
 });
 
 // ───────────────────────────────────────────────
-// Rate limit in-memory por grupo (MVP — se resetea al reiniciar)
-// Máximo 10 invitaciones por grupo por hora.
-// ───────────────────────────────────────────────
-const rateLimitMap = new Map(); // { grupoId: { count, resetAt } }
-const RATE_LIMIT_MAX      = 10;
-const RATE_LIMIT_VENTANA  = 60 * 60 * 1000; // 1 hora en ms
+// Máximo 10 invitaciones por grupo por hora — consultado directo en DB para sobrevivir reinicios.
+const RATE_LIMIT_MAX = 10;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const nombreDesdeAuthUser = (authUser) => {
@@ -93,31 +89,29 @@ const validarAdminGrupo = async (supabaseAdmin, grupoId, userId) => {
 };
 
 /**
- * Verifica y actualiza el rate limit para un grupo.
+ * Verifica el rate limit consultando grupo_invitaciones en Supabase.
+ * Durable frente a reinicios y compatible con múltiples instancias.
  * Retorna true si el límite fue superado, false si el request puede continuar.
  *
  * @param {string|number} grupoId
  */
-const superaRateLimit = (grupoId) => {
-    const ahora = Date.now();
-    const key   = String(grupoId);
-    const entry = rateLimitMap.get(key);
+const superaRateLimit = async (grupoId) => {
+    const hace1h = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count, error } = await supabaseAdminSingleton
+        .from('grupo_invitaciones')
+        .select('id', { count: 'exact', head: true })
+        .eq('grupo_id', Number(grupoId))
+        .gte('created_at', hace1h);
 
-    if (!entry || ahora >= entry.resetAt) {
-        // Primera invitación o ventana expirada — reiniciar contador
-        rateLimitMap.set(key, { count: 1, resetAt: ahora + RATE_LIMIT_VENTANA });
+    if (error) {
+        // En caso de error de DB, permitir el request (fail open) — el INSERT posterior fallará si hay problema real
+        console.warn('⚠️ Rate limit check fallido, se permite el request:', error.message);
         return false;
     }
 
-    if (entry.count >= RATE_LIMIT_MAX) {
-        // Límite superado
-        return true;
-    }
-
-    // Incrementar contador
-    entry.count += 1;
-    return false;
+    return (count ?? 0) >= RATE_LIMIT_MAX;
 };
+
 
 // ───────────────────────────────────────────────
 // Middleware de autenticación
@@ -167,7 +161,7 @@ router.post('/:grupoId/invitaciones', requireAuth, async (req, res) => {
     }
 
     // 3. Rate limit
-    if (superaRateLimit(grupoId)) {
+    if (await superaRateLimit(grupoId)) {
         return res.status(429).json({
             ok: false,
             error: 'Límite de invitaciones alcanzado. Intentá en una hora.',
@@ -441,7 +435,7 @@ router.post('/:grupoId/invitaciones/registro', requireAuth, async (req, res) => 
     }
 
     try {
-        if (superaRateLimit(grupoId)) {
+        if (await superaRateLimit(grupoId)) {
             return res.status(429).json({ ok: false, error: 'Límite de invitaciones alcanzado. Intentá en una hora.' });
         }
 

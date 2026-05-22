@@ -3,9 +3,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const { normalizeAmount, generateFingerprint } = require('./utils');
+const { supabaseAdmin } = require('./services/supabaseAdmin');
 const notificacionesRouter = require('./routes/notificaciones');
 const gruposRouter = require('./routes/grupos');
 const { buildNotificacionN8n } = require('./services/notificaciones');
@@ -106,15 +106,7 @@ if (isProduction) {
 
 // ==================== INICIALIZACIÓN DE SUPABASE ====================
 
-let supabase;
-const isSupabaseConfigured = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (isSupabaseConfigured) {
-    supabase = createClient(
-        process.env.SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-}
+const isSupabaseConfigured = !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 
 // ==================== HELPERS ====================
@@ -258,7 +250,7 @@ app.post('/api/integrations/n8n/gasto', validateApiKey, async (req, res) => {
             }
 
             // Insertar en Supabase con fecha consistente
-            const { data, error } = await supabase.from('gastos').insert([{
+            const { data, error } = await supabaseAdmin.from('gastos').insert([{
                 user_id:        user_id,
                 descripcion:    expenseData.descripcion.toUpperCase(),
                 monto:          expenseData.monto,

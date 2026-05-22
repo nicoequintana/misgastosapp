@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 import { getPerfilUsuario, updateThemeUsuario } from '../lib/db';
 import { THEMES } from './themes';
 
@@ -8,6 +8,8 @@ const FALLBACK_THEME = 'light-azure';
 const ThemeContext = createContext({});
 
 export const ThemeProvider = ({ children }) => {
+    const { session } = useAuth();
+
     // Arrancamos desde localStorage para evitar flash visual en el primer render.
     // Supabase sincroniza el valor real una vez que hay sesión.
     const [themeId, setThemeId] = useState(() => {
@@ -24,11 +26,11 @@ export const ThemeProvider = ({ children }) => {
         localStorage.setItem('app-theme', currentTheme.mode);
     }, [themeId, currentTheme.mode]);
 
-    // Al iniciar (o cuando cambia la sesión), carga el theme_id desde Supabase
+    // Cuando la sesión cambia (login/logout), sincroniza el theme desde Supabase
     useEffect(() => {
-        const sincronizarTheme = async (session) => {
-            if (!session) return;
+        if (!session) return;
 
+        const sincronizarTheme = async () => {
             try {
                 const perfil = await getPerfilUsuario();
                 if (perfil?.theme_id) {
@@ -40,18 +42,8 @@ export const ThemeProvider = ({ children }) => {
             }
         };
 
-        // Verificar sesión activa al montar
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            sincronizarTheme(session);
-        });
-
-        // Sincronizar cuando cambia el estado de autenticación
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            sincronizarTheme(session);
-        });
-
-        return () => subscription.unsubscribe();
-    }, []);
+        sincronizarTheme();
+    }, [session]);
 
     // Cambia el tema localmente y lo persiste en Supabase
     const applyTheme = async (id) => {

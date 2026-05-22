@@ -184,7 +184,12 @@ const Movements = () => {
             });
         } catch (err) {
             console.error('❌ Error al eliminar grupo:', err);
-            alert('No se pudo eliminar. Intentá de nuevo.');
+            agregarNotificacion({
+                titulo: 'Error al eliminar',
+                mensaje: 'No se pudo eliminar la compra en cuotas. Intentá de nuevo.',
+                tipo: 'error',
+                origen: 'manual',
+            });
         } finally {
             setEliminandoGrupo(false);
         }
@@ -224,7 +229,12 @@ const Movements = () => {
             });
         } catch (err) {
             console.error('❌ Error al eliminar el gasto:', err);
-            alert('No se pudo eliminar el gasto. Por favor, intentá de nuevo.');
+            agregarNotificacion({
+                titulo: 'Error al eliminar',
+                mensaje: 'No se pudo eliminar el gasto. Intentá de nuevo.',
+                tipo: 'error',
+                origen: 'manual',
+            });
         } finally {
             setEliminando(false);
         }

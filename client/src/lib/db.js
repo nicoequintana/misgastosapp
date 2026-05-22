@@ -174,10 +174,17 @@ export const createExpense = async (gasto) => {
 
     // Siempre vinculamos la primera cuota a sí misma como padre para que
     // getTarjetasEnCuotas pueda encontrarla (filtra por id_gasto_padre != null).
-    await supabase
+    const { error: errVincular } = await supabase
         .from('gastos')
         .update({ id_gasto_padre: primero.id })
         .eq('id', primero.id);
+
+    if (errVincular) {
+        // Rollback: eliminar la cuota 1 insertada para no dejar huérfanos.
+        await supabase.from('gastos').delete().eq('id', primero.id);
+        console.error('❌ Error al vincular cuota padre:', errVincular);
+        throw errVincular;
+    }
 
     if (cuotas === 1) return { ...primero, id_gasto_padre: primero.id };
 
@@ -189,6 +196,8 @@ export const createExpense = async (gasto) => {
         .insert(restantes);
 
     if (errRestantes) {
+        // Rollback: eliminar la cuota 1 para no dejar huérfana.
+        await supabase.from('gastos').delete().eq('id', primero.id);
         console.error('❌ Error al insertar cuotas restantes:', errRestantes);
         throw errRestantes;
     }
@@ -436,16 +445,16 @@ export const updateExpenseGroup = async (idGastoPadre, { descripcion, idCategori
         return { id: c.id, ...update };
     });
 
-    // Actualizar en paralelo
-    await Promise.all(
-        actualizaciones.map(({ id, ...fields }) =>
-            supabase
-                .from('gastos')
-                .update(fields)
-                .eq('id', id)
-                .eq('user_id', usuario.id)
-        )
-    );
+    // Actualizar secuencialmente para detectar el primer error y detener antes de mayor daño.
+    // Promise.all no detecta errores de Supabase (devuelve { error } en lugar de lanzar).
+    for (const { id, ...fields } of actualizaciones) {
+        const { error: errUpdate } = await supabase
+            .from('gastos')
+            .update(fields)
+            .eq('id', id)
+            .eq('user_id', usuario.id);
+        if (errUpdate) throw errUpdate;
+    }
 };
 
 /**
