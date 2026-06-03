@@ -1,23 +1,26 @@
 # Documentación Técnico-Funcional — TusGastosApp
 
-> Generado automáticamente el 2026-05-09. Refleja el estado actual del código fuente.
+> Actualizado el 2026-05-26. Refleja el estado actual del código fuente.
 
 ---
 
 ## 1. Resumen del Proyecto
 
-**TusGastosApp** es una aplicación web de finanzas personales que permite registrar, clasificar y analizar gastos mensuales. Está orientada a usuarios individuales que quieran llevar un control detallado de su dinero, con soporte para gastos fijos y variables, tarjeta de crédito en cuotas, grupos de gastos compartidos con otras personas, alertas financieras y registro automático de gastos desde WhatsApp vía n8n.
+**TusGastosApp** es una aplicación web de finanzas personales que permite registrar, clasificar y analizar gastos mensuales. Está orientada a usuarios individuales que quieran llevar un control detallado de su dinero, con soporte para gastos fijos y variables, tarjeta de crédito en cuotas, préstamos en cuotas, grupos de gastos compartidos con otras personas, alertas financieras y registro automático de gastos desde WhatsApp vía n8n.
 
 ### Stack tecnológico
 
 | Capa | Tecnologías |
 |------|-------------|
-| **Frontend** | React 19, Vite, JavaScript (sin TypeScript), React Router DOM, Supabase JS, Lucide React, Material Symbols, CSS puro |
-| **Backend** | Node.js, Express, CommonJS, Supabase JS (service role), dotenv, cors, crypto, nodemon, nodemailer |
+| **Frontend** | React 19, Vite 7, JavaScript (sin TypeScript), React Router DOM v7, Supabase JS, Lucide React, Material Symbols, CSS puro |
+| **Backend** | Node.js, Express, CommonJS, Supabase JS (service role), dotenv, cors, crypto, nodemon, nodemailer, helmet, compression, express-rate-limit |
 | **Base de datos** | Supabase PostgreSQL con RLS obligatorio en todas las tablas |
 | **Autenticación** | Supabase Auth — Google OAuth 2.0 |
-| **Integraciones** | n8n (registro de gastos desde WhatsApp), Email SMTP (notificaciones) |
-| **Dev tooling** | concurrently (cliente + servidor en paralelo) |
+| **PWA** | vite-plugin-pwa + workbox-window (Service Worker, instalable) |
+| **Testing** | vitest (frontend y backend), @vitest/coverage-v8 |
+| **Integraciones** | n8n (registro de gastos desde WhatsApp), Email SMTP (notificaciones y invitaciones) |
+| **Dev tooling** | concurrently (cliente + servidor en paralelo), eslint |
+| **Contenedor** | Docker multi-stage (Node 20 Alpine) |
 
 ### Diagrama de arquitectura
 
@@ -59,7 +62,7 @@
 La aplicación sigue el patrón **SPA + API REST + BaaS**:
 
 - El **frontend** es una Single Page Application que se comunica directamente con Supabase para operaciones de lectura/escritura de datos propios del usuario (gracias a RLS, cada usuario solo ve sus datos).
-- El **backend Express** actúa como servidor de integraciones: recibe llamadas de n8n/WhatsApp, valida la API key, y escribe en Supabase usando la service role key. También gestiona operaciones que requieren privilegios elevados (búsqueda de usuarios por email, aceptación de invitaciones a grupos, envío de emails).
+- El **backend Express** actúa como servidor de integraciones: recibe llamadas de n8n/WhatsApp, valida la API key, y escribe en Supabase usando la service role key. También gestiona operaciones que requieren privilegios elevados (búsqueda de usuarios por email, aceptación de invitaciones a grupos, envío de emails, gastos grupales con cuotas).
 - **Supabase** funciona como BaaS: provee la base de datos PostgreSQL con RLS, el sistema de autenticación con Google, y el cliente JS para el frontend.
 
 ### Capas del sistema
@@ -75,6 +78,9 @@ La aplicación sigue el patrón **SPA + API REST + BaaS**:
 ├────────────────────────────────────────────┤
 │  Capa de Acceso a Datos (DAL)             │
 │  client/src/lib/db.js                     │
+│  client/src/lib/cuotasHelper.js           │
+│  client/src/lib/cuotasGroupHelper.js      │
+│  client/src/lib/grupos/saldos.js          │
 │  Supabase JS client (anon key)            │
 ├────────────────────────────────────────────┤
 │  API Backend (Express)                     │
@@ -110,6 +116,7 @@ La aplicación sigue el patrón **SPA + API REST + BaaS**:
 tusgastosapp/
 ├── CLAUDE.md                     ← Instrucciones del proyecto para el AI
 ├── TECHNICAL_DOCS.md             ← Este documento
+├── Dockerfile                    ← Build multi-stage (Node 20 Alpine)
 ├── package.json                  ← Scripts raíz (install-all, dev)
 ├── .gitignore
 │
@@ -123,7 +130,11 @@ tusgastosapp/
 │       ├── index.css             ← Variables CSS, temas, estilos globales
 │       ├── lib/
 │       │   ├── db.js             ← [PUNTO DE ENTRADA DAL] Todas las queries a Supabase
-│       │   └── supabase.js       ← Instancia del cliente Supabase (anon key)
+│       │   ├── supabase.js       ← Instancia del cliente Supabase (anon key)
+│       │   ├── cuotasHelper.js   ← Cálculo puro de cuotas y división igualitaria
+│       │   ├── cuotasGroupHelper.js ← Agrupación y transformación de cuotas (puro)
+│       │   └── grupos/
+│       │       └── saldos.js     ← Algoritmo greedy para minimizar transferencias
 │       ├── context/
 │       │   ├── AuthContext.jsx   ← [PUNTO DE ENTRADA AUTH] Sesión, login, logout
 │       │   ├── NotificacionesContext.jsx  ← Alertas financieras y notificaciones
@@ -134,13 +145,13 @@ tusgastosapp/
 │       │   ├── Dashboard.jsx     ← [PRINCIPAL] Resumen financiero y registro de gastos
 │       │   ├── Movements.jsx     ← Historial, búsqueda y edición de movimientos
 │       │   ├── Reportes.jsx      ← Análisis por rango de fechas
-│       │   ├── Configuracion.jsx ← Preferencias, categorías, notificaciones
+│       │   ├── Configuracion.jsx ← Preferencias, categorías, notificaciones, tema
 │       │   └── grupos/
 │       │       ├── Grupos.jsx         ← Lista de grupos
 │       │       ├── GrupoNuevo.jsx     ← Crear grupo
 │       │       ├── GrupoDetalle.jsx   ← Detalle y gastos del grupo
 │       │       ├── GrupoSaldos.jsx    ← Saldos y transferencias sugeridas
-│       │       ├── GrupoGastoNuevo.jsx   ← Registrar gasto grupal
+│       │       ├── GrupoGastoNuevo.jsx   ← Registrar gasto grupal (incluyendo cuotas)
 │       │       ├── GrupoGastoEditar.jsx  ← Editar gasto grupal
 │       │       └── AceptarInvitacion.jsx ← Flujo de aceptación de invitación
 │       ├── components/
@@ -174,14 +185,14 @@ tusgastosapp/
 │
 └── server/                        ← Backend Express
     ├── package.json
-    ├── .env                        ← PORT, SUPABASE_URL, SUPABASE_KEY, N8N_API_KEY, FRONTEND_URL
+    ├── .env                        ← PORT, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, N8N_API_KEY, FRONTEND_URL, SMTP_*
     ├── index.js                    ← [PUNTO DE ENTRADA] Express app, CORS, middlewares, endpoints
     ├── utils.js                    ← normalizeAmount, generateFingerprint (idempotencia n8n)
     ├── routes/
     │   ├── notificaciones.js       ← POST /api/notifications/email
     │   └── grupos.js               ← Endpoints de grupos, invitaciones, gastos grupales
     ├── services/
-    │   ├── supabaseAdmin.js        ← Cliente Supabase con service role key
+    │   ├── supabaseAdmin.js        ← Cliente Supabase con service role key (singleton lazy)
     │   ├── email.js                ← Envío de emails via SMTP (nodemailer)
     │   ├── notificaciones.js       ← Builders de notificaciones y lógica de envío
     │   └── notificacionesDb.js     ← Helpers de persistencia de notificaciones en DB
@@ -189,12 +200,16 @@ tusgastosapp/
         ├── schema.sql              ← Schema completo vigente de la DB
         └── migrations/
             ├── 20260507_grupos_gastos_compartidos.sql
-            └── 20260509_cuotas_tarjeta_credito.sql
+            ├── 20260509_cuotas_tarjeta_credito.sql
+            ├── 20260514_fix_rls_categorias.sql
+            └── 20260515_cuotas_grupales.sql
 ```
 
 ---
 
 ## 4. Base de Datos (Schema SQL)
+
+> El archivo `server/db/schema.sql` contiene el estado completo y vigente. Las migraciones en `server/db/migrations/` representan los cambios incrementales. No existe un schema autogenerado en el repositorio; los cambios se aplican manualmente en Supabase SQL Editor.
 
 ### Tablas principales
 
@@ -208,6 +223,11 @@ Clasifica los gastos del usuario. Puede ser global (`user_id IS NULL`) o persona
 | `nombre` | VARCHAR(255) NOT NULL | Nombre de la categoría (en mayúsculas) |
 | `fecha_creacion` | TIMESTAMPTZ | Fecha de creación (default NOW()) |
 
+**Política RLS vigente (migración 20260514):** La política anterior era permisiva y podía exponer categorías de otros usuarios. Las nuevas políticas son:
+- `categorias_select`: `user_id IS NULL OR auth.uid() = user_id`
+- `categorias_insert`: `auth.uid() = user_id`
+- `categorias_delete`: `auth.uid() = user_id`
+
 #### `metodos_pago`
 Métodos de pago disponibles. Son globales (pre-configurados, ningún usuario puede insertarlos).
 
@@ -220,7 +240,7 @@ Métodos de pago disponibles. Son globales (pre-configurados, ningún usuario pu
 | `fecha_creacion` | TIMESTAMPTZ | Fecha de creación |
 
 #### `gastos`
-Registro central de gastos del usuario. Soporta cuotas de tarjeta de crédito.
+Registro central de gastos del usuario. Soporta cuotas de tarjeta de crédito y préstamos.
 
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
@@ -232,22 +252,55 @@ Registro central de gastos del usuario. Soporta cuotas de tarjeta de crédito.
 | `id_metodo_pago` | BIGINT FK → metodos_pago | Método de pago |
 | `fecha` | TIMESTAMPTZ | Fecha del gasto |
 | `es_fijo` | BOOLEAN | true = fijo mensual; false = variable |
-| `huella_digital` | VARCHAR(64) | SHA para idempotencia (n8n) |
+| `huella_digital` | VARCHAR(64) | SHA-256 para idempotencia (n8n) |
 | `fecha_creacion` | TIMESTAMPTZ | Timestamp de creación |
 | `cuotas` | SMALLINT (1-18) | Cantidad total de cuotas |
 | `numero_cuota` | SMALLINT | Número de cuota actual (1-N) |
-| `id_gasto_padre` | BIGINT FK → gastos (CASCADE) | Vincula cuotas al gasto raíz |
+| `id_gasto_padre` | BIGINT FK → gastos (CASCADE) | Vincula cuotas al gasto raíz (autoref en la primera cuota) |
 
 #### `ingresos`
-Un único registro por usuario que representa el ingreso mensual declarado.
+Registros de ingresos del usuario por fecha. Puede haber múltiples por mes (a diferencia de versiones anteriores con un único registro por usuario).
 
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
 | `id` | BIGINT PK | Generado automáticamente |
-| `user_id` | UUID FK → auth.users UNIQUE | Un ingreso por usuario |
-| `monto` | DECIMAL(12,2) | Ingreso mensual |
-| `fecha` | DATE | Fecha de referencia |
+| `user_id` | UUID FK → auth.users | Propietario del ingreso |
+| `monto` | DECIMAL(12,2) | Monto del ingreso |
+| `fecha` | DATE | Fecha del ingreso |
+| `descripcion` | TEXT | Descripción opcional |
+| `origen` | VARCHAR(30) | Origen del ingreso (ej: 'manual') |
+| `categoria_id` | BIGINT FK → categorias_ingresos | Categoría de ingreso (nullable) |
+| `recurrente_id` | BIGINT FK → ingresos_recurrentes | Ingreso recurrente que lo generó (nullable) |
+| `fecha_creacion` | TIMESTAMPTZ | Timestamp de creación |
 | `fecha_actualizacion` | TIMESTAMPTZ | Última actualización |
+
+#### `ingresos_recurrentes`
+Plantillas de ingresos que se esperan mensualmente.
+
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| `id` | BIGINT PK | Generado automáticamente |
+| `user_id` | UUID FK → auth.users | Propietario |
+| `descripcion` | TEXT NOT NULL | Descripción en MAYÚSCULAS |
+| `monto` | DECIMAL(12,2) NOT NULL | Monto esperado |
+| `frecuencia` | VARCHAR(20) | 'mensual' (único valor actual) |
+| `activo` | BOOLEAN | Si está activo |
+| `dia_estimado` | SMALLINT | Día del mes estimado de cobro (1-31) |
+| `categoria_id` | BIGINT FK → categorias_ingresos | Categoría del ingreso |
+| `fecha_inicio` | DATE | Desde cuándo aplica |
+| `fecha_fin` | DATE | Hasta cuándo aplica (nullable) |
+| `fecha_creacion` | TIMESTAMPTZ | Timestamp de creación |
+| `fecha_actualizacion` | TIMESTAMPTZ | Última actualización |
+
+#### `categorias_ingresos`
+Categorías para clasificar los ingresos.
+
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| `id` | BIGINT PK | Generado automáticamente |
+| `user_id` | UUID FK → auth.users | NULL = global; UUID = personal |
+| `nombre` | VARCHAR(255) NOT NULL | Nombre de la categoría |
+| `activa` | BOOLEAN | Si está disponible |
 
 #### `usuarios`
 Perfil extendido del usuario (preferencias de UI).
@@ -286,6 +339,7 @@ Preferencias de notificaciones por usuario (un registro por usuario).
 | `email_saldo_bajo` | BOOLEAN | Emails de alerta de saldo bajo |
 | `email_gasto_alto` | BOOLEAN | Emails de alerta de gasto alto |
 | `email_resumen_diario/semanal/mensual` | BOOLEAN | Emails de resumen |
+| `email_alertas_gastos_fijos` | BOOLEAN | Emails de alertas de gastos fijos |
 | `notificar_saldo_bajo` | BOOLEAN | Alerta in-app de saldo bajo |
 | `umbral_saldo_bajo` | DECIMAL | Monto mínimo de saldo para alertar |
 | `porcentaje_maximo_ingreso` | DECIMAL | % del ingreso a partir del cual alertar |
@@ -329,20 +383,34 @@ Invitaciones por email con token UUID de 7 días de vigencia.
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
 | `token` | UUID UNIQUE | Token de aceptación (generado por SQL) |
+| `grupo_id` | BIGINT FK → grupos_gastos | Grupo al que se invita |
 | `email_invitado` | VARCHAR(255) | Email del destinatario |
+| `invitado_por` | UUID FK → auth.users | Admin que realiza la invitación |
 | `estado` | VARCHAR(20) | pendiente / aceptada / rechazada / expirada / cancelada |
 | `fecha_expiracion` | TIMESTAMPTZ | NOW() + 7 días |
+| `created_at` | TIMESTAMPTZ | Timestamp de creación (usado para rate limiting) |
 
 #### `grupo_gastos`
-Gastos registrados dentro de un grupo.
+Gastos registrados dentro de un grupo. Desde la migración `20260515_cuotas_grupales.sql` soporta compras en cuotas con tarjeta.
 
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
+| `id` | BIGINT PK | Generado automáticamente |
 | `grupo_id` | BIGINT FK → grupos_gastos CASCADE | Grupo del gasto |
-| `monto` | DECIMAL(12,2) CHECK > 0 | Monto total |
+| `descripcion` | TEXT NOT NULL | Descripción en MAYÚSCULAS |
+| `monto` | DECIMAL(12,2) CHECK > 0 | Monto total o de la cuota |
 | `pagado_por` | UUID FK → auth.users RESTRICT | Quien pagó |
+| `fecha` | TIMESTAMPTZ | Fecha del gasto o de la cuota |
+| `nota` | TEXT | Nota opcional |
+| `id_categoria` | BIGINT FK → categorias | Categoría (nullable) |
 | `estado` | VARCHAR(20) | activo / anulado |
 | `creado_por` | UUID FK | Quien registró el gasto |
+| `cuotas` | SMALLINT (1-18) DEFAULT 1 | Cantidad total de cuotas |
+| `numero_cuota` | SMALLINT DEFAULT 1 | Número de cuota actual |
+| `id_gasto_padre` | BIGINT FK → grupo_gastos CASCADE | Vincula cuotas al gasto raíz |
+| `metodo_pago` | VARCHAR(60) | 'TARJETA DE CREDITO' para compras en cuotas |
+| `anulado_en` | TIMESTAMPTZ | Timestamp de anulación |
+| `anulado_por` | UUID FK | Quien anuló el gasto |
 
 #### `grupo_gasto_participantes`
 División del gasto entre participantes.
@@ -359,9 +427,16 @@ Pagos reales entre miembros para saldar deudas.
 
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
+| `id` | UUID PK | Token único |
+| `grupo_id` | BIGINT FK → grupos_gastos | Grupo de la liquidación |
 | `de_user_id` | UUID | Quien paga la deuda |
 | `para_user_id` | UUID | Quien cobra |
+| `monto` | DECIMAL(12,2) | Monto de la liquidación |
+| `fecha` | DATE | Fecha del pago |
+| `nota` | TEXT | Nota opcional |
 | `estado` | VARCHAR(20) | confirmada / anulada |
+| `registrado_por` | UUID FK | Quien registró la liquidación |
+| `anulada_en` | TIMESTAMPTZ | Timestamp de anulación |
 | `CHECK de_user_id <> para_user_id` | — | No puede liquidarse a sí mismo |
 
 ### Políticas RLS
@@ -394,9 +469,13 @@ Pagos reales entre miembros para saldar deudas.
 ### Vista de Saldos
 
 ```sql
--- vw_grupo_saldos
--- Saldo neto por miembro = pagado + liquidado_enviado - asignado - liquidado_recibido
+-- vw_grupo_saldos (rediseñada en migración 20260515_cuotas_grupales.sql)
+-- Solo incluye cuotas grupales cuya fecha <= fecha actual (timezone Argentina).
+-- Las cuotas futuras no afectan el saldo hasta que vencen.
 -- saldo_neto > 0: te deben  |  saldo_neto < 0: debés
+--
+-- Fórmula:
+-- saldo_neto = pagado + liquidado_enviado - asignado - liquidado_recibido
 ```
 
 ### Índices
@@ -412,6 +491,7 @@ Pagos reales entre miembros para saldar deudas.
 | `idx_categorias_user_id` | categorias | user_id |
 | `idx_grupo_miembros_user_activo` | grupo_miembros | user_id WHERE estado='activo' |
 | `idx_grupo_gastos_activos` | grupo_gastos | grupo_id WHERE estado='activo' |
+| `idx_grupo_gastos_gasto_padre` | grupo_gastos | id_gasto_padre WHERE id_gasto_padre IS NOT NULL |
 | `idx_notificaciones_leida` | notificaciones | (user_id, leida) |
 
 ---
@@ -422,10 +502,24 @@ Pagos reales entre miembros para saldar deudas.
 
 | Middleware | Descripción |
 |-----------|-------------|
+| **helmet** | Headers de seguridad HTTP (CSP, HSTS, etc.). CSP permite conexiones a Supabase y Google. |
+| **compression** | Compresión gzip de las respuestas. |
 | **CORS** | Origen explícito desde `FRONTEND_URL`. En producción es obligatorio. En desarrollo acepta `http://localhost:5173`. |
 | **express.json({ limit: '10kb' })** | Límite estricto de payload para prevenir abusos. |
-| **validateApiKey** | Verifica el header `x-api-key` contra `N8N_API_KEY`. Aplica solo a los endpoints de integración. |
-| **requireAuth** (grupos) | Extrae el JWT del header `Authorization: Bearer <token>`, lo valida con Supabase service role y adjunta `req.user`. |
+| **validateApiKey** | Verifica el header `x-api-key` contra `N8N_API_KEY`. Aplica solo a los endpoints de integración. Siempre obligatoria. |
+| **requireAuth** (grupos/notificaciones) | Extrae el JWT del header `Authorization: Bearer <token>`, lo valida con Supabase service role y adjunta `req.user`. |
+
+### Rate Limiting
+
+| Scope | Ventana | Máximo |
+|-------|---------|--------|
+| Global (todas las rutas) | 15 minutos | 300 requests/IP |
+| `/api/notifications/*` | 1 minuto | 10 requests/IP |
+| `/api/integrations/*` | 1 minuto | 30 requests/IP |
+| `/api/grupos/*` | 1 minuto | 60 requests/IP |
+| Invitaciones a grupos (in-DB) | 1 hora | 10 invitaciones/grupo |
+
+El rate limit de invitaciones se valida consultando la tabla `grupo_invitaciones` en Supabase (durable frente a reinicios del servidor).
 
 ### Endpoints disponibles
 
@@ -519,19 +613,26 @@ Envía un email de notificación al usuario autenticado.
 
 Todos requieren `Authorization: Bearer <access_token>`.
 
-| Método | Path | Descripción | Auth requerida |
-|--------|------|-------------|---------------|
+| Método | Path | Descripción | Permiso requerido |
+|--------|------|-------------|-------------------|
 | `POST` | `/api/grupos/:grupoId/invitaciones` | Invitar un miembro por email | Admin del grupo |
 | `POST` | `/api/grupos/:grupoId/invitaciones/registro` | Email para registrar usuario nuevo | Admin del grupo |
-| `POST` | `/api/grupos/invitaciones/aceptar` | Aceptar invitación con token UUID | Miembro invitado |
+| `POST` | `/api/grupos/invitaciones/aceptar` | Aceptar invitación con token UUID | Email del JWT debe coincidir con email_invitado |
 | `GET` | `/api/grupos/:grupoId/usuarios/buscar?email=...` | Buscar usuario por email | Admin del grupo |
 | `GET` | `/api/grupos/:grupoId/miembros/perfiles` | Obtener nombres de miembros activos | Miembro activo |
 | `DELETE` | `/api/grupos/:grupoId` | Eliminar grupo (requiere saldos en cero) | Admin del grupo |
 | `POST` | `/api/grupos/:grupoId/gastos` | Crear gasto grupal con participantes | Miembro activo |
-| `PUT` | `/api/grupos/:grupoId/gastos/:gastoId` | Editar gasto grupal | Quien pagó |
+| `PUT` | `/api/grupos/:grupoId/gastos/:gastoId` | Editar gasto grupal y recalcular división | Quien pagó |
 | `PATCH` | `/api/grupos/:grupoId/gastos/:gastoId/anular` | Anular gasto grupal | Quien pagó |
-| `POST` | `/api/grupos/:grupoId/liquidaciones` | Registrar liquidación entre miembros | Miembro activo |
+| `PATCH` | `/api/grupos/:grupoId/gastos/:gastoId/anular-cuotas` | Anular todas las cuotas de una compra grupal | Quien pagó |
+| `POST` | `/api/grupos/:grupoId/gastos-cuotas` | Crear gasto grupal en cuotas con tarjeta | Miembro activo |
+| `POST` | `/api/grupos/:grupoId/liquidaciones` | Registrar liquidación entre miembros | El propio deudor |
 | `PATCH` | `/api/grupos/:grupoId/liquidaciones/:liqId/anular` | Anular liquidación | Registrador o admin |
+
+**Notas sobre validaciones de ruta:**
+- `grupoId` debe ser un entero positivo (validado por `router.param`)
+- `gastoId` debe ser un entero positivo (validado por `router.param`)
+- `liqId` debe ser un UUID válido (validado por `router.param`)
 
 ---
 
@@ -550,9 +651,11 @@ Supabase Auth con **Google OAuth 2.0**. Toda la sesión se maneja con JWT.
 4. Google redirige a <FRONTEND_URL>/ con el código OAuth
 5. Supabase intercambia el código por tokens (access_token + refresh_token)
 6. AuthContext recibe el evento SIGNED_IN en onAuthStateChange
-7. Si hay un pending_invitation_token en localStorage → redirige al flujo de invitación
+7. Si hay un pending_invitation_token en sessionStorage → redirige al flujo de invitación
 8. setUser(session.user) → la app accede a las rutas privadas
 ```
+
+**Nota:** `AuthContext` usa `onAuthStateChange` como fuente de verdad para el estado de autenticación. El evento `INITIAL_SESSION` es el que dispara `setLoading(false)`, evitando el race condition donde `getSession()` resuelve con `null` antes de que el SDK intercambie el code OAuth.
 
 ### Flujo de logout
 
@@ -562,12 +665,22 @@ Supabase Auth con **Google OAuth 2.0**. Toda la sesión se maneja con JWT.
 3. setUser(null) → ProtectedRoute redirige a /welcome
 ```
 
+### Cliente Supabase admin (`server/services/supabaseAdmin.js`)
+
+El backend usa un cliente separado (`supabaseAdmin`) configurado con la **service role key**. Este cliente bypasea todas las políticas RLS y tiene acceso completo a la base de datos, incluyendo la API de administración de usuarios (`auth.admin.*`).
+
+El cliente se inicializa de forma **lazy** mediante un `Proxy`: la primera vez que se accede a cualquier propiedad se crea la instancia de `createClient`. Esto garantiza que `dotenv` ya cargó las variables de entorno antes de que el cliente las lea.
+
+**Regla crítica:** Este cliente solo debe usarse en el backend. Nunca debe exponerse al frontend ni usarse para queries de datos de usuarios.
+
+La variable de entorno que utiliza es `SUPABASE_SERVICE_ROLE_KEY` (no `SUPABASE_KEY`).
+
 ### Uso de claves
 
 | Clave | Dónde se usa | Alcance |
 |-------|-------------|---------|
 | `VITE_SUPABASE_ANON_KEY` | Frontend (bundle público) | Solo lee/escribe según RLS del usuario autenticado |
-| `SUPABASE_KEY` (service role) | Backend Express únicamente | Acceso completo sin RLS — nunca en frontend |
+| `SUPABASE_SERVICE_ROLE_KEY` | Backend Express únicamente | Acceso completo sin RLS — nunca en frontend |
 
 ### Row Level Security (RLS)
 
@@ -578,15 +691,22 @@ Cada tabla tiene RLS habilitado. Las políticas garantizan que:
 
 ### Idempotencia — huella digital (n8n)
 
-Antes de insertar un gasto desde n8n, el backend genera un hash SHA de los datos del gasto:
+Antes de insertar un gasto desde n8n, el backend genera un hash SHA-256 de los datos del gasto:
 
 ```
-fingerprint = SHA256(descripcion + monto + categoria + medioPago + fecha)
+fingerprint = SHA256(user_id | descripcion | monto | categoria | medioPago | fecha)
 ```
 
 Este hash se guarda en la columna `huella_digital`. Si ya existe un registro con ese hash, el gasto no se inserta y se retorna `duplicated: true`. Esto previene registros dobles por reenvíos de WhatsApp.
 
 Los helpers `normalizeAmount` y `generateFingerprint` están en `server/utils.js` y **nunca deben eliminarse**.
+
+### Headers de seguridad (helmet)
+
+El servidor aplica headers de seguridad HTTP via `helmet`, con una Content Security Policy que:
+- Restringe las conexiones a Supabase y WebSockets de Supabase
+- Permite Google OAuth (`frameSrc: accounts.google.com`)
+- Permite Service Workers (`workerSrc: blob:`)
 
 ---
 
@@ -598,20 +718,20 @@ Los helpers `normalizeAmount` y `generateFingerprint` están en `server/utils.js
 
 **Reglas de negocio:**
 - Gastos del mes: filtra por el rango del mes actual en zona Argentina (UTC-3)
-- Saldo disponible = ingreso mensual − total gastos
-- Ahorro estimado = 20% del ingreso mensual (referencia visual)
+- Saldo disponible = ingreso mensual total del mes − total gastos
+- Ahorro estimado = referencia visual basada en el objetivo de ahorro configurado
 - Descripción del gasto → MAYÚSCULAS antes de guardar
-- Gastos con tarjeta de crédito → se generan N registros (cuotas) a partir del mes siguiente
+- Gastos con tarjeta de crédito → se generan N registros (cuotas) usando `cuotasHelper.js`
 
-**Páginas y componentes:** [Dashboard.jsx](client/src/pages/Dashboard.jsx), `SummaryCard`, `DashboardTable`, `DashboardSkeleton`, `TarjetasCuotasCard`, `Modal`, `ConfirmModal`, `CurrencyInput`
+**Páginas y componentes:** `Dashboard.jsx`, `SummaryCard`, `DashboardTable`, `DashboardSkeleton`, `TarjetasCuotasCard`, `Modal`, `ConfirmModal`, `CurrencyInput`
 
-**Funciones de db.js:** `getStats()`, `createExpense()`, `deleteVariableExpenses()`, `getCategories()`, `getPaymentMethods()`, `saveIncome()`, `getTarjetasEnCuotas()`
+**Funciones de db.js:** `getStats()`, `createExpense()`, `deleteVariableExpenses()`, `getCategories()`, `getPaymentMethods()`, `saveIncome()`, `getTarjetasEnCuotas()`, `getPrestamosEnCuotas()`
 
 ---
 
 ### 7.2 Movimientos
 
-**Descripción funcional:** Historial completo de gastos. Permite buscar por descripción, filtrar por categoría, editar gastos individuales y eliminarlos. Muestra también los movimientos futuros (cuotas pendientes de tarjeta de crédito).
+**Descripción funcional:** Historial completo de gastos. Permite buscar por descripción, filtrar por categoría, editar gastos individuales y eliminarlos. Muestra también los movimientos futuros (cuotas pendientes de tarjeta de crédito y préstamos).
 
 **Reglas de negocio:**
 - Solo se pueden eliminar gastos variables (`es_fijo = false`)
@@ -619,47 +739,65 @@ Los helpers `normalizeAmount` y `generateFingerprint` están en `server/utils.js
 - La edición no permite cambiar el tipo fijo/variable de cuotas
 - Los gastos futuros son cuotas de tarjeta a partir del mes siguiente
 
-**Páginas y componentes:** [Movements.jsx](client/src/pages/Movements.jsx), `Modal`, `ConfirmModal`, `CurrencyInput`, `GlassCard`
+**Páginas y componentes:** `Movements.jsx`, `Modal`, `ConfirmModal`, `CurrencyInput`, `GlassCard`
 
-**Funciones de db.js:** `getExpenses()`, `updateExpense()`, `deleteExpense()`, `getGastosFuturos()`, `deleteExpenseGroup()`, `updateExpenseGroup()`, `getCategories()`, `getPaymentMethods()`
+**Funciones de db.js:** `getExpenses()`, `updateExpense()`, `deleteExpense()`, `getGastosFuturos()`, `getPrestamosGastosFuturos()`, `deleteExpenseGroup()`, `updateExpenseGroup()`, `getCategories()`, `getPaymentMethods()`
 
 ---
 
-### 7.3 Tarjeta de Crédito en Cuotas
+### 7.3 Tarjeta de Crédito y Préstamos en Cuotas
 
-**Descripción funcional:** Al registrar un gasto con tarjeta de crédito, la app genera automáticamente N registros de cuota (1 a 18), cada uno con fecha en meses consecutivos a partir del mes siguiente.
+**Descripción funcional:** Al registrar un gasto con tarjeta de crédito o como préstamo, la app genera automáticamente N registros de cuota, cada uno con fecha en meses consecutivos a partir del mes indicado por el usuario.
 
 **Reglas de negocio:**
 - El monto de cada cuota = monto_total / N (redondeado a centavos)
 - La diferencia de redondeo va a la primera cuota
-- Todas las cuotas son gastos fijos (`es_fijo = true`)
-- Las cuotas se vinculan entre sí por `id_gasto_padre`
+- Las cuotas de tarjeta son gastos fijos (`es_fijo = true`)
+- Las cuotas se vinculan entre sí por `id_gasto_padre` (la primera cuota apunta a sí misma)
 - El panel `TarjetasCuotasCard` muestra el estado de cada compra (pagadas vs. pendientes)
+- La primera cuota vence en el mes elegido por el usuario (no necesariamente el siguiente)
 
-**Funciones de db.js:** `createExpense()` (con `esTarjetaCredito: true`), `getTarjetasEnCuotas()`, `getGastosFuturos()`, `deleteExpenseGroup()`, `updateExpenseGroup()`
+**Helpers de cálculo:**
+- `cuotasHelper.js` → `calcularCuotas(monto, cantCuotas, fechaPrimeraCuota, descripcion)`: devuelve array de `{ numero, monto, fecha, descripcion }` sin efectos secundarios.
+- `cuotasGroupHelper.js` → `agruparPorPadre`, `filtrarTarjetaCredito`, `filtrarPrestamos`, `transformarGrupoCuotas`, `transformarGrupoCuotasFuturas`: funciones puras para agrupar y procesar filas de cuotas.
+
+**Funciones de db.js:** `createExpense()` (con `esTarjetaCredito: true` o `esPrestamo: true`), `getTarjetasEnCuotas()`, `getPrestamosEnCuotas()`, `getGastosFuturos()`, `getPrestamosGastosFuturos()`, `deleteExpenseGroup()`, `updateExpenseGroup()`
 
 ---
 
 ### 7.4 Reportes
 
-**Descripción funcional:** Análisis de gastos por rango de fechas configurable. Muestra totales, desglose por categoría y por método de pago, y evolución diaria del gasto.
+**Descripción funcional:** Análisis de gastos por rango de fechas configurable. Muestra totales, desglose por categoría con porcentaje, desglose por método de pago y evolución diaria del gasto.
 
-**Páginas y componentes:** [Reportes.jsx](client/src/pages/Reportes.jsx), `GlassCard`
+**Páginas y componentes:** `Reportes.jsx`, `GlassCard`
 
-**Funciones de db.js:** `getReporteByRango(desde, hasta)`, `getGastosByRango(desde, hasta)`
+**Funciones de db.js:**
+- `getGastosByRango(desde, hasta)`: obtiene gastos de un rango de fechas arbitrario. Valida formato `YYYY-MM-DD`. Corrige el desfase UTC para que `hasta` sea inclusivo.
+- `getReporteByRango(desde, hasta)`: calcula estadísticas completas incluyendo `totalGastos`, `gastosFijos`, `gastosVariables`, `ingresoMensual`, `porCategoria` (con porcentaje), `porMetodoPago`, `porDia`.
+- `getStatsByMonth(year, month)`: estadísticas de gastos para un mes/año específico. Usado internamente por alertas y comparaciones mensuales.
 
 ---
 
 ### 7.5 Ingresos
 
-**Descripción funcional:** El usuario declara su ingreso mensual una única vez. Este valor es la base para calcular el saldo disponible y las alertas financieras.
+**Descripción funcional:** El usuario registra sus ingresos con fecha. Puede haber múltiples ingresos por mes (a diferencia de versiones anteriores con un único registro mensual). Los ingresos son la base para calcular el saldo disponible y las alertas financieras.
 
 **Reglas de negocio:**
-- Un solo registro por usuario (UNIQUE constraint en `ingresos.user_id`)
-- Si no existe, el sistema lo trata como 0
-- El upsert garantiza que no se crean duplicados
+- No se pueden registrar ingresos en meses anteriores al actual
+- Los ingresos se suman para obtener el total mensual
 
-**Funciones de db.js:** `getIncome()`, `saveIncome(monto)`
+**Ingresos recurrentes:** Plantillas que se esperan mensualmente. Al desactivar un recurrente con historial, se desactiva (no se elimina) para preservar el historial.
+
+**Funciones de db.js:**
+- `getIncomesByMonth(year, month)`, `getIncomeTotalByMonth(year, month)`: ingresos del período
+- `createIncome({ monto, fecha, descripcion, categoria_id })`, `updateIncome(id, data)`, `deleteIncome(id)`: CRUD de ingresos
+- `getIncomeCategories()`: categorías de ingresos
+- `getRecurringIncomes()`: ingresos recurrentes configurados
+- `createRecurringIncome(data)`, `updateRecurringIncome(id, data)`, `deleteRecurringIncome(id)`: CRUD de recurrentes
+- `getProjectedIncomeByMonth(year, month)`: proyecta ingresos esperados según recurrentes activos
+- `getMonthlyComparison(year, month)`: compara ingresos y gastos variables del mes actual vs. el anterior
+
+**Alias de compatibilidad:** `getIncome()` y `saveIncome(monto)` se mantienen para compatibilidad con código existente.
 
 ---
 
@@ -683,23 +821,26 @@ Los helpers `normalizeAmount` y `generateFingerprint` están en `server/utils.js
 **Tipos de origen:**
 - `gastos` — operaciones de gastos (creado, editado, eliminado)
 - `n8n` / `whatsapp` — gastos cargados desde WhatsApp
-- `grupos` — actividad en grupos compartidos (siempre envía email)
-- `alertas_financieras` — saldo bajo, gasto alto, concentración por categoría
-- `resumen` / `proyeccion` — resúmenes periódicos
+- `grupos` — actividad en grupos compartidos (siempre envía email si hay SMTP)
+- `alertas_financieras` — saldo bajo, gasto alto, concentración por categoría, gastos fijos
+- `proyeccion` — alertas de proyección de saldo negativo y ahorro en riesgo
+- `resumen` / `sistema` — resúmenes periódicos y mensajes del sistema
 
 **Reglas de negocio:**
 - Las notificaciones de grupos (`origen = 'grupos'`) siempre se envían por email si hay SMTP configurado, independientemente de la configuración del usuario
 - El envío de email es fire-and-forget: nunca interrumpe el flujo principal
 - Límite: últimas 50 notificaciones por usuario
+- Las alertas financieras tienen throttle de 1 por tipo por día (localStorage por dispositivo)
 
-**Contexto:** [NotificacionesContext.jsx](client/src/context/NotificacionesContext.jsx)
-**Funciones de db.js:** `getNotificaciones()`, `createNotificacion()`, `marcarLeida(id)`, `marcarTodasLeidas()`, `getConfigNotificaciones()`, `saveConfigNotificaciones(config)`
+**Contexto:** `NotificacionesContext.jsx` expone `notificaciones`, `noLeidas`, `config`, `panelAbierto`, `agregarNotificacion`, `leerNotificacion`, `leerTodas`, `guardarConfig`, y las funciones de alertas: `verificarAlertasFinancieras`, `verificarAlertaGastoAlto`, `verificarAlertasGastosFijos`, `verificarAlertaConcentracionCategoria`, `verificarProyecciones`, `generarResumenDiario`, `generarResumenSemanal`, `generarResumenMensual`.
+
+**Funciones de db.js:** `getNotificaciones()`, `createNotificacion()`, `marcarLeida(id)`, `marcarTodasLeidas()`, `actualizarEstadoEmail(id, enviado, error)`, `getConfigNotificaciones()`, `saveConfigNotificaciones(config)`
 
 ---
 
 ### 7.8 Grupos de Gastos Compartidos
 
-**Descripción funcional:** Permite crear grupos de personas para dividir gastos. Un admin invita miembros por email, registra gastos con participantes, y la app calcula automáticamente los saldos y sugiere cómo liquidar las deudas.
+**Descripción funcional:** Permite crear grupos de personas para dividir gastos. Un admin invita miembros por email, registra gastos con participantes, y la app calcula automáticamente los saldos y sugiere cómo liquidar las deudas con el mínimo de transferencias.
 
 **Reglas de negocio:**
 - Al crear un grupo, el creador queda automáticamente como admin (trigger)
@@ -708,8 +849,11 @@ Los helpers `normalizeAmount` y `generateFingerprint` están en `server/utils.js
 - Solo quien pagó puede editar o anular un gasto grupal
 - Solo admins pueden eliminar el grupo (y solo si todos los saldos son cero)
 - Las invitaciones expiran a los 7 días
-- Máximo 10 invitaciones por grupo por hora (rate limiting in-memory)
+- Máximo 10 invitaciones por grupo por hora (rate limiting en DB, durable frente a reinicios)
 - El grupo puede archivarse (soft delete) sin eliminar los datos históricos
+- Grupos archivados no aceptan nuevas invitaciones
+
+**Cuotas grupales (migración 20260515):** Se pueden registrar compras grupales en cuotas (1-18 cuotas). Cada cuota genera una fila en `grupo_gastos` vinculada por `id_gasto_padre`. La vista `vw_grupo_saldos` solo cuenta cuotas cuya fecha ya venció.
 
 **Fórmula de saldo neto:**
 ```
@@ -718,17 +862,40 @@ saldo_neto = pagado + liquidado_enviado − asignado − liquidado_recibido
 - Positivo: te deben dinero
 - Negativo: debés dinero
 
+**Algoritmo de transferencias mínimas (`grupos/saldos.js`):** Algoritmo greedy que empareja el deudor más grande con el acreedor más grande en cada iteración. Complejidad O(N log N). Garantiza el mínimo número de transferencias (máximo N-1 para N miembros).
+
 **Páginas:** `Grupos.jsx`, `GrupoDetalle.jsx`, `GrupoSaldos.jsx`, `GrupoNuevo.jsx`, `GrupoGastoNuevo.jsx`, `GrupoGastoEditar.jsx`, `AceptarInvitacion.jsx`
 
-**Funciones de db.js:** `crearGrupo()`, `actualizarGrupo()`, `archivarGrupo()`, `eliminarGrupo()`, `obtenerGruposDelUsuario()`, `obtenerMiembrosDelGrupo()`, `crearGastoGrupal()`, `obtenerGastosDelGrupo()`, `anularGastoGrupal()`, `registrarLiquidacion()`, `obtenerSaldosDelGrupo()`
+**Helpers:**
+- `cuotasGroupHelper.js`: funciones puras para agrupar y procesar cuotas grupales
+- `grupos/saldos.js`: `calcularTransferencias(saldos)` — algoritmo de liquidación mínima
+
+**Funciones de db.js:** `crearGrupo()`, `actualizarGrupo()`, `archivarGrupo()`, `eliminarGrupo()`, `obtenerGruposDelUsuario()`, `obtenerGrupoPorId()`, `obtenerMiembrosDelGrupo()`, `cambiarRolMiembro()`, `removerMiembro()`, `salirDelGrupo()`, `obtenerInvitacionesPendientes()`, `obtenerInvitacionesParaMi()`, `cancelarInvitacion()`, `crearGastoGrupal()`, `crearGastoGrupalEnCuotas()`, `obtenerCuotasGrupal()`, `obtenerGastosDelGrupo()`, `obtenerGastoConParticipantes()`, `anularGastoGrupal()`, `anularCuotasGrupales()`, `actualizarGastoGrupal()`, `registrarLiquidacion()`, `obtenerLiquidacionesDelGrupo()`, `anularLiquidacion()`, `obtenerSaldosDelGrupo()`
 
 ---
 
 ### 7.9 Configuración
 
-**Descripción funcional:** Pantalla de preferencias del usuario. Permite gestionar categorías personales, configurar el tema visual y personalizar qué notificaciones recibir y si se envían por email.
+**Descripción funcional:** Pantalla de preferencias del usuario. Permite gestionar categorías personales, configurar el tema visual (claro/oscuro y variantes de color), configurar el perfil de notificaciones (qué alertas recibir, umbrales), y habilitar o deshabilitar el envío de emails por tipo de evento.
 
-**Páginas y componentes:** [Configuracion.jsx](client/src/pages/Configuracion.jsx), `GlassCard`
+**Gestión de perfil:** Nombre visible y datos de cuenta (solo lectura, proviene de Google OAuth).
+
+**Preferencias de notificaciones:** Configura los umbrales de `configuracion_notificaciones` y cuáles notificaciones se envían por email.
+
+**Páginas y componentes:** `Configuracion.jsx`, `GlassCard`
+
+**Funciones de db.js:** `getCategories()`, `createCategory()`, `deleteCategory()`, `getConfigNotificaciones()`, `saveConfigNotificaciones()`, `getPerfilUsuario()`, `updateThemeUsuario()`
+
+---
+
+### 7.10 Contextos de React
+
+| Contexto | Responsabilidad |
+|----------|----------------|
+| `AuthContext` | Sesión de usuario, login con Google OAuth, logout global. Expone `user`, `session`, `loading`, `signInWithGoogle`, `signOut`. Maneja redirección automática a invitaciones pendientes al hacer login. |
+| `NotificacionesContext` | Estado de notificaciones, configuración de alertas, lógica de alertas financieras (5 fases), generación de resúmenes, envío de emails al backend. |
+| `ThemeContext` | Tema visual activo (ID + modo). Se sincroniza desde Supabase al hacer login. Usa localStorage como fallback para evitar flash visual en el primer render. Expone `themeId`, `currentTheme`, `applyTheme`, `themes`. |
+| `AppReadyContext` | Controla un flag `appReady` que los componentes de carga usan para sincronizar el loader inicial. Expone `appReady` y `setAppReady`. |
 
 ---
 
@@ -738,7 +905,7 @@ saldo_neto = pagado + liquidado_enviado − asignado − liquidado_recibido
 
 El flujo permite registrar gastos enviando un mensaje de WhatsApp que n8n procesa y envía al backend.
 
-**Endpoint:** `POST /api/integrations/n8n/gasto`  
+**Endpoint:** `POST /api/integrations/n8n/gasto`
 **Autenticación:** Header `x-api-key: <N8N_API_KEY>`
 
 **Flujo completo:**
@@ -747,14 +914,14 @@ El flujo permite registrar gastos enviando un mensaje de WhatsApp que n8n proces
 2. n8n parsea el mensaje y extrae descripcion, monto, categoria, medioPago
 3. n8n hace POST a http://<server>/api/integrations/n8n/gasto con x-api-key
 4. Servidor valida API key, formato y campos
-5. Genera fingerprint = SHA256(datos) → busca en gastos.huella_digital
+5. Genera fingerprint = SHA256(user_id|datos) → busca en gastos.huella_digital
 6. Si existe → retorna duplicado (ok: true, duplicated: true)
 7. Si no existe → inserta el gasto en Supabase (con service role)
 8. Dispara notificación in-app (fire-and-forget)
 9. Si emailUsuario configurado → envía email de confirmación
 ```
 
-**Campos que acepta el monto:** número, string con punto (`"850.50"`) o con coma (`"850,50"`). La función `normalizeAmount` en `server/utils.js` normaliza la coma a punto.
+**Campos que acepta el monto:** número, string con punto (`"850.50"`) o con coma (`"850,50"`). La función `normalizeAmount` en `server/utils.js` normaliza la coma a punto y elimina puntos usados como separadores de miles (formato AR: `1.500,50`).
 
 ---
 
@@ -762,18 +929,30 @@ El flujo permite registrar gastos enviando un mensaje de WhatsApp que n8n proces
 
 El servidor envía emails de notificación cuando el usuario tiene SMTP configurado.
 
-**Configuración:** variables de entorno SMTP en `server/.env`  
-**Trigger:** cualquier evento que genere una notificación con `email_habilitado: true` en la configuración del usuario, o cualquier notificación de grupos.
+**Implementación:** `server/services/email.js` y `server/services/notificaciones.js`
+
+**Configuración:** variables de entorno SMTP en `server/.env`
 
 **Tipos de emails:**
 - Confirmación de gasto registrado desde n8n
-- Alerta de saldo bajo
-- Alerta de gasto alto
+- Alerta de saldo bajo / gasto alto / gastos fijos / variables crecientes
 - Resúmenes diarios/semanales/mensuales
-- Notificaciones de actividad en grupos (siempre)
-- Invitaciones a grupos
+- Notificaciones de actividad en grupos (siempre, sin importar config)
+- Invitaciones a grupos (`enviarEmailInvitacionGrupo`)
+- Invitaciones a registrarse en la app (`enviarEmailInvitacionRegistro`)
 
-Si SMTP no está configurado, el sistema sigue funcionando sin enviar emails (falla silenciosa).
+**Reglas de envío por origen:**
+
+| Origen | Condición de envío |
+|--------|-------------------|
+| `n8n` / `whatsapp` | `email_habilitado` + `email_notificaciones_n8n` |
+| `grupos` | Siempre (transaccional, no configurable) |
+| `alertas_financieras` | `email_habilitado` + flag específico según tipo |
+| `resumen` | `email_habilitado` + flag de resumen (diario/semanal/mensual) |
+| `ingresos` | `email_habilitado` |
+| `gastos`, `app`, `sistema` | No se envía por email |
+
+Si SMTP no está configurado (`SMTP_HOST`, `SMTP_USER` y `SMTP_PASS` vacíos), el sistema sigue funcionando sin enviar emails (falla silenciosa).
 
 ---
 
@@ -785,7 +964,7 @@ Si SMTP no está configurado, el sistema sigue funcionando sin enviar emails (fa
 |----------|-------------------|-----------|-------------|
 | `VITE_SUPABASE_URL` | Sí (VITE_*) | Sí | URL del proyecto Supabase |
 | `VITE_SUPABASE_ANON_KEY` | Sí (VITE_*) | Sí | Clave pública de Supabase (anon key) |
-| `VITE_BACKEND_URL` | Sí (VITE_*) | No | URL del backend Express (en producción) |
+| `VITE_BACKEND_URL` | Sí (VITE_*) | No | URL del backend Express (en producción). En dev usa `http://localhost:3001` como fallback. |
 
 > **Importante:** Las variables `VITE_*` quedan embebidas en el bundle JavaScript y son visibles para cualquier usuario. Nunca deben contener la service role key.
 
@@ -794,12 +973,18 @@ Si SMTP no está configurado, el sistema sigue funcionando sin enviar emails (fa
 | Variable | Requerida | Descripción |
 |----------|-----------|-------------|
 | `PORT` | No | Puerto del servidor (default: 3001) |
-| `NODE_ENV` | No | `production` o `development` |
+| `NODE_ENV` | No | `production` o `development`. Si no está seteado, se asume `development`. |
 | `SUPABASE_URL` | Sí | URL del proyecto Supabase |
-| `SUPABASE_KEY` | Sí | **Service role key** — acceso completo sin RLS |
-| `N8N_API_KEY` | Sí | Clave de autenticación para el endpoint n8n |
-| `FRONTEND_URL` | Sí (producción) | URL del frontend (para CORS y links en emails) |
-| Variables SMTP | No | Credenciales SMTP para envío de emails |
+| `SUPABASE_SERVICE_ROLE_KEY` | Sí | **Service role key** — acceso completo sin RLS — nunca en frontend |
+| `N8N_API_KEY` | Sí | Clave de autenticación para el endpoint n8n. Siempre requerida. |
+| `FRONTEND_URL` | Sí (producción) | URL del frontend (para CORS y links en emails de invitación). En producción es obligatoria; el servidor no arranca sin ella. |
+| `SMTP_HOST` | No | Servidor SMTP para envío de emails |
+| `SMTP_PORT` | No | Puerto SMTP (default: 587) |
+| `SMTP_SECURE` | No | `true` para SSL (puerto 465), `false` para STARTTLS |
+| `SMTP_USER` | No | Usuario SMTP |
+| `SMTP_PASS` | No | Contraseña SMTP |
+| `SMTP_FROM_NAME` | No | Nombre del remitente (default: 'TusGastosApp') |
+| `SMTP_FROM_EMAIL` | No | Email del remitente (default: SMTP_USER) |
 
 ---
 
@@ -807,7 +992,7 @@ Si SMTP no está configurado, el sistema sigue funcionando sin enviar emails (fa
 
 ### Requisitos previos
 
-- Node.js 18+ instalado
+- Node.js 18+ instalado (el Dockerfile usa Node 20)
 - Cuenta en [Supabase](https://supabase.com) con proyecto creado
 - Credenciales de Google OAuth configuradas en el proyecto Supabase
 
@@ -831,7 +1016,8 @@ cp client/.env.example client/.env
 
 # Backend
 cp server/.env.example server/.env
-# Editar server/.env con PORT, SUPABASE_URL, SUPABASE_KEY, N8N_API_KEY, FRONTEND_URL
+# Editar server/.env con PORT, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, N8N_API_KEY, FRONTEND_URL
+# Opcional: agregar variables SMTP_* para envío de emails
 ```
 
 ### Aplicar el schema de base de datos
@@ -852,12 +1038,32 @@ npm run dev
 ### Comandos disponibles
 
 ```bash
+# Desarrollo
 npm run dev                        # Cliente + servidor en paralelo
 npm run client                     # Solo el cliente Vite
 npm run server                     # Solo el servidor Express
+
+# Calidad de código
 npm --prefix client run lint       # Lint del código frontend
 npm --prefix client run build      # Build de producción del frontend
 npm --prefix server run dev        # Servidor con nodemon (recarga automática)
+
+# Tests
+npm --prefix client run test       # Ejecuta los tests del frontend con vitest (modo run)
+npm --prefix client run test:watch # Tests del frontend en modo watch
+```
+
+### Ejecutar tests con vitest
+
+```bash
+# Tests del frontend (modo run — una sola ejecución)
+npm --prefix client run test
+
+# Tests del frontend en modo watch (vuelve a ejecutar al guardar)
+npm --prefix client run test:watch
+
+# Con cobertura (requiere @vitest/coverage-v8)
+npx --prefix client vitest run --coverage
 ```
 
 ### Verificar que el servidor está activo
@@ -889,6 +1095,31 @@ curl -X POST http://localhost:3001/api/integrations/n8n/gasto \
 3. Ejecutar en Supabase → SQL Editor
 4. Actualizar `server/db/schema.sql` con el estado completo resultante
 
+### Build y ejecución con Docker
+
+```bash
+# Construir la imagen (inyectar variables de build del frontend)
+docker build \
+  --build-arg VITE_SUPABASE_URL=<url> \
+  --build-arg VITE_SUPABASE_ANON_KEY=<key> \
+  -t tusgastosapp .
+
+# Ejecutar el contenedor
+docker run -p 3001:3001 \
+  -e SUPABASE_URL=<url> \
+  -e SUPABASE_SERVICE_ROLE_KEY=<key> \
+  -e N8N_API_KEY=<key> \
+  -e FRONTEND_URL=https://tudominio.com \
+  -e NODE_ENV=production \
+  tusgastosapp
+```
+
+El Dockerfile usa un **build multi-stage** con Node 20 Alpine:
+- **Stage 1 (builder):** Instala dependencias del cliente e inyecta las variables `VITE_*` como build args para que queden embebidas en el bundle.
+- **Stage 2 (production):** Instala solo dependencias del servidor (`--omit=dev`), copia el build del cliente a `server/public/`, y arranca con `node index.js`.
+
+En producción, Express sirve los estáticos del frontend desde `server/public/` y el catch-all devuelve `index.html` para que React Router funcione.
+
 ### Troubleshooting común
 
 | Problema | Solución |
@@ -900,3 +1131,5 @@ curl -X POST http://localhost:3001/api/integrations/n8n/gasto \
 | Error de RLS en Supabase | Asegurarse de que la tabla tiene RLS habilitado y la policy usa `auth.uid()` correctamente |
 | Emails no se envían | Verificar las variables SMTP en `server/.env`. Si SMTP no está configurado, el sistema falla silenciosamente |
 | Cuotas de tarjeta no aparecen | El método de pago debe llamarse exactamente `TARJETA DE CREDITO` (mayúsculas) para que el filtro funcione |
+| El servidor no arranca en producción | Verificar que `FRONTEND_URL` esté seteada; el servidor hace `process.exit(1)` si falta |
+| Saldos grupales no se actualizan | Las cuotas futuras no afectan el saldo hasta que vence su fecha (comportamiento esperado de `vw_grupo_saldos`) |

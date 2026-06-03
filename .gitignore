@@ -44,3 +44,6 @@ pnpm-debug.log*
 
 # Base de datos — solo local, no exponer estructura en GitHub
 server/db/
+
+# Graphify knowledge graph (se regenera localmente)
+graphify-out/

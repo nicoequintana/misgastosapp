@@ -95,7 +95,7 @@ app.use(express.json({ limit: '10kb' }));
 if (isProduction) app.set('trust proxy', 1);
 
 // Rate limiting por IP — global conservador + estricto en endpoints sensibles
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 1000, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/notifications', rateLimit({ windowMs: 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/integrations', rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/grupos', rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false }));
