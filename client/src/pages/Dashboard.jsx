@@ -1000,139 +1000,173 @@ const Dashboard = () => {
             {/* Modal: Ingresos */}
             <Modal
                 isOpen={isIncomeModalOpen}
-                onClose={() => { setIsIncomeModalOpen(false); setIncomeEditando(null); }}
-                title="Ingresos"
-                subtitle="Registrá tus ingresos del mes"
+                onClose={faseIngreso === 'form' ? () => { setIsIncomeModalOpen(false); setIncomeEditando(null); } : undefined}
+                title={faseIngreso === 'form' ? 'Ingresos' : undefined}
+                subtitle={faseIngreso === 'form' ? 'Registrá tus ingresos del mes' : undefined}
                 disableClose={!!incomeConfirmDelete}
             >
-                <div className="form-container">
-                    <form onSubmit={handleSaveIncome}>
-                        <div className="form-group">
-                            <label className="form-label-box">Monto</label>
-                            <CurrencyInput
-                                key={`income-${incomeEditando ?? 'new'}`}
-                                value={incomeForm.monto}
-                                onChange={(val) => setIncomeForm(prev => ({ ...prev, monto: val }))}
-                                required
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label-box">Descripción (opcional)</label>
-                            <input
-                                type="text"
-                                value={incomeForm.descripcion}
-                                onChange={(e) => setIncomeForm(prev => ({ ...prev, descripcion: e.target.value }))}
-                                className="input"
-                                placeholder="Ej: Sueldo"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label-box">Categoría (opcional)</label>
-                            <ChipSelector
-                                opciones={[
-                                    { id: '', nombre: 'Sin categoría', icono: 'block' },
-                                    ...categoriaIngresos,
-                                ]}
-                                valorSeleccionado={incomeForm.categoria_id ? Number(incomeForm.categoria_id) : ''}
-                                onChange={(id) => setIncomeForm(prev => ({ ...prev, categoria_id: id === '' ? '' : id }))}
-                                limiteVisible={6}
-                            />
-                        </div>
-                        {/* Solo mostrar selector recurrente al crear, no al editar */}
-                        {!incomeEditando && (
+                {faseIngreso === 'form' && (
+                    <div className="form-container">
+                        <form onSubmit={handleSaveIncome}>
                             <div className="form-group">
-                                <label className="form-label-box">Tipo de ingreso</label>
-                                <ChipSelector
-                                    opciones={[
-                                        { id: 'puntual', nombre: 'Puntual', icono: 'event' },
-                                        { id: 'recurrente', nombre: 'Recurrente', icono: 'repeat' },
-                                    ]}
-                                    valorSeleccionado={incomeForm.es_recurrente ? 'recurrente' : 'puntual'}
-                                    onChange={(id) => setIncomeForm(prev => ({ ...prev, es_recurrente: id === 'recurrente' }))}
-                                    limiteVisible={2}
+                                <label className="form-label-box">Monto</label>
+                                <CurrencyInput
+                                    key={`income-${incomeEditando ?? 'new'}`}
+                                    value={incomeForm.monto}
+                                    onChange={(val) => setIncomeForm(prev => ({ ...prev, monto: val }))}
+                                    required
                                 />
                             </div>
-                        )}
-                        <div className="form-row" style={{ marginTop: '8px' }}>
-                            {incomeEditando && (
-                                <button
-                                    type="button"
-                                    onClick={() => { setIncomeEditando(null); setIncomeForm(INCOME_FORM_INICIAL); }}
-                                    className="btn btn-secondary"
-                                    style={{ flex: 1 }}
-                                >
-                                    Cancelar
-                                </button>
-                            )}
-                            <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                                {incomeEditando ? 'Actualizar' : 'Agregar ingreso'}
-                            </button>
-                        </div>
-                    </form>
-
-                    {/* Lista de ingresos del mes */}
-                    {ingresosMes.length > 0 && (
-                        <div style={{ marginTop: '20px' }}>
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Ingresos de este mes
+                            <div className="form-group">
+                                <label className="form-label-box">Descripción (opcional)</label>
+                                <input
+                                    type="text"
+                                    value={incomeForm.descripcion}
+                                    onChange={(e) => setIncomeForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                                    className="input"
+                                    placeholder="Ej: Sueldo"
+                                />
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {ingresosMes.map(ing => (
-                                    <div key={ing.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', border: incomeEditando === ing.id ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)' }}>
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--success)' }}>
-                                                ${Number(ing.monto).toLocaleString('es-AR')}
+                            <div className="form-group">
+                                <label className="form-label-box">Categoría (opcional)</label>
+                                <ChipSelector
+                                    opciones={[
+                                        { id: '', nombre: 'Sin categoría', icono: 'block' },
+                                        ...categoriaIngresos,
+                                    ]}
+                                    valorSeleccionado={incomeForm.categoria_id ? Number(incomeForm.categoria_id) : ''}
+                                    onChange={(id) => setIncomeForm(prev => ({ ...prev, categoria_id: id === '' ? '' : id }))}
+                                    limiteVisible={6}
+                                />
+                            </div>
+                            {/* Solo mostrar selector recurrente al crear, no al editar */}
+                            {!incomeEditando && (
+                                <div className="form-group">
+                                    <label className="form-label-box">Tipo de ingreso</label>
+                                    <ChipSelector
+                                        opciones={[
+                                            { id: 'puntual', nombre: 'Puntual', icono: 'event' },
+                                            { id: 'recurrente', nombre: 'Recurrente', icono: 'repeat' },
+                                        ]}
+                                        valorSeleccionado={incomeForm.es_recurrente ? 'recurrente' : 'puntual'}
+                                        onChange={(id) => setIncomeForm(prev => ({ ...prev, es_recurrente: id === 'recurrente' }))}
+                                        limiteVisible={2}
+                                    />
+                                </div>
+                            )}
+                            <div className="form-row" style={{ marginTop: '8px' }}>
+                                {incomeEditando && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setIncomeEditando(null); setIncomeForm(INCOME_FORM_INICIAL); }}
+                                        className="btn btn-secondary"
+                                        style={{ flex: 1 }}
+                                    >
+                                        Cancelar
+                                    </button>
+                                )}
+                                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+                                    {incomeEditando ? 'Actualizar' : 'Agregar ingreso'}
+                                </button>
+                            </div>
+                        </form>
+
+                        {/* Lista de ingresos del mes */}
+                        {ingresosMes.length > 0 && (
+                            <div style={{ marginTop: '20px' }}>
+                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Ingresos de este mes
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {ingresosMes.map(ing => (
+                                        <div key={ing.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', border: incomeEditando === ing.id ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)' }}>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--success)' }}>
+                                                    ${Number(ing.monto).toLocaleString('es-AR')}
+                                                </div>
+                                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                                    {ing.descripcion || 'Sin descripción'}{ing.categorias_ingresos?.nombre ? ` · ${ing.categorias_ingresos.nombre}` : ''}
+                                                    {ing.recurrente_id && <span style={{ marginLeft: '6px', fontSize: '11px', background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: '4px' }}>recurrente</span>}
+                                                </div>
                                             </div>
-                                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                                {ing.descripcion || 'Sin descripción'}{ing.categorias_ingresos?.nombre ? ` · ${ing.categorias_ingresos.nombre}` : ''}
-                                                {ing.recurrente_id && <span style={{ marginLeft: '6px', fontSize: '11px', background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: '4px' }}>recurrente</span>}
+                                            <div style={{ display: 'flex', gap: '6px', marginLeft: '10px' }}>
+                                                <button type="button" onClick={() => handleEditarIngreso(ing)} className="btn btn-secondary" style={{ padding: '4px 8px' }} title="Editar">
+                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>edit</span>
+                                                </button>
+                                                <button type="button" onClick={() => setIncomeConfirmDelete(ing.id)} className="btn btn-danger-gradient" style={{ padding: '4px 8px' }} title="Eliminar">
+                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
+                                                </button>
                                             </div>
                                         </div>
-                                        <div style={{ display: 'flex', gap: '6px', marginLeft: '10px' }}>
-                                            <button type="button" onClick={() => handleEditarIngreso(ing)} className="btn btn-secondary" style={{ padding: '4px 8px' }} title="Editar">
-                                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>edit</span>
-                                            </button>
-                                            <button type="button" onClick={() => setIncomeConfirmDelete(ing.id)} className="btn btn-danger-gradient" style={{ padding: '4px 8px' }} title="Eliminar">
-                                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
+                                    ))}
+                                </div>
+                                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>Total del mes</span>
+                                    <span style={{ fontWeight: 700, color: 'var(--success)' }}>
+                                        ${ingresosMes.reduce((s, i) => s + Number(i.monto), 0).toLocaleString('es-AR')}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                        {ingresosMes.length === 0 && (
+                            <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px', marginTop: '16px', padding: '12px' }}>
+                                Todavía no registraste ingresos este mes.
+                            </div>
+                        )}
+
+                        {/* Lista de recurrentes activos — informativo */}
+                        {recurrentesActivos.length > 0 && (
+                            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Recurrentes configurados
+                                </div>
+                                {recurrentesActivos.map(rec => (
+                                    <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '4px 0', color: 'var(--text-secondary)' }}>
+                                        <span>{rec.descripcion}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ color: 'var(--success)' }}>${Number(rec.monto).toLocaleString('es-AR')}/mes</span>
+                                            <button type="button" onClick={() => setIncomeConfirmDelete(`rec-${rec.id}`)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0' }} title="Eliminar recurrente">
+                                                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>close</span>
                                             </button>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                                <span style={{ color: 'var(--text-secondary)' }}>Total del mes</span>
-                                <span style={{ fontWeight: 700, color: 'var(--success)' }}>
-                                    ${ingresosMes.reduce((s, i) => s + Number(i.monto), 0).toLocaleString('es-AR')}
-                                </span>
-                            </div>
-                        </div>
-                    )}
-                    {ingresosMes.length === 0 && (
-                        <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px', marginTop: '16px', padding: '12px' }}>
-                            Todavía no registraste ingresos este mes.
-                        </div>
-                    )}
-
-                    {/* Lista de recurrentes activos — informativo */}
-                    {recurrentesActivos.length > 0 && (
-                        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Recurrentes configurados
-                            </div>
-                            {recurrentesActivos.map(rec => (
-                                <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '4px 0', color: 'var(--text-secondary)' }}>
-                                    <span>{rec.descripcion}</span>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={{ color: 'var(--success)' }}>${Number(rec.monto).toLocaleString('es-AR')}/mes</span>
-                                        <button type="button" onClick={() => setIncomeConfirmDelete(`rec-${rec.id}`)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0' }} title="Eliminar recurrente">
-                                            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>close</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
+                {faseIngreso === 'guardando' && (
+                    <div className="result-modal" role="status" aria-live="polite">
+                        <span className="material-symbols-outlined result-modal__icono result-modal__icono--loading" style={{ color: 'var(--primary)', borderColor: 'var(--primary)' }}>
+                            progress_activity
+                        </span>
+                        <h3 className="result-modal__titulo">Guardando...</h3>
+                    </div>
+                )}
+                {faseIngreso === 'resultado' && resultadoIngreso && (
+                    <div className="result-modal">
+                        <span
+                            className="material-symbols-outlined result-modal__icono"
+                            style={{
+                                color: resultadoIngreso.tipo === 'error' ? 'var(--danger)' : 'var(--success)',
+                                borderColor: resultadoIngreso.tipo === 'error' ? 'var(--danger)' : 'var(--success)',
+                            }}
+                        >
+                            {resultadoIngreso.tipo === 'error' ? 'cancel' : 'check_circle'}
+                        </span>
+                        <h3 className="result-modal__titulo">{resultadoIngreso.titulo}</h3>
+                        {resultadoIngreso.mensaje && (
+                            <p className="result-modal__subtexto">{resultadoIngreso.mensaje}</p>
+                        )}
+                        <button
+                            type="button"
+                            className={`btn result-modal__boton result-modal__boton--${resultadoIngreso.tipo === 'error' ? 'error' : 'success'}`}
+                            onClick={handleVolverFormularioIngreso}
+                        >
+                            Continuar
+                        </button>
+                    </div>
+                )}
             </Modal>
 
             {/* Confirm: eliminar ingreso o recurrente */}
