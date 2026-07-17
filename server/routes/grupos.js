@@ -778,7 +778,7 @@ const calcularParticipantes = (gastoId, montoNum, pagadoPor, participantesUnicos
 router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
     const { grupoId } = req.params;
     const { supabaseAdmin, user } = req;
-    const { descripcion, monto, pagadoPor, fecha, nota, idCategoria, participantesUserIds } = req.body;
+    const { descripcion, monto, pagadoPor, fecha, nota, idCategoria, idMetodoPago, participantesUserIds } = req.body;
 
     if (!descripcion?.trim()) return res.status(400).json({ ok: false, error: 'La descripción es requerida' });
     if (descripcion.trim().length > 500) return res.status(400).json({ ok: false, error: 'La descripción no puede exceder 500 caracteres' });
@@ -822,14 +822,15 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
         const { data: gasto, error: errGasto } = await supabaseAdmin
             .from('grupo_gastos')
             .insert([{
-                grupo_id:     Number(grupoId),
-                descripcion:  descripcion.trim().toUpperCase(),
-                monto:        montoNum,
-                pagado_por:   pagadoPor,
-                fecha:        `${fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })}T12:00:00-03:00`,
-                nota:         nota?.trim() || null,
-                id_categoria: idCategoria || null,
-                creado_por:   user.id,
+                grupo_id:       Number(grupoId),
+                descripcion:    descripcion.trim().toUpperCase(),
+                monto:          montoNum,
+                pagado_por:     pagadoPor,
+                fecha:          `${fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })}T12:00:00-03:00`,
+                nota:           nota?.trim() || null,
+                id_categoria:   idCategoria || null,
+                id_metodo_pago: idMetodoPago || null,
+                creado_por:     user.id,
             }])
             .select()
             .single();
@@ -879,7 +880,7 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
 router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
     const { grupoId, gastoId } = req.params;
     const { supabaseAdmin, user } = req;
-    const { descripcion, monto, pagadoPor, fecha, primeraCuota, nota, idCategoria, participantesUserIds } = req.body;
+    const { descripcion, monto, pagadoPor, fecha, primeraCuota, nota, idCategoria, idMetodoPago, participantesUserIds } = req.body;
 
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         return res.status(400).json({ ok: false, error: 'Se requiere al menos un participante' });
@@ -924,12 +925,13 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
         const { data: gasto, error: errUpdate } = await supabaseAdmin
             .from('grupo_gastos')
             .update({
-                descripcion:  descripcion.trim().toUpperCase(),
-                monto:        montoNum,
-                pagado_por:   pagadoPor,
-                fecha:        `${fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })}T12:00:00-03:00`,
-                nota:         nota?.trim() || null,
-                id_categoria: idCategoria || null,
+                descripcion:    descripcion.trim().toUpperCase(),
+                monto:          montoNum,
+                pagado_por:     pagadoPor,
+                fecha:          `${fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })}T12:00:00-03:00`,
+                nota:           nota?.trim() || null,
+                id_categoria:   idCategoria || null,
+                id_metodo_pago: idMetodoPago || null,
             })
             .eq('id', gastoId)
             .eq('estado', 'activo')
