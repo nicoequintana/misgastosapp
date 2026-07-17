@@ -493,6 +493,13 @@ const Dashboard = () => {
      */
     const handleSaveIncome = async (e) => {
         e.preventDefault();
+        // El form del wizard solo se submitea de verdad en el paso 2 (botón "Agregar
+        // ingreso"/"Actualizar"). Si el submit llega antes (ej. Enter en el input de
+        // Monto del paso 1), avanzamos de paso en vez de guardar a medio completar.
+        if (pasoIngreso < 2) {
+            handleSiguientePasoIngreso();
+            return;
+        }
         const hoy = new Date();
         const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
         setFaseIngreso('guardando');
@@ -1061,85 +1068,48 @@ const Dashboard = () => {
             <Modal
                 isOpen={isIncomeModalOpen}
                 onClose={faseIngreso === 'form' ? () => { setIsIncomeModalOpen(false); setIncomeEditando(null); } : undefined}
-                title={faseIngreso === 'form' ? 'Ingresos' : undefined}
-                subtitle={faseIngreso === 'form' ? 'Registrá tus ingresos del mes' : undefined}
+                title={faseIngreso === 'form' ? (vistaIngreso === 'wizard' ? (incomeEditando ? 'Editar ingreso' : 'Nuevo ingreso') : 'Ingresos') : undefined}
+                subtitle={faseIngreso === 'form' ? (vistaIngreso === 'wizard' ? `Paso ${pasoIngreso} de 2` : 'Registrá tus ingresos del mes') : undefined}
+                footer={faseIngreso === 'form' && vistaIngreso === 'wizard' ? (
+                    <div className="form-row">
+                        {pasoIngreso === 1 ? (
+                            <button key="cancelar" type="button" onClick={() => setVistaIngreso('lista')} className="btn btn-secondary" style={{ flex: 1 }}>
+                                Cancelar
+                            </button>
+                        ) : (
+                            <button key="atras" type="button" onClick={handleAtrasPasoIngreso} disabled={botonesPasoIngresoBloqueados} className="btn btn-secondary" style={{ flex: 1 }}>
+                                Atrás
+                            </button>
+                        )}
+                        {pasoIngreso < 2 ? (
+                            <button key="siguiente" type="button" onClick={handleSiguientePasoIngreso} disabled={botonesPasoIngresoBloqueados} className="btn btn-primary" style={{ flex: 1 }}>
+                                Siguiente
+                            </button>
+                        ) : (
+                            <button key="guardar" type="submit" form="form-ingreso-wizard" disabled={botonesPasoIngresoBloqueados} className="btn btn-primary" style={{ flex: 1 }}>
+                                {incomeEditando ? 'Actualizar' : 'Agregar ingreso'}
+                            </button>
+                        )}
+                    </div>
+                ) : undefined}
                 disableClose={!!incomeConfirmDelete}
             >
-                {faseIngreso === 'form' && (
+                {faseIngreso === 'form' && vistaIngreso === 'lista' && (
                     <div className="form-container">
-                        <form onSubmit={handleSaveIncome}>
-                            <div className="form-group">
-                                <label className="form-label-box">Monto</label>
-                                <CurrencyInput
-                                    key={`income-${incomeEditando ?? 'new'}`}
-                                    value={incomeForm.monto}
-                                    onChange={(val) => setIncomeForm(prev => ({ ...prev, monto: val }))}
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label-box">Descripción (opcional)</label>
-                                <input
-                                    type="text"
-                                    value={incomeForm.descripcion}
-                                    onChange={(e) => setIncomeForm(prev => ({ ...prev, descripcion: e.target.value }))}
-                                    className="input"
-                                    placeholder="Ej: Sueldo"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label-box">Categoría (opcional)</label>
-                                <ChipSelector
-                                    opciones={[
-                                        { id: '', nombre: 'Sin categoría', icono: 'block' },
-                                        ...categoriaIngresos,
-                                    ]}
-                                    valorSeleccionado={incomeForm.categoria_id ? Number(incomeForm.categoria_id) : ''}
-                                    onChange={(id) => setIncomeForm(prev => ({ ...prev, categoria_id: id === '' ? '' : id }))}
-                                    limiteVisible={6}
-                                />
-                            </div>
-                            {/* Solo mostrar selector recurrente al crear, no al editar */}
-                            {!incomeEditando && (
-                                <div className="form-group">
-                                    <label className="form-label-box">Tipo de ingreso</label>
-                                    <ChipSelector
-                                        opciones={[
-                                            { id: 'puntual', nombre: 'Puntual', icono: 'event' },
-                                            { id: 'recurrente', nombre: 'Recurrente', icono: 'repeat' },
-                                        ]}
-                                        valorSeleccionado={incomeForm.es_recurrente ? 'recurrente' : 'puntual'}
-                                        onChange={(id) => setIncomeForm(prev => ({ ...prev, es_recurrente: id === 'recurrente' }))}
-                                        limiteVisible={2}
-                                    />
-                                </div>
-                            )}
-                            <div className="form-row" style={{ marginTop: '8px' }}>
-                                {incomeEditando && (
-                                    <button
-                                        type="button"
-                                        onClick={() => { setIncomeEditando(null); setIncomeForm(INCOME_FORM_INICIAL); }}
-                                        className="btn btn-secondary"
-                                        style={{ flex: 1 }}
-                                    >
-                                        Cancelar
-                                    </button>
-                                )}
-                                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                                    {incomeEditando ? 'Actualizar' : 'Agregar ingreso'}
-                                </button>
-                            </div>
-                        </form>
+                        <button type="button" onClick={handleAbrirWizardIngreso} className="btn btn-primary" style={{ width: '100%', marginBottom: '20px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '6px', verticalAlign: 'middle' }}>add</span>
+                            Nuevo ingreso
+                        </button>
 
                         {/* Lista de ingresos del mes */}
                         {ingresosMes.length > 0 && (
-                            <div style={{ marginTop: '20px' }}>
+                            <div>
                                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                     Ingresos de este mes
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     {ingresosMes.map(ing => (
-                                        <div key={ing.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', border: incomeEditando === ing.id ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)' }}>
+                                        <div key={ing.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--success)' }}>
                                                     ${Number(ing.monto).toLocaleString('es-AR')}
@@ -1169,7 +1139,7 @@ const Dashboard = () => {
                             </div>
                         )}
                         {ingresosMes.length === 0 && (
-                            <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px', marginTop: '16px', padding: '12px' }}>
+                            <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px', padding: '12px' }}>
                                 Todavía no registraste ingresos este mes.
                             </div>
                         )}
@@ -1194,6 +1164,69 @@ const Dashboard = () => {
                             </div>
                         )}
                     </div>
+                )}
+                {faseIngreso === 'form' && vistaIngreso === 'wizard' && (
+                    <form id="form-ingreso-wizard" onSubmit={handleSaveIncome} className="form-container">
+                        {pasoIngreso === 1 && (
+                            <>
+                            <div className="form-group">
+                                <label className="form-label-box">Monto</label>
+                                <CurrencyInput
+                                    key={`income-${incomeEditando ?? 'new'}`}
+                                    value={incomeForm.monto}
+                                    onChange={(val) => setIncomeForm(prev => ({ ...prev, monto: val }))}
+                                    className="input currency-input--grande"
+                                    autoFocus
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label-box">Descripción (opcional)</label>
+                                <input
+                                    type="text"
+                                    value={incomeForm.descripcion}
+                                    onChange={(e) => setIncomeForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                                    className="input"
+                                    placeholder="Ej: Sueldo"
+                                />
+                            </div>
+                            </>
+                        )}
+                        {pasoIngreso === 2 && (
+                            <>
+                            <div className="form-group">
+                                <label className="form-label-box">Categoría (opcional)</label>
+                                <ChipSelector
+                                    opciones={[
+                                        { id: '', nombre: 'Sin categoría', icono: 'block' },
+                                        ...categoriaIngresos,
+                                    ]}
+                                    valorSeleccionado={incomeForm.categoria_id ? Number(incomeForm.categoria_id) : ''}
+                                    onChange={(id) => setIncomeForm(prev => ({ ...prev, categoria_id: id === '' ? '' : id }))}
+                                    limiteVisible={6}
+                                />
+                            </div>
+                            {/* Solo mostrar selector recurrente al crear, no al editar */}
+                            {!incomeEditando && (
+                                <div className="form-group">
+                                    <label className="form-label-box">Tipo de ingreso</label>
+                                    <ChipSelector
+                                        opciones={[
+                                            { id: 'puntual', nombre: 'Puntual', icono: 'event' },
+                                            { id: 'recurrente', nombre: 'Recurrente', icono: 'repeat' },
+                                        ]}
+                                        valorSeleccionado={incomeForm.es_recurrente ? 'recurrente' : 'puntual'}
+                                        onChange={(id) => setIncomeForm(prev => ({ ...prev, es_recurrente: id === 'recurrente' }))}
+                                        limiteVisible={2}
+                                    />
+                                </div>
+                            )}
+                            </>
+                        )}
+                        {errorIngresoForm && (
+                            <p className="edit-form-error" role="alert">{errorIngresoForm}</p>
+                        )}
+                    </form>
                 )}
                 {faseIngreso === 'guardando' && (
                     <div className="result-modal" role="status" aria-live="polite">
