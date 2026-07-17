@@ -205,6 +205,12 @@ const Dashboard = () => {
     const [incomeForm, setIncomeForm]               = useState(INCOME_FORM_INICIAL);
     const [incomeEditando, setIncomeEditando]       = useState(null);
     const [incomeConfirmDelete, setIncomeConfirmDelete] = useState(null);
+    // Fase visual del modal de Ingresos: 'form' (formulario+lista), 'guardando' (spinner
+    // mientras corre la acción) o 'resultado' (popup de éxito/error). A diferencia del
+    // modal de gastos, acá el modal NO se cierra al llegar a 'resultado' — es un panel
+    // persistente pensado para cargar varios ingresos seguidos.
+    const [faseIngreso, setFaseIngreso] = useState('form');
+    const [resultadoIngreso, setResultadoIngreso] = useState(null);
 
     // Grupos de cuotas para la card de tarjeta de crédito
     const [cuotasGrupos, setCuotasGrupos] = useState([]);
@@ -443,6 +449,8 @@ const Dashboard = () => {
     const handleAbrirIngresos = () => {
         setIncomeForm(INCOME_FORM_INICIAL);
         setIncomeEditando(null);
+        setFaseIngreso('form');
+        setResultadoIngreso(null);
         setIsIncomeModalOpen(true);
         fetchIngresosMes();
         fetchRecurrentes();
@@ -457,6 +465,7 @@ const Dashboard = () => {
         e.preventDefault();
         const hoy = new Date();
         const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+        setFaseIngreso('guardando');
         try {
             if (incomeEditando) {
                 await db.updateIncome(incomeEditando, {
@@ -465,6 +474,7 @@ const Dashboard = () => {
                     categoria_id: incomeForm.categoria_id || null,
                 });
                 agregarNotificacion({ titulo: 'Ingreso actualizado', mensaje: `Ingreso de $${Number(incomeForm.monto).toLocaleString('es-AR')} modificado.`, tipo: 'info', origen: 'ingresos' });
+                setResultadoIngreso({ tipo: 'success', titulo: 'Ingreso actualizado' });
             } else {
                 // Si marcó recurrente, también lo registra en ingresos_recurrentes
                 if (incomeForm.es_recurrente) {
@@ -482,10 +492,9 @@ const Dashboard = () => {
                     categoria_id: incomeForm.categoria_id || null,
                 });
                 agregarNotificacion({ titulo: 'Ingreso registrado', mensaje: `Se registró un ingreso de $${Number(incomeForm.monto).toLocaleString('es-AR')}.`, tipo: 'success', origen: 'ingresos' });
+                setResultadoIngreso({ tipo: 'success', titulo: '¡Ingreso registrado!' });
             }
-            setIncomeForm(INCOME_FORM_INICIAL);
-            setIncomeEditando(null);
-            setIsIncomeModalOpen(false);
+            setFaseIngreso('resultado');
             await Promise.all([fetchIngresosMes(), fetchRecurrentes(), fetchStats({ verificarAlertas: true, mostrarSkeleton: false })]);
         } catch (err) {
             console.error('❌ Error al guardar ingreso:', err);
@@ -495,6 +504,8 @@ const Dashboard = () => {
                 tipo: 'error',
                 origen: 'ingresos',
             });
+            setResultadoIngreso({ tipo: 'error', titulo: 'No se pudo guardar el ingreso', mensaje: err.message });
+            setFaseIngreso('resultado');
         }
     };
 
@@ -511,10 +522,13 @@ const Dashboard = () => {
 
     /** Elimina un ingreso puntual tras confirmación. */
     const handleEliminarIngreso = async (id) => {
+        setIncomeConfirmDelete(null);
+        setFaseIngreso('guardando');
         try {
             await db.deleteIncome(id);
-            setIncomeConfirmDelete(null);
             agregarNotificacion({ titulo: 'Ingreso eliminado', mensaje: 'El ingreso fue eliminado del período.', tipo: 'warning', origen: 'ingresos' });
+            setResultadoIngreso({ tipo: 'success', titulo: 'Ingreso eliminado' });
+            setFaseIngreso('resultado');
             await Promise.all([fetchIngresosMes(), fetchStats({ verificarAlertas: true, mostrarSkeleton: false })]);
         } catch (err) {
             console.error('❌ Error al eliminar ingreso:', err);
@@ -524,15 +538,20 @@ const Dashboard = () => {
                 tipo: 'error',
                 origen: 'ingresos',
             });
+            setResultadoIngreso({ tipo: 'error', titulo: 'No se pudo eliminar el ingreso' });
+            setFaseIngreso('resultado');
         }
     };
 
     /** Elimina o desactiva un recurrente tras confirmación. */
     const handleEliminarRecurrente = async (id) => {
+        setIncomeConfirmDelete(null);
+        setFaseIngreso('guardando');
         try {
             await db.deleteRecurringIncome(id);
-            setIncomeConfirmDelete(null);
             agregarNotificacion({ titulo: 'Recurrente eliminado', mensaje: 'El ingreso recurrente fue eliminado.', tipo: 'warning', origen: 'ingresos' });
+            setResultadoIngreso({ tipo: 'success', titulo: 'Recurrente eliminado' });
+            setFaseIngreso('resultado');
             await Promise.all([fetchRecurrentes()]);
         } catch (err) {
             console.error('❌ Error al eliminar recurrente:', err);
@@ -542,7 +561,15 @@ const Dashboard = () => {
                 tipo: 'error',
                 origen: 'ingresos',
             });
+            setResultadoIngreso({ tipo: 'error', titulo: 'No se pudo eliminar el recurrente' });
+            setFaseIngreso('resultado');
         }
+    };
+
+    /** Vuelve a la fase de formulario tras ver el resultado, sin cerrar el modal de Ingresos. */
+    const handleVolverFormularioIngreso = () => {
+        setFaseIngreso('form');
+        setResultadoIngreso(null);
     };
 
     /**
