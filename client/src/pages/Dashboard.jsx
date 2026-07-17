@@ -184,6 +184,8 @@ const Dashboard = () => {
     // Estado del formulario de nuevo gasto
     const [expenseForm, setExpenseForm] = useState(ESTADO_INICIAL_GASTO);
     const [errorForm, setErrorForm] = useState(null);
+    // Paso actual del wizard de carga (1: monto/descripción, 2: categoría/método/cuotas, 3: fijo/variable)
+    const [pasoGasto, setPasoGasto] = useState(1);
 
     // Estado del panel de ingresos
     const [ingresosMes, setIngresosMes]             = useState([]);
@@ -323,12 +325,7 @@ const Dashboard = () => {
         e.preventDefault();
         setErrorForm(null);
 
-        // Validar que todos los campos requeridos estén completos
-        if (!expenseForm.descripcion || !expenseForm.descripcion.trim()) {
-            setErrorForm('Ingresá una descripción para el gasto.');
-            return;
-        }
-
+        // Validar que todos los campos requeridos estén completos (la descripción es opcional)
         if (!expenseForm.monto || Number(expenseForm.monto) <= 0) {
             setErrorForm('El monto debe ser mayor a cero.');
             return;
@@ -350,6 +347,9 @@ const Dashboard = () => {
         }
 
         try {
+            // La descripción es opcional: si el usuario no escribió nada, usamos un texto genérico
+            // para la notificación (la persistencia del default real ocurre en db.createExpense).
+            const descripcionMostrada = expenseForm.descripcion?.trim() || 'SIN DESCRIPCIÓN';
             // La fecha del gasto siempre es la del día de carga — no es un campo editable del form.
             // Se recalcula acá (no solo en el estado inicial) por si el modal quedó abierto de un día para el otro.
             await db.createExpense({ ...expenseForm, fecha: fechaHoyArgentina() });
@@ -358,12 +358,12 @@ const Dashboard = () => {
             setIsModalOpen(false);
             agregarNotificacion({
                 titulo:  'Gasto registrado',
-                mensaje: `Se registró "${expenseForm.descripcion}" por $${Number(expenseForm.monto).toLocaleString('es-AR')}.`,
+                mensaje: `Se registró "${descripcionMostrada}" por $${Number(expenseForm.monto).toLocaleString('es-AR')}.`,
                 tipo:    'success',
                 origen:  'manual',
             });
             // Verificar si el gasto supera el umbral de gasto alto
-            verificarAlertaGastoAlto({ descripcion: expenseForm.descripcion, monto: expenseForm.monto });
+            verificarAlertaGastoAlto({ descripcion: descripcionMostrada, monto: expenseForm.monto });
             setExpenseForm(ESTADO_INICIAL_GASTO);
             setErrorForm(null);
             // Recargar cuotas si el nuevo gasto es con tarjeta de crédito
@@ -525,7 +525,44 @@ const Dashboard = () => {
      * Si faltan categorías o métodos, abre el modal de advertencia de configuración.
      */
     const handleAbrirNuevoGasto = () => {
+        setPasoGasto(1);
         setIsModalOpen(true);
+    };
+
+    // El paso 3 (Fijo/Variable) no aplica si tarjeta/préstamo ya definieron es_fijo automáticamente
+    const aplicaPasoFijoVariable = !expenseForm.esTarjetaCredito && !expenseForm.esPrestamo;
+    const totalPasosGasto = aplicaPasoFijoVariable ? 3 : 2;
+
+    /** Valida los campos del paso actual antes de dejar avanzar. Devuelve el mensaje de error o null. */
+    const validarPasoGasto = (paso) => {
+        if (paso === 1) {
+            if (!expenseForm.monto || Number(expenseForm.monto) <= 0) {
+                return 'El monto debe ser mayor a cero.';
+            }
+        }
+        if (paso === 2) {
+            if (!expenseForm.id_categoria) return 'Seleccioná una categoría.';
+            if (!expenseForm.id_metodo_pago) return 'Seleccioná un método de pago.';
+            if ((expenseForm.esTarjetaCredito || expenseForm.esPrestamo) && !expenseForm.primeraCuota) {
+                return 'Indicá en qué mes vence la primera cuota.';
+            }
+        }
+        return null;
+    };
+
+    const handleSiguientePaso = () => {
+        const error = validarPasoGasto(pasoGasto);
+        if (error) {
+            setErrorForm(error);
+            return;
+        }
+        setErrorForm(null);
+        setPasoGasto(prev => prev + 1);
+    };
+
+    const handleAtrasPaso = () => {
+        setErrorForm(null);
+        setPasoGasto(prev => prev - 1);
     };
 
     // Detecta si el método de pago seleccionado acepta cuotas (flag explícito en metodos_pago.acepta_cuotas)
@@ -686,124 +723,143 @@ const Dashboard = () => {
 
             {/* ========== MODALES ========== */}
 
-            {/* Modal: Nuevo Gasto */}
+            {/* Modal: Nuevo Gasto (wizard de 3 pasos: monto/descripción → categoría/método/cuotas → fijo/variable) */}
             <Modal
                 isOpen={isModalOpen}
                 onClose={() => { setIsModalOpen(false); setErrorForm(null); }}
                 title="Nuevo Gasto"
-                subtitle="Completá los detalles del movimiento"
+                subtitle={`Paso ${pasoGasto} de ${totalPasosGasto}`}
                 footer={
                     <div className="form-row">
-                        <button type="button" form="form-nuevo-gasto" onClick={() => setIsModalOpen(false)} className="btn btn-secondary" style={{ flex: 1 }}>
-                            Cancelar
-                        </button>
-                        <button type="submit" form="form-nuevo-gasto" className="btn btn-primary" style={{ flex: 1 }}>
-                            Guardar
-                        </button>
+                        {pasoGasto === 1 ? (
+                            <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary" style={{ flex: 1 }}>
+                                Cancelar
+                            </button>
+                        ) : (
+                            <button type="button" onClick={handleAtrasPaso} className="btn btn-secondary" style={{ flex: 1 }}>
+                                Atrás
+                            </button>
+                        )}
+                        {pasoGasto < totalPasosGasto ? (
+                            <button type="button" onClick={handleSiguientePaso} className="btn btn-primary" style={{ flex: 1 }}>
+                                Siguiente
+                            </button>
+                        ) : (
+                            <button type="submit" form="form-nuevo-gasto" className="btn btn-primary" style={{ flex: 1 }}>
+                                Guardar
+                            </button>
+                        )}
                     </div>
                 }
             >
                 <form id="form-nuevo-gasto" onSubmit={handleSubmitExpense} className="form-container">
-                    <div className="form-group">
-                        <label className="form-label-box">Monto</label>
-                        <CurrencyInput
-                            value={expenseForm.monto}
-                            onChange={(val) => setExpenseForm(prev => ({ ...prev, monto: val }))}
-                            className="input currency-input--grande"
-                            autoFocus
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label-box">Descripción</label>
-                        <input
-                            type="text"
-                            value={expenseForm.descripcion}
-                            onChange={(e) => setExpenseForm(prev => ({ ...prev, descripcion: e.target.value }))}
-                            required
-                            className="input"
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label-box">Categoría</label>
-                        <ChipSelector
-                            opciones={categories}
-                            valorSeleccionado={expenseForm.id_categoria ? Number(expenseForm.id_categoria) : null}
-                            onChange={(id) => handleCambioCategoria(id)}
-                            limiteVisible={6}
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label-box">Método de Pago</label>
-                        <ChipSelector
-                            opciones={paymentMethods}
-                            valorSeleccionado={expenseForm.id_metodo_pago ? Number(expenseForm.id_metodo_pago) : null}
-                            onChange={(id) => handleCambioMetodoPago(id)}
-                            limiteVisible={6}
-                        />
-                    </div>
-                    {expenseForm.esTarjetaCredito && (
+                    {pasoGasto === 1 && (
                         <>
                         <div className="form-group">
-                            <label className="form-label-box">Cuotas</label>
-                            <select
-                                value={expenseForm.cuotas}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
-                                className="form-select"
-                            >
-                                {OPCIONES_CUOTAS_TARJETA.map(n => (
-                                    <option key={n} value={n}>
-                                        {n === 1 ? '1 cuota (pago único)' : `${n} cuotas`}
-                                    </option>
-                                ))}
-                            </select>
+                            <label className="form-label-box">Monto</label>
+                            <CurrencyInput
+                                value={expenseForm.monto}
+                                onChange={(val) => setExpenseForm(prev => ({ ...prev, monto: val }))}
+                                className="input currency-input--grande"
+                                autoFocus
+                            />
                         </div>
                         <div className="form-group">
-                            <label className="form-label-box">Mes de la primera cuota <span style={{ color: 'var(--danger)' }}>*</span></label>
+                            <label className="form-label-box">Descripción (opcional)</label>
                             <input
-                                type="month"
-                                className="form-select"
-                                value={expenseForm.primeraCuota}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }))}
-                                required
+                                type="text"
+                                value={expenseForm.descripcion}
+                                onChange={(e) => setExpenseForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                                className="input"
                             />
-                            <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
-                                El 1° del mes elegido es la fecha de vencimiento de la primera cuota.
-                            </small>
                         </div>
                         </>
                     )}
-                    {expenseForm.esPrestamo && (
+                    {pasoGasto === 2 && (
                         <>
                         <div className="form-group">
-                            <label className="form-label-box">Cuotas</label>
-                            <select
-                                value={expenseForm.cuotas}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
-                                className="form-select"
-                            >
-                                {OPCIONES_CUOTAS_PRESTAMO.map(n => (
-                                    <option key={n} value={n}>
-                                        {n === 1 ? '1 cuota (pago único)' : `${n} cuotas`}
-                                    </option>
-                                ))}
-                            </select>
+                            <label className="form-label-box">Categoría</label>
+                            <ChipSelector
+                                opciones={categories}
+                                valorSeleccionado={expenseForm.id_categoria ? Number(expenseForm.id_categoria) : null}
+                                onChange={(id) => handleCambioCategoria(id)}
+                                limiteVisible={6}
+                            />
                         </div>
                         <div className="form-group">
-                            <label className="form-label-box">Mes del primer pago <span style={{ color: 'var(--danger)' }}>*</span></label>
-                            <input
-                                type="month"
-                                className="form-select"
-                                value={expenseForm.primeraCuota}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }))}
-                                required
+                            <label className="form-label-box">Método de Pago</label>
+                            <ChipSelector
+                                opciones={paymentMethods}
+                                valorSeleccionado={expenseForm.id_metodo_pago ? Number(expenseForm.id_metodo_pago) : null}
+                                onChange={(id) => handleCambioMetodoPago(id)}
+                                limiteVisible={6}
                             />
-                            <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
-                                El 1° del mes elegido es la fecha del primer pago del préstamo.
-                            </small>
                         </div>
+                        {expenseForm.esTarjetaCredito && (
+                            <>
+                            <div className="form-group">
+                                <label className="form-label-box">Cuotas</label>
+                                <select
+                                    value={expenseForm.cuotas}
+                                    onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
+                                    className="form-select"
+                                >
+                                    {OPCIONES_CUOTAS_TARJETA.map(n => (
+                                        <option key={n} value={n}>
+                                            {n === 1 ? '1 cuota (pago único)' : `${n} cuotas`}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label-box">Mes de la primera cuota <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                <input
+                                    type="month"
+                                    className="form-select"
+                                    value={expenseForm.primeraCuota}
+                                    onChange={(e) => setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }))}
+                                    required
+                                />
+                                <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
+                                    El 1° del mes elegido es la fecha de vencimiento de la primera cuota.
+                                </small>
+                            </div>
+                            </>
+                        )}
+                        {expenseForm.esPrestamo && (
+                            <>
+                            <div className="form-group">
+                                <label className="form-label-box">Cuotas</label>
+                                <select
+                                    value={expenseForm.cuotas}
+                                    onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
+                                    className="form-select"
+                                >
+                                    {OPCIONES_CUOTAS_PRESTAMO.map(n => (
+                                        <option key={n} value={n}>
+                                            {n === 1 ? '1 cuota (pago único)' : `${n} cuotas`}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label-box">Mes del primer pago <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                <input
+                                    type="month"
+                                    className="form-select"
+                                    value={expenseForm.primeraCuota}
+                                    onChange={(e) => setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }))}
+                                    required
+                                />
+                                <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
+                                    El 1° del mes elegido es la fecha del primer pago del préstamo.
+                                </small>
+                            </div>
+                            </>
+                        )}
                         </>
                     )}
-                    {!expenseForm.esTarjetaCredito && !expenseForm.esPrestamo && (
+                    {pasoGasto === 3 && aplicaPasoFijoVariable && (
                         <div className="form-group">
                             <label className="form-label-box">Tipo de gasto</label>
                             <ChipSelector

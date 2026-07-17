@@ -162,10 +162,6 @@ export const getExpenses = async () => {
 export const createExpense = async (gasto) => {
     const usuario = await obtenerUsuarioActivo();
 
-    if (typeof gasto.descripcion !== 'string' || !gasto.descripcion.trim()) {
-        throw new Error('La descripción debe ser un texto válido');
-    }
-
     validarMonto(gasto.monto);
     const montoNumero = Number(gasto.monto);
 
@@ -173,7 +169,10 @@ export const createExpense = async (gasto) => {
     const esPrestamo = gasto.esPrestamo === true;
     const esCuotas = esTarjetaCredito || esPrestamo;
     const cuotas = esCuotas ? Math.max(1, Math.min(120, parseInt(gasto.cuotas) || 1)) : 1;
-    const descripcionBase = gasto.descripcion.trim().toUpperCase();
+    // La descripción es opcional: si el usuario no escribe nada, usamos un texto genérico.
+    const descripcionBase = (typeof gasto.descripcion === 'string' && gasto.descripcion.trim())
+        ? gasto.descripcion.trim().toUpperCase()
+        : 'SIN DESCRIPCIÓN';
 
     if (!esCuotas) {
         // Gasto normal: inserción única

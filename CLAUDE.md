@@ -208,7 +208,7 @@ ALTER TABLE gastos ADD COLUMN etiqueta TEXT;
 
 ## 11. REGLAS DE NEGOCIO
 
-- Gasto requiere: descripción, monto > 0, categoría, método de pago, fecha, tipo fijo/variable.
+- Gasto requiere: monto > 0, categoría, método de pago, fecha, tipo fijo/variable. La descripción es opcional — si no se completa, se guarda como "SIN DESCRIPCIÓN".
 - `descripcion` → MAYÚSCULAS antes de guardar.
 - `es_fijo = true` → fijo (recurrente). `es_fijo = false` → variable (espontáneo).
 - Eliminar gasto: solo variables, requiere `ConfirmModal`, recargar estadísticas después. Nunca fijos ni datos de otro usuario.
