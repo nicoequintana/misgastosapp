@@ -211,6 +211,17 @@ const Dashboard = () => {
     // persistente pensado para cargar varios ingresos seguidos.
     const [faseIngreso, setFaseIngreso] = useState('form');
     const [resultadoIngreso, setResultadoIngreso] = useState(null);
+    // Vista del modal de Ingresos: 'lista' (ingresos del mes + recurrentes + botón "Nuevo
+    // ingreso") o 'wizard' (formulario de alta/edición en 2 pasos). Reemplaza el formulario
+    // siempre-visible anterior por un flujo de wizard, igual que el modal de gastos.
+    const [vistaIngreso, setVistaIngreso] = useState('lista');
+    // Paso actual del wizard de ingreso (1: monto/descripción, 2: categoría/tipo)
+    const [pasoIngreso, setPasoIngreso] = useState(1);
+    // Mismo mecanismo que botonesPasoBloqueados en el wizard de gastos: evita que un click
+    // sobre "Siguiente" recaiga por error sobre "Guardar" cuando este último ocupa la misma
+    // posición del footer tras avanzar al último paso.
+    const [botonesPasoIngresoBloqueados, setBotonesPasoIngresoBloqueados] = useState(false);
+    const [errorIngresoForm, setErrorIngresoForm] = useState(null);
 
     // Grupos de cuotas para la card de tarjeta de crédito
     const [cuotasGrupos, setCuotasGrupos] = useState([]);
@@ -338,6 +349,13 @@ const Dashboard = () => {
         return () => clearTimeout(timer);
     }, [pasoGasto]);
 
+    // Mismo mecanismo que el de arriba, aplicado al wizard de ingresos.
+    useEffect(() => {
+        setBotonesPasoIngresoBloqueados(true);
+        const timer = setTimeout(() => setBotonesPasoIngresoBloqueados(false), 400);
+        return () => clearTimeout(timer);
+    }, [pasoIngreso]);
+
     // Mejorar UX de teclado: permite confirmar acciones con Enter en botones
     useEffect(() => {
         const manejarTeclas = (e) => {
@@ -451,9 +469,21 @@ const Dashboard = () => {
         setIncomeEditando(null);
         setFaseIngreso('form');
         setResultadoIngreso(null);
+        setVistaIngreso('lista');
+        setPasoIngreso(1);
+        setErrorIngresoForm(null);
         setIsIncomeModalOpen(true);
         fetchIngresosMes();
         fetchRecurrentes();
+    };
+
+    /** Abre el wizard de alta de ingreso desde la vista de lista, con el formulario vacío. */
+    const handleAbrirWizardIngreso = () => {
+        setIncomeForm(INCOME_FORM_INICIAL);
+        setIncomeEditando(null);
+        setPasoIngreso(1);
+        setErrorIngresoForm(null);
+        setVistaIngreso('wizard');
     };
 
     /**
@@ -518,6 +548,9 @@ const Dashboard = () => {
             categoria_id:  ingreso.categoria_id || '',
             es_recurrente: false,
         });
+        setPasoIngreso(1);
+        setErrorIngresoForm(null);
+        setVistaIngreso('wizard');
     };
 
     /** Elimina un ingreso puntual tras confirmación. */
@@ -566,10 +599,37 @@ const Dashboard = () => {
         }
     };
 
-    /** Vuelve a la fase de formulario tras ver el resultado, sin cerrar el modal de Ingresos. */
+    /** Valida los campos del paso actual del wizard de ingreso antes de dejar avanzar. */
+    const validarPasoIngreso = (paso) => {
+        if (paso === 1) {
+            if (!incomeForm.monto || Number(incomeForm.monto) <= 0) {
+                return 'El monto debe ser mayor a cero.';
+            }
+        }
+        return null;
+    };
+
+    const handleSiguientePasoIngreso = () => {
+        const error = validarPasoIngreso(pasoIngreso);
+        if (error) {
+            setErrorIngresoForm(error);
+            return;
+        }
+        setErrorIngresoForm(null);
+        setPasoIngreso(prev => prev + 1);
+    };
+
+    const handleAtrasPasoIngreso = () => {
+        setErrorIngresoForm(null);
+        setPasoIngreso(prev => prev - 1);
+    };
+
+    /** Vuelve a la vista de lista tras ver el resultado, sin cerrar el modal de Ingresos. */
     const handleVolverFormularioIngreso = () => {
         setFaseIngreso('form');
         setResultadoIngreso(null);
+        setVistaIngreso('lista');
+        setPasoIngreso(1);
     };
 
     /**
