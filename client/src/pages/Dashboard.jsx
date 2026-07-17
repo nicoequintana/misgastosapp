@@ -3,6 +3,7 @@ import { Link, useOutletContext } from 'react-router-dom';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import CurrencyInput from '../components/CurrencyInput';
+import ChipSelector from '../components/ChipSelector';
 import * as db from '../lib/db';
 import { getTarjetasEnCuotas, getGastosFuturos, getPrestamosEnCuotas, getPrestamosGastosFuturos } from '../lib/db';
 import SummaryCard from '../components/dashboard/SummaryCard';
@@ -525,10 +526,10 @@ const Dashboard = () => {
         setIsModalOpen(true);
     };
 
-    // Detecta si el método de pago seleccionado es tarjeta de crédito y actualiza el estado
+    // Detecta si el método de pago seleccionado acepta cuotas (flag explícito en metodos_pago.acepta_cuotas)
     const handleCambioMetodoPago = (id) => {
         const metodo = paymentMethods.find(pm => pm.id === Number(id) || pm.id === id);
-        const esTarjeta = metodo?.nombre?.toUpperCase() === 'TARJETA DE CREDITO';
+        const esTarjeta = metodo?.acepta_cuotas === true;
         setExpenseForm(prev => ({
             ...prev,
             id_metodo_pago: id,
@@ -540,10 +541,10 @@ const Dashboard = () => {
         }));
     };
 
-    // Detecta si la categoría seleccionada es PRESTAMOS y activa el modo cuotas
+    // Detecta si la categoría seleccionada es de tipo préstamo (flag explícito en categorias.es_prestamo)
     const handleCambioCategoria = (id) => {
         const cat = categories.find(c => c.id === Number(id) || c.id === id);
-        const esPrestamo = cat?.nombre?.toUpperCase() === 'PRESTAMOS';
+        const esPrestamo = cat?.es_prestamo === true;
         setExpenseForm(prev => ({
             ...prev,
             id_categoria: id,
@@ -734,31 +735,21 @@ const Dashboard = () => {
                     <div className="form-grid">
                         <div className="form-group">
                             <label className="form-label-box">Categoría</label>
-                            <select
-                                value={expenseForm.id_categoria}
-                                onChange={(e) => handleCambioCategoria(e.target.value)}
-                                required
-                                className="form-select"
-                            >
-                                <option value="">Seleccionar...</option>
-                                {categories.map(cat => (
-                                    <option key={cat.id} value={cat.id}>{cat.nombre}</option>
-                                ))}
-                            </select>
+                            <ChipSelector
+                                opciones={categories}
+                                valorSeleccionado={expenseForm.id_categoria ? Number(expenseForm.id_categoria) : null}
+                                onChange={(id) => handleCambioCategoria(id)}
+                                limiteVisible={6}
+                            />
                         </div>
                         <div className="form-group">
                             <label className="form-label-box">Método de Pago</label>
-                            <select
-                                value={expenseForm.id_metodo_pago}
-                                onChange={(e) => handleCambioMetodoPago(e.target.value)}
-                                required
-                                className="form-select"
-                            >
-                                <option value="">Seleccionar...</option>
-                                {paymentMethods.map(pm => (
-                                    <option key={pm.id} value={pm.id}>{pm.nombre}</option>
-                                ))}
-                            </select>
+                            <ChipSelector
+                                opciones={paymentMethods}
+                                valorSeleccionado={expenseForm.id_metodo_pago ? Number(expenseForm.id_metodo_pago) : null}
+                                onChange={(id) => handleCambioMetodoPago(id)}
+                                limiteVisible={6}
+                            />
                         </div>
                     </div>
                     {expenseForm.esTarjetaCredito && (
@@ -824,14 +815,17 @@ const Dashboard = () => {
                         </>
                     )}
                     {!expenseForm.esTarjetaCredito && !expenseForm.esPrestamo && (
-                        <div className="form-checkbox-group">
-                            <input
-                                type="checkbox"
-                                id="es_fijo"
-                                checked={expenseForm.es_fijo}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, es_fijo: e.target.checked }))}
+                        <div className="form-group">
+                            <label className="form-label-box">Tipo de gasto</label>
+                            <ChipSelector
+                                opciones={[
+                                    { id: 'variable', nombre: 'Variable', icono: 'trending_down' },
+                                    { id: 'fijo', nombre: 'Fijo', icono: 'lock' },
+                                ]}
+                                valorSeleccionado={expenseForm.es_fijo ? 'fijo' : 'variable'}
+                                onChange={(id) => setExpenseForm(prev => ({ ...prev, es_fijo: id === 'fijo' }))}
+                                limiteVisible={2}
                             />
-                            <label htmlFor="es_fijo">Gasto Fijo</label>
                         </div>
                     )}
                     {errorForm && (
