@@ -80,4 +80,38 @@ describe('GrupoGastoNuevo', () => {
         expect(await screen.findByText(/¡Gasto registrado!|Gasto registrado/i)).toBeInTheDocument();
         expect(db.crearGastoGrupal).toHaveBeenCalledWith(expect.objectContaining({ idMetodoPago: 10 }));
     });
+
+    it('bloquea el submit y muestra error si no se eligió método de pago', async () => {
+        renderPagina();
+        await waitFor(() => expect(screen.getByText('COMIDA')).toBeInTheDocument());
+
+        fireEvent.change(screen.getByLabelText(/Descripción/i), { target: { value: 'Cena' } });
+        fireEvent.change(screen.getByLabelText(/Monto/i), { target: { value: '1000' } });
+        fireEvent.change(screen.getByLabelText(/Pagó/i), { target: { value: 'u1' } });
+
+        fireEvent.click(screen.getByRole('button', { name: /Guardar gasto/i }));
+
+        expect(await screen.findByText(/Seleccioná un método de pago/i)).toBeInTheDocument();
+        expect(db.crearGastoGrupal).not.toHaveBeenCalled();
+    });
+
+    it('muestra fase de resultado con error y vuelve al formulario al continuar', async () => {
+        db.crearGastoGrupal.mockRejectedValue(new Error('Error de red'));
+        renderPagina();
+        await waitFor(() => expect(screen.getByText('COMIDA')).toBeInTheDocument());
+
+        fireEvent.change(screen.getByLabelText(/Descripción/i), { target: { value: 'Cena' } });
+        fireEvent.change(screen.getByLabelText(/Monto/i), { target: { value: '1000' } });
+        fireEvent.click(screen.getByText('COMIDA'));
+        fireEvent.click(screen.getByText('EFECTIVO'));
+        fireEvent.change(screen.getByLabelText(/Pagó/i), { target: { value: 'u1' } });
+
+        fireEvent.click(screen.getByRole('button', { name: /Guardar gasto/i }));
+
+        expect(await screen.findByText(/No se pudo registrar el gasto/i)).toBeInTheDocument();
+        expect(screen.getByText('Error de red')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Continuar/i }));
+        expect(await screen.findByLabelText(/Descripción/i)).toBeInTheDocument();
+    });
 });
