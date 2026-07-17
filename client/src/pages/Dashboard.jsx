@@ -937,7 +937,7 @@ const Dashboard = () => {
                     </form>
                 )}
                 {faseGasto === 'guardando' && (
-                    <div className="result-modal">
+                    <div className="result-modal" role="status" aria-live="polite">
                         <span className="material-symbols-outlined result-modal__icono result-modal__icono--loading" style={{ color: 'var(--primary)', borderColor: 'var(--primary)' }}>
                             progress_activity
                         </span>
