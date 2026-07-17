@@ -221,6 +221,8 @@ Clasifica los gastos del usuario. Puede ser global (`user_id IS NULL`) o persona
 | `id` | BIGINT PK | Generado automáticamente |
 | `user_id` | UUID FK → auth.users | NULL = global; UUID = categoría personal |
 | `nombre` | VARCHAR(255) NOT NULL | Nombre de la categoría (en mayúsculas) |
+| `icono` | VARCHAR(50) DEFAULT 'label' | Ícono del chip de categoría (migración 20260716) |
+| `es_prestamo` | BOOLEAN DEFAULT false | Reemplaza el string-matching de "PRESTAMOS" por flag explícito (migración 20260716) |
 | `fecha_creacion` | TIMESTAMPTZ | Fecha de creación (default NOW()) |
 
 **Política RLS vigente (migración 20260514):** La política anterior era permisiva y podía exponer categorías de otros usuarios. Las nuevas políticas son:
@@ -229,15 +231,25 @@ Clasifica los gastos del usuario. Puede ser global (`user_id IS NULL`) o persona
 - `categorias_delete`: `auth.uid() = user_id`
 
 #### `metodos_pago`
-Métodos de pago disponibles. Son globales (pre-configurados, ningún usuario puede insertarlos).
+Métodos de pago disponibles. Pueden ser globales (pre-configurados) o personales del usuario.
 
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
 | `id` | BIGINT PK | Generado automáticamente |
-| `user_id` | UUID FK → auth.users | Referencia de usuario (global) |
+| `user_id` | UUID FK → auth.users | NULL = global; UUID = método personal. Desde la migración 20260716 tiene CRUD real de usuario (antes era de solo lectura global) |
 | `nombre` | VARCHAR(100) NOT NULL | Ej: EFECTIVO, TARJETA DE CREDITO |
+| `tipo` | VARCHAR(20) DEFAULT 'efectivo' | `efectivo` \| `tarjeta` \| `cuenta` — reemplaza el string-matching de "TARJETA DE CREDITO" (migración 20260716) |
+| `acepta_cuotas` | BOOLEAN DEFAULT false | Si el método admite pago en cuotas (migración 20260716) |
+| `icono` | VARCHAR(50) DEFAULT 'payments' | Ícono del chip de método de pago (migración 20260716) |
 | `activo` | BOOLEAN | Si está disponible para seleccionar |
 | `fecha_creacion` | TIMESTAMPTZ | Fecha de creación |
+
+**Política RLS vigente (migración 20260716):** Antes `metodos_pago` solo tenía lectura global, sin policies de insert/update/delete de usuario. Las nuevas políticas son:
+
+- `metodos_pago_select`: `user_id IS NULL OR auth.uid() = user_id`
+- `metodos_pago_insert`: `auth.uid() = user_id`
+- `metodos_pago_update`: `auth.uid() = user_id`
+- `metodos_pago_delete`: `auth.uid() = user_id`
 
 #### `gastos`
 Registro central de gastos del usuario. Soporta cuotas de tarjeta de crédito y préstamos.
