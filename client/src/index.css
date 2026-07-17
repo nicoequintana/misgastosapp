@@ -8288,3 +8288,56 @@ body::after {
   padding: 20px 16px;
   text-align: left;
 }
+
+.result-modal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--space-4) 0 var(--space-2);
+}
+
+.result-modal__icono {
+  font-size: 56px;
+  width: 88px;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid;
+  border-radius: 50%;
+  margin-bottom: var(--space-6);
+}
+
+.result-modal__titulo {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0 0 var(--space-2);
+}
+
+.result-modal__subtitulo {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-8);
+}
+
+.result-modal__boton {
+  width: 100%;
+  min-width: 160px;
+}
+
+.result-modal__boton--success {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.result-modal__boton--warning {
+  background: var(--warning);
+  border-color: var(--warning);
+}
+
+.result-modal__boton--error {
+  background: var(--danger);
+  border-color: var(--danger);
+}

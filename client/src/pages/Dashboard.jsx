@@ -4,6 +4,7 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import CurrencyInput from '../components/CurrencyInput';
 import ChipSelector from '../components/ChipSelector';
+import ResultModal from '../components/ResultModal';
 import * as db from '../lib/db';
 import { getTarjetasEnCuotas, getGastosFuturos, getPrestamosEnCuotas, getPrestamosGastosFuturos } from '../lib/db';
 import SummaryCard from '../components/dashboard/SummaryCard';
@@ -186,6 +187,9 @@ const Dashboard = () => {
     const [errorForm, setErrorForm] = useState(null);
     // Paso actual del wizard de carga (1: monto/descripción, 2: categoría/método/cuotas, 3: fijo/variable)
     const [pasoGasto, setPasoGasto] = useState(1);
+    // Popup de resultado inmediato tras crear el gasto (éxito o error) — convive con
+    // el historial persistente de NotificacionesContext, no lo reemplaza.
+    const [resultadoGasto, setResultadoGasto] = useState(null);
 
     // Estado del panel de ingresos
     const [ingresosMes, setIngresosMes]             = useState([]);
@@ -362,6 +366,11 @@ const Dashboard = () => {
                 tipo:    'success',
                 origen:  'manual',
             });
+            setResultadoGasto({
+                tipo: 'success',
+                titulo: '¡Gasto registrado!',
+                subtitulo: `Se guardó "${descripcionMostrada}" por $${Number(expenseForm.monto).toLocaleString('es-AR')}.`,
+            });
             // Verificar si el gasto supera el umbral de gasto alto
             verificarAlertaGastoAlto({ descripcion: descripcionMostrada, monto: expenseForm.monto });
             setExpenseForm(ESTADO_INICIAL_GASTO);
@@ -383,6 +392,11 @@ const Dashboard = () => {
         } catch (err) {
             console.error('❌ Error al guardar gasto:', err);
             setErrorForm(err.message || 'No se pudo guardar el gasto. Intentá de nuevo.');
+            setResultadoGasto({
+                tipo: 'error',
+                titulo: '¡Error al guardar!',
+                subtitulo: err.message || 'No se pudo guardar el gasto. Intentá de nuevo.',
+            });
         }
     };
 
@@ -1042,6 +1056,14 @@ const Dashboard = () => {
                 message="¿Estás seguro de que deseas eliminar TODOS los gastos variables? Esta acción no se puede deshacer."
             />
 
+            {/* Popup de resultado inmediato: éxito o error al guardar un gasto */}
+            <ResultModal
+                isOpen={!!resultadoGasto}
+                onClose={() => setResultadoGasto(null)}
+                tipo={resultadoGasto?.tipo}
+                titulo={resultadoGasto?.titulo}
+                subtitulo={resultadoGasto?.subtitulo}
+            />
 
         </div>
     );

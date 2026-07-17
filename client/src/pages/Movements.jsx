@@ -3,6 +3,7 @@ import GlassCard from '../components/GlassCard';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import ChipSelector from '../components/ChipSelector';
+import ResultModal from '../components/ResultModal';
 import { formatCurrency, formatDate } from '../utils/format';
 import CurrencyInput from '../components/CurrencyInput';
 import GrupoFuturosCard from '../components/movements/GrupoFuturosCard';
@@ -31,6 +32,10 @@ const Movements = () => {
     const [gastoEliminando, setGastoEliminando] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [eliminando, setEliminando] = useState(false);
+
+    // Popup de resultado inmediato tras editar/eliminar un gasto (éxito o error) — convive
+    // con el historial persistente de NotificacionesContext, no lo reemplaza.
+    const [resultadoGasto, setResultadoGasto] = useState(null);
 
     const [categories, setCategories] = useState([]);
     const [paymentMethods, setPaymentMethods] = useState([]);
@@ -229,6 +234,11 @@ const Movements = () => {
                 tipo: 'warning',
                 origen: 'manual',
             });
+            setResultadoGasto({
+                tipo: 'success',
+                titulo: '¡Gasto eliminado!',
+                subtitulo: `Se eliminó "${descEliminado}" correctamente.`,
+            });
         } catch (err) {
             console.error('❌ Error al eliminar el gasto:', err);
             agregarNotificacion({
@@ -236,6 +246,11 @@ const Movements = () => {
                 mensaje: 'No se pudo eliminar el gasto. Intentá de nuevo.',
                 tipo: 'error',
                 origen: 'manual',
+            });
+            setResultadoGasto({
+                tipo: 'error',
+                titulo: '¡Error al eliminar!',
+                subtitulo: 'No se pudo eliminar el gasto. Intentá de nuevo.',
             });
         } finally {
             setEliminando(false);
@@ -290,9 +305,19 @@ const Movements = () => {
                 tipo: 'info',
                 origen: 'manual',
             });
+            setResultadoGasto({
+                tipo: 'success',
+                titulo: '¡Gasto actualizado!',
+                subtitulo: `Se actualizó "${payload.descripcion}" correctamente.`,
+            });
         } catch (err) {
             console.error('❌ Error al actualizar el gasto:', err);
             setErrorEdicion('No se pudo actualizar el gasto. Intentá de nuevo.');
+            setResultadoGasto({
+                tipo: 'error',
+                titulo: '¡Error al actualizar!',
+                subtitulo: 'No se pudo actualizar el gasto. Intentá de nuevo.',
+            });
         } finally {
             setGuardando(false);
         }
@@ -640,6 +665,15 @@ const Movements = () => {
                 title="Eliminar compra en cuotas"
                 message={`¿Confirmas eliminar todas las cuotas de "${grupoEliminando?.descripcionBase || 'esta compra'}"? Se borran los ${grupoEliminando?.cuotasFuturas?.length || ''} meses restantes.`}
                 loading={eliminandoGrupo}
+            />
+
+            {/* Popup de resultado inmediato: éxito o error al editar/eliminar un gasto */}
+            <ResultModal
+                isOpen={!!resultadoGasto}
+                onClose={() => setResultadoGasto(null)}
+                tipo={resultadoGasto?.tipo}
+                titulo={resultadoGasto?.titulo}
+                subtitulo={resultadoGasto?.subtitulo}
             />
         </div>
     );
