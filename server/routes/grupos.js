@@ -785,6 +785,7 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
     const montoNum = Number(monto);
     if (!Number.isFinite(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
     if (!pagadoPor) return res.status(400).json({ ok: false, error: 'El pagador es requerido' });
+    if (!idMetodoPago) return res.status(400).json({ ok: false, error: 'El método de pago es requerido' });
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         return res.status(400).json({ ok: false, error: 'Se requiere al menos un participante' });
     }
@@ -804,6 +805,15 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
         if (!uuidRegex.test(pagadoPor)) {
             return res.status(400).json({ ok: false, error: 'pagadoPor contiene un ID inválido' });
         }
+
+        // El método de pago debe existir y ser global o propio del pagador (metodos_pago
+        // puede ser global o por usuario — no se acepta el ID de un método privado ajeno).
+        const { data: metodoPago } = await supabaseAdmin
+            .from('metodos_pago').select('id')
+            .eq('id', idMetodoPago)
+            .or(`user_id.is.null,user_id.eq.${pagadoPor}`)
+            .maybeSingle();
+        if (!metodoPago) return res.status(400).json({ ok: false, error: 'Método de pago inválido' });
 
         // Verificar que todos los participantes y el pagador son miembros activos del grupo
         const idsAValidar = [...new Set([...participantesUnicos, pagadoPor])];
@@ -829,7 +839,7 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
                 fecha:          `${fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })}T12:00:00-03:00`,
                 nota:           nota?.trim() || null,
                 id_categoria:   idCategoria || null,
-                id_metodo_pago: idMetodoPago || null,
+                id_metodo_pago: idMetodoPago,
                 creado_por:     user.id,
             }])
             .select()
@@ -890,6 +900,7 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
     }
     const montoNum = Number(monto);
     if (!Number.isFinite(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
+    if (!idMetodoPago) return res.status(400).json({ ok: false, error: 'El método de pago es requerido' });
 
     try {
         // Solo quien pagó puede editar
@@ -907,6 +918,15 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
         if (!uuidRegex.test(pagadoPor)) {
             return res.status(400).json({ ok: false, error: 'pagadoPor contiene un ID inválido' });
         }
+
+        // El método de pago debe existir y ser global o propio del pagador (metodos_pago
+        // puede ser global o por usuario — no se acepta el ID de un método privado ajeno).
+        const { data: metodoPago } = await supabaseAdmin
+            .from('metodos_pago').select('id')
+            .eq('id', idMetodoPago)
+            .or(`user_id.is.null,user_id.eq.${pagadoPor}`)
+            .maybeSingle();
+        if (!metodoPago) return res.status(400).json({ ok: false, error: 'Método de pago inválido' });
 
         // Verificar que todos los participantes y el pagador son miembros activos del grupo
         const idsAValidarPut = [...new Set([...participantesUnicos, pagadoPor])];
@@ -931,7 +951,7 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
                 fecha:          `${fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })}T12:00:00-03:00`,
                 nota:           nota?.trim() || null,
                 id_categoria:   idCategoria || null,
-                id_metodo_pago: idMetodoPago || null,
+                id_metodo_pago: idMetodoPago,
             })
             .eq('id', gastoId)
             .eq('estado', 'activo')

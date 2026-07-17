@@ -1968,6 +1968,7 @@ export const crearGastoGrupal = async ({
     validarMonto(monto);
     const montoNum = Number(monto);
     if (!pagadoPor) throw new Error('El pagador es requerido');
+    if (!idMetodoPago) throw new Error('El método de pago es requerido');
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         throw new Error('Debe haber al menos un participante');
     }
@@ -2230,6 +2231,7 @@ export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, mon
     if (!gastoId) throw new Error('ID de gasto inválido');
     if (!grupoId) throw new Error('ID de grupo inválido');
     if (!participantesUserIds?.length) throw new Error('Se requiere al menos un participante');
+    if (!idMetodoPago) throw new Error('El método de pago es requerido');
     validarMonto(monto);
     const montoNum = Number(monto);
 
