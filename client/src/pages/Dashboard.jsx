@@ -194,6 +194,10 @@ const Dashboard = () => {
     // Popup de resultado inmediato tras crear el gasto (éxito o error) — convive con
     // el historial persistente de NotificacionesContext, no lo reemplaza.
     const [resultadoGasto, setResultadoGasto] = useState(null);
+    // Fase visual del modal de alta de gasto: 'form' (wizard), 'guardando' (spinner
+    // mientras corre createExpense) o 'resultado' (popup de éxito/error). Todo dentro
+    // del mismo modal para evitar el corte de cerrar+abrir dos modales distintos.
+    const [faseGasto, setFaseGasto] = useState('form');
 
     // Estado del panel de ingresos
     const [ingresosMes, setIngresosMes]             = useState([]);
@@ -371,6 +375,10 @@ const Dashboard = () => {
             return;
         }
 
+        // A partir de acá el form es válido: mostramos el spinner en el mismo modal
+        // en vez de cerrar el wizard y abrir un popup aparte.
+        setFaseGasto('guardando');
+
         try {
             // La descripción es opcional: si el usuario no escribió nada, usamos un texto genérico
             // para la notificación (la persistencia del default real ocurre en db.createExpense).
@@ -379,8 +387,6 @@ const Dashboard = () => {
             // Se recalcula acá (no solo en el estado inicial) por si el modal quedó abierto de un día para el otro.
             await db.createExpense({ ...expenseForm, fecha: fechaHoyArgentina() });
             console.log('✅ Gasto creado correctamente');
-            // Primero cerramos y notificamos, luego recargamos stats con verificación de alertas
-            setIsModalOpen(false);
             agregarNotificacion({
                 titulo:  'Gasto registrado',
                 mensaje: `Se registró "${descripcionMostrada}" por $${Number(expenseForm.monto).toLocaleString('es-AR')}.`,
@@ -388,10 +394,9 @@ const Dashboard = () => {
                 origen:  'manual',
             });
             setResultadoGasto({ tipo: 'success', titulo: '¡Gasto registrado!' });
+            setFaseGasto('resultado');
             // Verificar si el gasto supera el umbral de gasto alto
             verificarAlertaGastoAlto({ descripcion: descripcionMostrada, monto: expenseForm.monto });
-            setExpenseForm(ESTADO_INICIAL_GASTO);
-            setErrorForm(null);
             // Recargar cuotas si el nuevo gasto es con tarjeta de crédito
             if (expenseForm.esTarjetaCredito) {
                 Promise.all([getTarjetasEnCuotas(), getGastosFuturos()])
@@ -408,9 +413,19 @@ const Dashboard = () => {
             await fetchStats({ verificarAlertas: true });
         } catch (err) {
             console.error('❌ Error al guardar gasto:', err);
-            setErrorForm(err.message || 'No se pudo guardar el gasto. Intentá de nuevo.');
-            setResultadoGasto({ tipo: 'error', titulo: '¡Error al guardar!' });
+            setResultadoGasto({ tipo: 'error', titulo: 'No se pudo guardar el gasto', mensaje: err.message });
+            setFaseGasto('resultado');
         }
+    };
+
+    /** Cierra el modal de alta de gasto y resetea wizard, formulario y fase a su estado inicial. */
+    const handleCerrarModalGasto = () => {
+        setIsModalOpen(false);
+        setErrorForm(null);
+        setExpenseForm(ESTADO_INICIAL_GASTO);
+        setPasoGasto(1);
+        setFaseGasto('form');
+        setResultadoGasto(null);
     };
 
     /** Abre el panel de ingresos y carga los registros del mes y los recurrentes. */
