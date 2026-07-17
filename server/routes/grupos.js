@@ -1286,6 +1286,7 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
         primeraCuota,
         nota,
         idCategoria,
+        idMetodoPago,
         participantesUserIds,
     } = req.body;
 
@@ -1302,6 +1303,7 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         return res.status(400).json({ ok: false, error: 'Se requiere al menos un participante' });
     }
+    if (!idMetodoPago) return res.status(400).json({ ok: false, error: 'El método de pago es requerido' });
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const participantesUnicos = [...new Set(participantesUserIds)];
@@ -1315,6 +1317,13 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
             .from('grupo_miembros').select('id')
             .eq('grupo_id', grupoId).eq('user_id', user.id).eq('estado', 'activo').maybeSingle();
         if (!membresia) return res.status(403).json({ ok: false, error: 'No sos miembro activo de este grupo' });
+
+        // El método de pago debe existir y aceptar cuotas (flag explícito, no string-match)
+        const { data: metodoPago } = await supabaseAdmin
+            .from('metodos_pago').select('id, acepta_cuotas')
+            .eq('id', idMetodoPago).maybeSingle();
+        if (!metodoPago) return res.status(400).json({ ok: false, error: 'Método de pago inválido' });
+        if (!metodoPago.acepta_cuotas) return res.status(400).json({ ok: false, error: 'El método de pago seleccionado no acepta cuotas' });
 
         // Verificar que todos los participantes y el pagador son miembros activos del grupo
         const uuidRegexCuotas = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1370,7 +1379,7 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
                 cuotas:         cantCuotas,
                 numero_cuota:   1,
                 id_gasto_padre: null, // se actualiza a continuación
-                metodo_pago:    'TARJETA DE CREDITO',
+                id_metodo_pago: idMetodoPago,
             }])
             .select()
             .single();
@@ -1400,7 +1409,7 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
                 cuotas:         cantCuotas,
                 numero_cuota:   c.numero,
                 id_gasto_padre: primera.id,
-                metodo_pago:    'TARJETA DE CREDITO',
+                id_metodo_pago: idMetodoPago,
             }));
 
             const { data: resto, error: errResto } = await supabaseAdmin
