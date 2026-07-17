@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, THEMES } from '../context/ThemeContext';
 import GlassCard from '../components/GlassCard';
+import IconPicker from '../components/IconPicker';
 import { useNotificaciones } from '../context/NotificacionesContext';
 import * as db from '../lib/db';
 
@@ -26,6 +27,18 @@ const Configuracion = () => {
     const [errorCat, setErrorCat] = useState('');
     const [eliminandoCatId, setEliminandoCatId] = useState(null);
     const [confirmEliminarCat, setConfirmEliminarCat] = useState(null);
+
+    // ── Estado de ícono para nueva categoría ─────────────────────────
+    const [iconoNuevaCategoria, setIconoNuevaCategoria] = useState('label');
+
+    // ── Estado de métodos de pago personales ─────────────────────────
+    const [metodosPago, setMetodosPago] = useState([]);
+    const [cargandoMetodos, setCargandoMetodos] = useState(true);
+    const [nuevoMetodo, setNuevoMetodo] = useState({ nombre: '', tipo: 'efectivo', icono: 'payments', acepta_cuotas: false });
+    const [guardandoMetodo, setGuardandoMetodo] = useState(false);
+    const [errorMetodo, setErrorMetodo] = useState('');
+    const [eliminandoMetodoId, setEliminandoMetodoId] = useState(null);
+    const [confirmEliminarMetodo, setConfirmEliminarMetodo] = useState(null);
 
     // Inicializar formConfig cuando el contexto carga la config real
     React.useEffect(() => {
@@ -66,9 +79,10 @@ const Configuracion = () => {
         setGuardandoCat(true);
         setErrorCat('');
         try {
-            const nueva = await db.createCategory(nuevaCategoria);
+            const nueva = await db.createCategory(nuevaCategoria, iconoNuevaCategoria);
             setCategorias(prev => [...prev, nueva].sort((a, b) => a.nombre.localeCompare(b.nombre)));
             setNuevaCategoria('');
+            setIconoNuevaCategoria('label');
         } catch (err) {
             setErrorCat(err.message || 'Error al crear la categoría');
         } finally {
@@ -90,6 +104,65 @@ const Configuracion = () => {
         } finally {
             setEliminandoCatId(null);
             setConfirmEliminarCat(null);
+        }
+    };
+
+    // Carga inicial de métodos de pago
+    const fetchMetodosPago = useCallback(async () => {
+        setCargandoMetodos(true);
+        try {
+            const data = await db.getPaymentMethods();
+            setMetodosPago(data);
+        } catch (err) {
+            console.error('❌ Error al cargar métodos de pago:', err);
+        } finally {
+            setCargandoMetodos(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchMetodosPago();
+    }, [fetchMetodosPago]);
+
+    const handleCrearMetodoPago = async (e) => {
+        e.preventDefault();
+        if (!nuevoMetodo.nombre.trim()) {
+            setErrorMetodo('Ingresá un nombre para el método de pago');
+            return;
+        }
+        const existe = metodosPago.some(
+            pm => pm.nombre.toLowerCase() === nuevoMetodo.nombre.trim().toLowerCase()
+        );
+        if (existe) {
+            setErrorMetodo('Ya existe un método de pago con ese nombre');
+            return;
+        }
+        setGuardandoMetodo(true);
+        setErrorMetodo('');
+        try {
+            const creado = await db.createPaymentMethod(nuevoMetodo);
+            setMetodosPago(prev => [...prev, creado].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+            setNuevoMetodo({ nombre: '', tipo: 'efectivo', icono: 'payments', acepta_cuotas: false });
+        } catch (err) {
+            setErrorMetodo(err.message || 'Error al crear el método de pago');
+        } finally {
+            setGuardandoMetodo(false);
+        }
+    };
+
+    const handleEliminarMetodoPago = async (id) => {
+        setEliminandoMetodoId(id);
+        try {
+            await db.deletePaymentMethod(id);
+            setMetodosPago(prev => prev.filter(pm => pm.id !== id));
+        } catch (err) {
+            const mensaje = err.code === '23503'
+                ? 'No podés eliminar este método de pago porque tiene gastos asociados.'
+                : (err.message || 'Error al eliminar el método de pago');
+            setErrorMetodo(mensaje);
+        } finally {
+            setEliminandoMetodoId(null);
+            setConfirmEliminarMetodo(null);
         }
     };
 
@@ -234,6 +307,7 @@ const Configuracion = () => {
                             <span>{guardandoCat ? 'Creando...' : 'Crear'}</span>
                         </button>
                     </div>
+                    <IconPicker valorSeleccionado={iconoNuevaCategoria} onChange={setIconoNuevaCategoria} />
                     {errorCat && (
                         <p className="cats-config-error">{errorCat}</p>
                     )}
@@ -306,6 +380,135 @@ const Configuracion = () => {
                                                 className="cats-config-item-delete"
                                                 onClick={() => setConfirmEliminarCat(cat.id)}
                                                 title="Eliminar categoría"
+                                            >
+                                                <span className="material-symbols-outlined">delete</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </GlassCard>
+
+            {/* ── MÉTODOS DE PAGO ────────────────────── */}
+            <GlassCard className="config-section">
+                <div className="config-section-header">
+                    <span className="material-symbols-outlined config-section-icon">payments</span>
+                    <h3 className="config-section-title">Métodos de Pago</h3>
+                </div>
+
+                <p className="cats-config-desc">
+                    Los métodos de pago globales están disponibles para todos los usuarios y no se pueden eliminar.
+                    Podés crear tus propios métodos personalizados — solo vos los verás.
+                </p>
+
+                <form onSubmit={handleCrearMetodoPago} className="cats-config-form">
+                    <div className="cats-config-input-row">
+                        <input
+                            type="text"
+                            value={nuevoMetodo.nombre}
+                            onChange={(e) => setNuevoMetodo(prev => ({ ...prev, nombre: e.target.value }))}
+                            placeholder="Nuevo método de pago..."
+                            className="input cats-config-input"
+                            maxLength={60}
+                        />
+                        <select
+                            value={nuevoMetodo.tipo}
+                            onChange={(e) => setNuevoMetodo(prev => ({ ...prev, tipo: e.target.value }))}
+                            className="form-select"
+                        >
+                            <option value="efectivo">Efectivo</option>
+                            <option value="tarjeta">Tarjeta</option>
+                            <option value="cuenta">Cuenta</option>
+                        </select>
+                    </div>
+                    <div className="form-checkbox-group">
+                        <input
+                            type="checkbox"
+                            id="acepta_cuotas"
+                            checked={nuevoMetodo.acepta_cuotas}
+                            onChange={(e) => setNuevoMetodo(prev => ({ ...prev, acepta_cuotas: e.target.checked }))}
+                        />
+                        <label htmlFor="acepta_cuotas">Acepta pago en cuotas</label>
+                    </div>
+                    <IconPicker
+                        valorSeleccionado={nuevoMetodo.icono}
+                        onChange={(icono) => setNuevoMetodo(prev => ({ ...prev, icono }))}
+                    />
+                    <button
+                        type="submit"
+                        className="btn btn-primary cats-config-btn"
+                        disabled={guardandoMetodo}
+                    >
+                        <span className="material-symbols-outlined">add</span>
+                        <span>{guardandoMetodo ? 'Creando...' : 'Crear'}</span>
+                    </button>
+                    {errorMetodo && (
+                        <p className="cats-config-error">{errorMetodo}</p>
+                    )}
+                </form>
+
+                {cargandoMetodos ? (
+                    <div className="cats-config-loading">
+                        <span className="material-symbols-outlined cats-config-loading-icon">sync</span>
+                        Cargando métodos de pago...
+                    </div>
+                ) : (
+                    <div className="cats-config-list">
+                        {metodosPago.filter(pm => !pm.es_propio).length > 0 && (
+                            <div className="cats-config-group">
+                                <p className="cats-config-group-label">
+                                    <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>public</span>
+                                    {' '}Globales
+                                </p>
+                                {metodosPago.filter(pm => !pm.es_propio).map(pm => (
+                                    <div key={pm.id} className="cats-config-item cats-config-item--global">
+                                        <span className="material-symbols-outlined cats-config-item-icon">{pm.icono}</span>
+                                        <span className="cats-config-item-name">{pm.nombre}</span>
+                                        <span className="cats-config-item-badge">Global</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {metodosPago.filter(pm => pm.es_propio).length > 0 && (
+                            <div className="cats-config-group">
+                                <p className="cats-config-group-label">
+                                    <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>star</span>
+                                    {' '}Mis métodos
+                                </p>
+                                {metodosPago.filter(pm => pm.es_propio).map(pm => (
+                                    <div key={pm.id} className="cats-config-item cats-config-item--propia">
+                                        <span className="material-symbols-outlined cats-config-item-icon">{pm.icono}</span>
+                                        <span className="cats-config-item-name">{pm.nombre}</span>
+
+                                        {confirmEliminarMetodo === pm.id ? (
+                                            <div className="cats-config-item-confirm">
+                                                <span className="cats-config-item-confirm-text">¿Eliminar?</span>
+                                                <button
+                                                    type="button"
+                                                    className="cats-config-item-confirm-yes"
+                                                    onClick={() => handleEliminarMetodoPago(pm.id)}
+                                                    disabled={eliminandoMetodoId === pm.id}
+                                                >
+                                                    {eliminandoMetodoId === pm.id ? '...' : 'Sí'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="cats-config-item-confirm-no"
+                                                    onClick={() => setConfirmEliminarMetodo(null)}
+                                                >
+                                                    No
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                className="cats-config-item-delete"
+                                                onClick={() => setConfirmEliminarMetodo(pm.id)}
+                                                title="Eliminar método de pago"
                                             >
                                                 <span className="material-symbols-outlined">delete</span>
                                             </button>
