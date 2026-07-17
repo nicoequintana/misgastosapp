@@ -227,7 +227,7 @@ const Dashboard = () => {
             // no deben desmontar la página entera — eso se llevaba puesto cualquier modal abierto,
             // incluido el popup de resultado del alta de gasto.
             if (mostrarSkeleton) setCargando(true);
-            setErrorCarga(null);
+            if (mostrarSkeleton) setErrorCarga(null);
             const data = await db.getStats();
             setStats(data);
             if (verificarAlertas) {
@@ -245,7 +245,10 @@ const Dashboard = () => {
             }
         } catch (err) {
             console.error('❌ Error al obtener estadísticas:', err);
-            setErrorCarga('No se pudieron cargar los datos. Intentá recargar la página.');
+            // Con mostrarSkeleton=false hay un modal/popup abierto encima del dashboard (ej. resultado
+            // de guardar un gasto): no lo tapamos con la pantalla de error de carga completa, el error
+            // ya quedó logueado y las stats simplemente no se refrescaron esta vez.
+            if (mostrarSkeleton) setErrorCarga('No se pudieron cargar los datos. Intentá recargar la página.');
         } finally {
             if (mostrarSkeleton) setCargando(false);
             if (primeraVez.current) {
@@ -309,10 +312,13 @@ const Dashboard = () => {
         fetchIngresosMes();
     }, [fetchStats, fetchOpciones, fetchIngresosMes]);
 
-    // Cuando el FAB del bottom nav mobile dispara onNewExpense, abrimos el modal
+    // Cuando el FAB del bottom nav mobile dispara onNewExpense, abrimos el modal.
+    // Usamos handleAbrirNuevoGasto (no setIsModalOpen directo) para que este camino
+    // también resetee wizard/formulario/fase — evita mostrar el resultado de una
+    // sesión anterior si el usuario cerró el modal desde el paso 'resultado'.
     useEffect(() => {
         if (showNewExpense) {
-            setIsModalOpen(true);
+            handleAbrirNuevoGasto();
             setShowNewExpense?.(false);
         }
     }, [showNewExpense, setShowNewExpense]);
