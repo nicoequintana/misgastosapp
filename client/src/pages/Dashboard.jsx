@@ -422,14 +422,15 @@ const Dashboard = () => {
         }
     };
 
-    /** Cierra el modal de alta de gasto y resetea wizard, formulario y fase a su estado inicial. */
+    /**
+     * Cierra el modal de alta de gasto. No resetea wizard/formulario/fase acá: el modal
+     * tarda ~300ms en desvanecerse (ver Modal.jsx), y si reseteáramos faseGasto a 'form'
+     * en este mismo click, se alcanzaría a ver el wizard vacío destellando durante ese
+     * fade-out en vez de mantener el popup de resultado hasta que termine de cerrarse.
+     * El reset real ocurre en handleAbrirNuevoGasto, la próxima vez que se abre el modal.
+     */
     const handleCerrarModalGasto = () => {
         setIsModalOpen(false);
-        setErrorForm(null);
-        setExpenseForm(ESTADO_INICIAL_GASTO);
-        setPasoGasto(1);
-        setFaseGasto('form');
-        setResultadoGasto(null);
     };
 
     /** Abre el panel de ingresos y carga los registros del mes y los recurrentes. */
@@ -571,7 +572,11 @@ const Dashboard = () => {
      * Si faltan categorías o métodos, abre el modal de advertencia de configuración.
      */
     const handleAbrirNuevoGasto = () => {
+        setExpenseForm(ESTADO_INICIAL_GASTO);
+        setErrorForm(null);
         setPasoGasto(1);
+        setFaseGasto('form');
+        setResultadoGasto(null);
         setIsModalOpen(true);
     };
 
