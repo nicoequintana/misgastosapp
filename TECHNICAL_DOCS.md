@@ -236,7 +236,7 @@ Métodos de pago disponibles. Pueden ser globales (pre-configurados) o personale
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
 | `id` | BIGINT PK | Generado automáticamente |
-| `user_id` | UUID FK → auth.users | NULL = global; UUID = método personal. Desde la migración 20260716 tiene CRUD real de usuario (antes era de solo lectura global) |
+| `user_id` | UUID FK → auth.users | Columna nueva agregada en la migración 20260716 (la tabla era 100% global antes, sin esta columna). NULL = global; UUID = método personal. Habilita CRUD real de usuario (antes era de solo lectura global) |
 | `nombre` | VARCHAR(100) NOT NULL | Ej: EFECTIVO, TARJETA DE CREDITO |
 | `tipo` | VARCHAR(20) DEFAULT 'efectivo' | `efectivo` \| `tarjeta` \| `cuenta` — reemplaza el string-matching de "TARJETA DE CREDITO" (migración 20260716) |
 | `acepta_cuotas` | BOOLEAN DEFAULT false | Si el método admite pago en cuotas (migración 20260716) |
