@@ -329,6 +329,14 @@ const Dashboard = () => {
         e.preventDefault();
         setErrorForm(null);
 
+        // El form del wizard solo se submitea de verdad en el último paso (botón "Guardar").
+        // Si el submit llega antes (ej. Enter en un campo de un paso intermedio), avanzamos
+        // de paso en vez de guardar el gasto a medio completar.
+        if (pasoGasto < totalPasosGasto) {
+            handleSiguientePaso();
+            return;
+        }
+
         // Validar que todos los campos requeridos estén completos (la descripción es opcional)
         if (!expenseForm.monto || Number(expenseForm.monto) <= 0) {
             setErrorForm('El monto debe ser mayor a cero.');
@@ -366,11 +374,7 @@ const Dashboard = () => {
                 tipo:    'success',
                 origen:  'manual',
             });
-            setResultadoGasto({
-                tipo: 'success',
-                titulo: '¡Gasto registrado!',
-                subtitulo: `Se guardó "${descripcionMostrada}" por $${Number(expenseForm.monto).toLocaleString('es-AR')}.`,
-            });
+            setResultadoGasto({ tipo: 'success', titulo: '¡Gasto registrado!' });
             // Verificar si el gasto supera el umbral de gasto alto
             verificarAlertaGastoAlto({ descripcion: descripcionMostrada, monto: expenseForm.monto });
             setExpenseForm(ESTADO_INICIAL_GASTO);
@@ -392,11 +396,7 @@ const Dashboard = () => {
         } catch (err) {
             console.error('❌ Error al guardar gasto:', err);
             setErrorForm(err.message || 'No se pudo guardar el gasto. Intentá de nuevo.');
-            setResultadoGasto({
-                tipo: 'error',
-                titulo: '¡Error al guardar!',
-                subtitulo: err.message || 'No se pudo guardar el gasto. Intentá de nuevo.',
-            });
+            setResultadoGasto({ tipo: 'error', titulo: '¡Error al guardar!' });
         }
     };
 
@@ -1062,7 +1062,6 @@ const Dashboard = () => {
                 onClose={() => setResultadoGasto(null)}
                 tipo={resultadoGasto?.tipo}
                 titulo={resultadoGasto?.titulo}
-                subtitulo={resultadoGasto?.subtitulo}
             />
 
         </div>

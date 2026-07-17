@@ -234,11 +234,7 @@ const Movements = () => {
                 tipo: 'warning',
                 origen: 'manual',
             });
-            setResultadoGasto({
-                tipo: 'success',
-                titulo: '¡Gasto eliminado!',
-                subtitulo: `Se eliminó "${descEliminado}" correctamente.`,
-            });
+            setResultadoGasto({ tipo: 'success', titulo: '¡Gasto eliminado!' });
         } catch (err) {
             console.error('❌ Error al eliminar el gasto:', err);
             agregarNotificacion({
@@ -247,11 +243,7 @@ const Movements = () => {
                 tipo: 'error',
                 origen: 'manual',
             });
-            setResultadoGasto({
-                tipo: 'error',
-                titulo: '¡Error al eliminar!',
-                subtitulo: 'No se pudo eliminar el gasto. Intentá de nuevo.',
-            });
+            setResultadoGasto({ tipo: 'error', titulo: '¡Error al eliminar!' });
         } finally {
             setEliminando(false);
         }
@@ -305,19 +297,11 @@ const Movements = () => {
                 tipo: 'info',
                 origen: 'manual',
             });
-            setResultadoGasto({
-                tipo: 'success',
-                titulo: '¡Gasto actualizado!',
-                subtitulo: `Se actualizó "${payload.descripcion}" correctamente.`,
-            });
+            setResultadoGasto({ tipo: 'success', titulo: '¡Gasto actualizado!' });
         } catch (err) {
             console.error('❌ Error al actualizar el gasto:', err);
             setErrorEdicion('No se pudo actualizar el gasto. Intentá de nuevo.');
-            setResultadoGasto({
-                tipo: 'error',
-                titulo: '¡Error al actualizar!',
-                subtitulo: 'No se pudo actualizar el gasto. Intentá de nuevo.',
-            });
+            setResultadoGasto({ tipo: 'error', titulo: '¡Error al actualizar!' });
         } finally {
             setGuardando(false);
         }
@@ -673,7 +657,6 @@ const Movements = () => {
                 onClose={() => setResultadoGasto(null)}
                 tipo={resultadoGasto?.tipo}
                 titulo={resultadoGasto?.titulo}
-                subtitulo={resultadoGasto?.subtitulo}
             />
         </div>
     );

@@ -7,12 +7,9 @@ beforeEach(() => {
 });
 
 describe('ResultModal', () => {
-    it('muestra título y subtítulo cuando está abierto', () => {
-        render(
-            <ResultModal isOpen={true} onClose={() => {}} tipo="success" titulo="Gasto registrado" subtitulo="Se guardó correctamente" />
-        );
+    it('muestra el título cuando está abierto', () => {
+        render(<ResultModal isOpen={true} onClose={() => {}} tipo="success" titulo="Gasto registrado" />);
         expect(screen.getByText('Gasto registrado')).toBeInTheDocument();
-        expect(screen.getByText('Se guardó correctamente')).toBeInTheDocument();
     });
 
     it('no renderiza nada cuando isOpen es false', () => {

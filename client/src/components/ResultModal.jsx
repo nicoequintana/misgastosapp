@@ -10,17 +10,16 @@ const CONFIG_TIPO = {
 
 /**
  * Popup de resultado inmediato tras una acción (crear/editar/eliminar gasto, etc.):
- * ícono grande en círculo, título, subtítulo opcional, y un único botón de cierre.
+ * ícono grande en círculo, título, y un único botón de cierre.
  * Convive con el sistema de notificaciones persistente (NotificacionesContext) — no lo reemplaza.
  *
  * @param {boolean} isOpen
  * @param {() => void} onClose
  * @param {'success'|'warning'|'error'} tipo
  * @param {string} titulo
- * @param {string} [subtitulo]
  * @param {string} [textoBoton] - Si no se especifica, usa el default de cada tipo.
  */
-const ResultModal = ({ isOpen, onClose, tipo = 'success', titulo, subtitulo, textoBoton }) => {
+const ResultModal = ({ isOpen, onClose, tipo = 'success', titulo, textoBoton }) => {
     const config = CONFIG_TIPO[tipo] || CONFIG_TIPO.success;
 
     return (
@@ -33,7 +32,6 @@ const ResultModal = ({ isOpen, onClose, tipo = 'success', titulo, subtitulo, tex
                     {config.icono}
                 </span>
                 <h3 className="result-modal__titulo">{titulo}</h3>
-                {subtitulo && <p className="result-modal__subtitulo">{subtitulo}</p>}
                 <button
                     type="button"
                     className={`btn result-modal__boton result-modal__boton--${tipo}`}

@@ -8307,24 +8307,31 @@ body::after {
   border: 2px solid;
   border-radius: 50%;
   margin-bottom: var(--space-6);
+  animation: result-modal-icono-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 .result-modal__titulo {
   font-size: 20px;
   font-weight: 800;
   color: var(--text-main);
-  margin: 0 0 var(--space-2);
-}
-
-.result-modal__subtitulo {
-  font-size: 14px;
-  color: var(--text-secondary);
   margin: 0 0 var(--space-8);
+  animation: result-modal-fade-up 0.35s ease-out 0.1s both;
 }
 
 .result-modal__boton {
   width: 100%;
   min-width: 160px;
+  animation: result-modal-fade-up 0.35s ease-out 0.18s both;
+}
+
+@keyframes result-modal-icono-pop {
+  0% { opacity: 0; transform: scale(0.4); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes result-modal-fade-up {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
 .result-modal__boton--success {
