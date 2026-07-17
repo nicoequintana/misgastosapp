@@ -1001,27 +1001,29 @@ const Dashboard = () => {
                         </div>
                         <div className="form-group">
                             <label className="form-label-box">Categoría (opcional)</label>
-                            <select
-                                value={incomeForm.categoria_id}
-                                onChange={(e) => setIncomeForm(prev => ({ ...prev, categoria_id: e.target.value }))}
-                                className="form-select"
-                            >
-                                <option value="">Sin categoría</option>
-                                {categoriaIngresos.map(c => (
-                                    <option key={c.id} value={c.id}>{c.nombre}</option>
-                                ))}
-                            </select>
+                            <ChipSelector
+                                opciones={[
+                                    { id: '', nombre: 'Sin categoría', icono: 'block' },
+                                    ...categoriaIngresos,
+                                ]}
+                                valorSeleccionado={incomeForm.categoria_id ? Number(incomeForm.categoria_id) : ''}
+                                onChange={(id) => setIncomeForm(prev => ({ ...prev, categoria_id: id === '' ? '' : id }))}
+                                limiteVisible={6}
+                            />
                         </div>
-                        {/* Solo mostrar checkbox recurrente al crear, no al editar */}
+                        {/* Solo mostrar selector recurrente al crear, no al editar */}
                         {!incomeEditando && (
-                            <div className="form-checkbox-group">
-                                <input
-                                    type="checkbox"
-                                    id="es_recurrente"
-                                    checked={incomeForm.es_recurrente}
-                                    onChange={(e) => setIncomeForm(prev => ({ ...prev, es_recurrente: e.target.checked }))}
+                            <div className="form-group">
+                                <label className="form-label-box">Tipo de ingreso</label>
+                                <ChipSelector
+                                    opciones={[
+                                        { id: 'puntual', nombre: 'Puntual', icono: 'event' },
+                                        { id: 'recurrente', nombre: 'Recurrente', icono: 'repeat' },
+                                    ]}
+                                    valorSeleccionado={incomeForm.es_recurrente ? 'recurrente' : 'puntual'}
+                                    onChange={(id) => setIncomeForm(prev => ({ ...prev, es_recurrente: id === 'recurrente' }))}
+                                    limiteVisible={2}
                                 />
-                                <label htmlFor="es_recurrente">Ingreso recurrente (se repite cada mes)</label>
                             </div>
                         )}
                         <div className="form-row" style={{ marginTop: '8px' }}>
