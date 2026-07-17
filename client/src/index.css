@@ -8348,3 +8348,20 @@ body::after {
   background: var(--danger);
   border-color: var(--danger);
 }
+
+.result-modal__icono--loading {
+  animation: result-modal-icono-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+             result-modal-girar 1s linear infinite;
+}
+
+@keyframes result-modal-girar {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.result-modal__subtexto {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: calc(var(--space-8) * -1 + var(--space-2)) 0 var(--space-2);
+  animation: result-modal-fade-up 0.35s ease-out 0.1s both;
+}
