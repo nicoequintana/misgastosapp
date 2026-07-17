@@ -1960,6 +1960,7 @@ export const crearGastoGrupal = async ({
     fecha,
     nota,
     idCategoria,
+    idMetodoPago,
     participantesUserIds,
 }) => {
     if (!grupoId) throw new Error('ID de grupo requerido');
@@ -1976,7 +1977,7 @@ export const crearGastoGrupal = async ({
     const res = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}/gastos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, nota, idCategoria, participantesUserIds }),
+        body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, nota, idCategoria, idMetodoPago, participantesUserIds }),
     });
 
     const json = await res.json();
@@ -2011,6 +2012,7 @@ export const crearGastoGrupalEnCuotas = async ({
     primeraCuota,
     nota,
     idCategoria,
+    idMetodoPago,
     participantesUserIds,
 }) => {
     if (!grupoId) throw new Error('ID de grupo requerido');
@@ -2020,6 +2022,7 @@ export const crearGastoGrupalEnCuotas = async ({
     const cantCuotas = Math.max(1, Math.min(18, parseInt(cuotas) || 1));
     if (!pagadoPor) throw new Error('El pagador es requerido');
     if (!primeraCuota) throw new Error('Indicá en qué mes vence la primera cuota');
+    if (!idMetodoPago) throw new Error('El método de pago es requerido');
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         throw new Error('Debe haber al menos un participante');
     }
@@ -2038,6 +2041,7 @@ export const crearGastoGrupalEnCuotas = async ({
             primeraCuota,
             nota,
             idCategoria,
+            idMetodoPago,
             participantesUserIds,
         }),
     });
@@ -2049,7 +2053,7 @@ export const crearGastoGrupalEnCuotas = async ({
 
 /**
  * Obtiene los gastos en cuotas activos de un grupo, agrupados por id_gasto_padre.
- * Solo incluye compras con tarjeta de crédito (metodo_pago = 'TARJETA DE CREDITO').
+ * Solo incluye compras con método de pago que acepta cuotas (metodos_pago.acepta_cuotas = true).
  * Útil para mostrar el panel de cuotas en el detalle del grupo.
  *
  * @param {number} grupoId - ID del grupo
@@ -2060,10 +2064,9 @@ export const obtenerCuotasGrupal = async (grupoId) => {
 
     const { data, error } = await supabase
         .from('grupo_gastos')
-        .select('id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre, metodo_pago, estado, pagado_por')
+        .select('id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre, estado, pagado_por, metodos_pago:id_metodo_pago(acepta_cuotas)')
         .eq('grupo_id', grupoId)
         .eq('estado', 'activo')
-        .eq('metodo_pago', 'TARJETA DE CREDITO')
         .not('id_gasto_padre', 'is', null)
         .order('id_gasto_padre', { ascending: true })
         .order('numero_cuota', { ascending: true });
@@ -2071,9 +2074,12 @@ export const obtenerCuotasGrupal = async (grupoId) => {
     if (error) throw new Error(error.message);
     if (!data || data.length === 0) return [];
 
+    const soloTarjeta = filtrarTarjetaCredito(data);
+    if (soloTarjeta.length === 0) return [];
+
     // Agrupar por id_gasto_padre
     const grupos = new Map();
-    for (const cuota of data) {
+    for (const cuota of soloTarjeta) {
         const padreId = cuota.id_gasto_padre;
         if (!grupos.has(padreId)) grupos.set(padreId, []);
         grupos.get(padreId).push(cuota);
@@ -2220,7 +2226,7 @@ export const anularCuotasGrupales = async (gastoId, grupoId, force = false) => {
  * @param {Object} campos - Campos a actualizar: descripcion, monto, pagadoPor, fecha, idCategoria, nota, participantesUserIds
  * @returns {Object} El gasto actualizado con los nuevos participantes
  */
-export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, monto, pagadoPor, fecha, primeraCuota, idCategoria, nota, participantesUserIds }) => {
+export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, monto, pagadoPor, fecha, primeraCuota, idCategoria, idMetodoPago, nota, participantesUserIds }) => {
     if (!gastoId) throw new Error('ID de gasto inválido');
     if (!grupoId) throw new Error('ID de grupo inválido');
     if (!participantesUserIds?.length) throw new Error('Se requiere al menos un participante');
@@ -2232,7 +2238,7 @@ export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, mon
     const res = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}/gastos/${gastoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, primeraCuota, idCategoria, nota, participantesUserIds }),
+        body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, primeraCuota, idCategoria, idMetodoPago, nota, participantesUserIds }),
     });
 
     const json = await res.json();
