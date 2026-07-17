@@ -1067,7 +1067,17 @@ const Dashboard = () => {
             {/* Modal: Ingresos */}
             <Modal
                 isOpen={isIncomeModalOpen}
-                onClose={faseIngreso === 'form' ? () => { setIsIncomeModalOpen(false); setIncomeEditando(null); } : undefined}
+                onClose={faseIngreso === 'form' ? () => {
+                    // Reseteamos vistaIngreso/pasoIngreso acá (no solo en handleAbrirIngresos) para
+                    // que, si el usuario cierra estando a mitad del wizard, no se alcance a ver el
+                    // wizard con datos parciales destellando durante el fade-out de 300ms del modal
+                    // (mismo riesgo ya documentado en handleCerrarModalGasto para el modal de gastos).
+                    setIsIncomeModalOpen(false);
+                    setIncomeEditando(null);
+                    setVistaIngreso('lista');
+                    setPasoIngreso(1);
+                    setErrorIngresoForm(null);
+                } : undefined}
                 title={faseIngreso === 'form' ? (vistaIngreso === 'wizard' ? (incomeEditando ? 'Editar ingreso' : 'Nuevo ingreso') : 'Ingresos') : undefined}
                 subtitle={faseIngreso === 'form' ? (vistaIngreso === 'wizard' ? `Paso ${pasoIngreso} de 2` : 'Registrá tus ingresos del mes') : undefined}
                 footer={faseIngreso === 'form' && vistaIngreso === 'wizard' ? (
