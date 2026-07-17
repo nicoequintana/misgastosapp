@@ -220,9 +220,13 @@ const Dashboard = () => {
      * Obtiene las estadísticas y las carga en el estado.
      * Separado de fetchOpciones para poder llamarlos independientemente.
      */
-    const fetchStats = useCallback(async ({ verificarAlertas = false } = {}) => {
+    const fetchStats = useCallback(async ({ verificarAlertas = false, mostrarSkeleton = true } = {}) => {
         try {
-            setCargando(true);
+            // El skeleton de pantalla completa solo debe verse en la carga inicial del dashboard.
+            // Las recargas disparadas por guardar/editar/eliminar (con un modal ya abierto encima)
+            // no deben desmontar la página entera — eso se llevaba puesto cualquier modal abierto,
+            // incluido el popup de resultado del alta de gasto.
+            if (mostrarSkeleton) setCargando(true);
             setErrorCarga(null);
             const data = await db.getStats();
             setStats(data);
@@ -243,7 +247,7 @@ const Dashboard = () => {
             console.error('❌ Error al obtener estadísticas:', err);
             setErrorCarga('No se pudieron cargar los datos. Intentá recargar la página.');
         } finally {
-            setCargando(false);
+            if (mostrarSkeleton) setCargando(false);
             if (primeraVez.current) {
                 primeraVez.current = false;
                 setAppReady(true);
@@ -408,8 +412,9 @@ const Dashboard = () => {
                     .then(([prest, prestFut]) => { setPrestamosGrupos(prest); setPrestamosFuturos(prestFut); })
                     .catch(console.error);
             }
-            // Al recargar stats verificamos alertas de saldo y porcentaje
-            await fetchStats({ verificarAlertas: true });
+            // Al recargar stats verificamos alertas de saldo y porcentaje. Sin skeleton: el modal
+            // de resultado ya está mostrándose y no debe desmontarse mientras recargamos en segundo plano.
+            await fetchStats({ verificarAlertas: true, mostrarSkeleton: false });
         } catch (err) {
             console.error('❌ Error al guardar gasto:', err);
             setResultadoGasto({ tipo: 'error', titulo: 'No se pudo guardar el gasto', mensaje: err.message });
@@ -474,7 +479,7 @@ const Dashboard = () => {
             setIncomeForm(INCOME_FORM_INICIAL);
             setIncomeEditando(null);
             setIsIncomeModalOpen(false);
-            await Promise.all([fetchIngresosMes(), fetchRecurrentes(), fetchStats({ verificarAlertas: true })]);
+            await Promise.all([fetchIngresosMes(), fetchRecurrentes(), fetchStats({ verificarAlertas: true, mostrarSkeleton: false })]);
         } catch (err) {
             console.error('❌ Error al guardar ingreso:', err);
             agregarNotificacion({
@@ -503,7 +508,7 @@ const Dashboard = () => {
             await db.deleteIncome(id);
             setIncomeConfirmDelete(null);
             agregarNotificacion({ titulo: 'Ingreso eliminado', mensaje: 'El ingreso fue eliminado del período.', tipo: 'warning', origen: 'ingresos' });
-            await Promise.all([fetchIngresosMes(), fetchStats({ verificarAlertas: true })]);
+            await Promise.all([fetchIngresosMes(), fetchStats({ verificarAlertas: true, mostrarSkeleton: false })]);
         } catch (err) {
             console.error('❌ Error al eliminar ingreso:', err);
             agregarNotificacion({
@@ -541,7 +546,7 @@ const Dashboard = () => {
         try {
             await db.deleteVariableExpenses();
             console.log('✅ Gastos variables eliminados correctamente');
-            await fetchStats({ verificarAlertas: true });
+            await fetchStats({ verificarAlertas: true, mostrarSkeleton: false });
             agregarNotificacion({
                 titulo: 'Gastos variables eliminados',
                 mensaje: 'Todos los gastos variables del período fueron eliminados.',
