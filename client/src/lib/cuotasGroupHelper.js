@@ -20,27 +20,23 @@ export function agruparPorPadre(rows) {
 }
 
 /**
- * Filtra filas cuyo método de pago es exactamente "TARJETA DE CREDITO".
+ * Filtra filas cuyo método de pago acepta cuotas (flag explícito, no por nombre).
  *
  * @param {Array} rows
  * @returns {Array}
  */
 export function filtrarTarjetaCredito(rows) {
-    return rows.filter(g =>
-        g.metodos_pago?.nombre?.toUpperCase() === 'TARJETA DE CREDITO'
-    );
+    return rows.filter(g => g.metodos_pago?.acepta_cuotas === true);
 }
 
 /**
- * Filtra filas cuya categoría es exactamente "PRESTAMOS".
+ * Filtra filas cuya categoría está marcada como préstamo (flag explícito, no por nombre).
  *
  * @param {Array} rows
  * @returns {Array}
  */
 export function filtrarPrestamos(rows) {
-    return rows.filter(g =>
-        g.categorias?.nombre?.toUpperCase() === 'PRESTAMOS'
-    );
+    return rows.filter(g => g.categorias?.es_prestamo === true);
 }
 
 /**
