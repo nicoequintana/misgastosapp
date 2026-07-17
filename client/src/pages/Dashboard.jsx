@@ -187,6 +187,10 @@ const Dashboard = () => {
     const [errorForm, setErrorForm] = useState(null);
     // Paso actual del wizard de carga (1: monto/descripción, 2: categoría/método/cuotas, 3: fijo/variable)
     const [pasoGasto, setPasoGasto] = useState(1);
+    // Se activa brevemente al cambiar de paso, para deshabilitar los botones de navegación
+    // del footer. Evita que un click sobre "Siguiente" recaiga por error sobre "Guardar"
+    // cuando este último ocupa la misma posición del footer tras el cambio de paso.
+    const [botonesPasoBloqueados, setBotonesPasoBloqueados] = useState(false);
     // Popup de resultado inmediato tras crear el gasto (éxito o error) — convive con
     // el historial persistente de NotificacionesContext, no lo reemplaza.
     const [resultadoGasto, setResultadoGasto] = useState(null);
@@ -305,6 +309,15 @@ const Dashboard = () => {
             setShowNewExpense?.(false);
         }
     }, [showNewExpense, setShowNewExpense]);
+
+    // Bloquea brevemente los botones de navegación del wizard al cambiar de paso.
+    // Evita que un click sobre "Siguiente" recaiga por error sobre "Guardar" cuando
+    // este último ocupa la misma posición del footer tras avanzar al último paso.
+    useEffect(() => {
+        setBotonesPasoBloqueados(true);
+        const timer = setTimeout(() => setBotonesPasoBloqueados(false), 400);
+        return () => clearTimeout(timer);
+    }, [pasoGasto]);
 
     // Mejorar UX de teclado: permite confirmar acciones con Enter en botones
     useEffect(() => {
@@ -746,20 +759,20 @@ const Dashboard = () => {
                 footer={
                     <div className="form-row">
                         {pasoGasto === 1 ? (
-                            <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary" style={{ flex: 1 }}>
+                            <button key="cancelar" type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary" style={{ flex: 1 }}>
                                 Cancelar
                             </button>
                         ) : (
-                            <button type="button" onClick={handleAtrasPaso} className="btn btn-secondary" style={{ flex: 1 }}>
+                            <button key="atras" type="button" onClick={handleAtrasPaso} disabled={botonesPasoBloqueados} className="btn btn-secondary" style={{ flex: 1 }}>
                                 Atrás
                             </button>
                         )}
                         {pasoGasto < totalPasosGasto ? (
-                            <button type="button" onClick={handleSiguientePaso} className="btn btn-primary" style={{ flex: 1 }}>
+                            <button key="siguiente" type="button" onClick={handleSiguientePaso} disabled={botonesPasoBloqueados} className="btn btn-primary" style={{ flex: 1 }}>
                                 Siguiente
                             </button>
                         ) : (
-                            <button type="submit" form="form-nuevo-gasto" className="btn btn-primary" style={{ flex: 1 }}>
+                            <button key="guardar" type="submit" form="form-nuevo-gasto" disabled={botonesPasoBloqueados} className="btn btn-primary" style={{ flex: 1 }}>
                                 Guardar
                             </button>
                         )}
