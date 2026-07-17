@@ -205,9 +205,11 @@ por:
     };
 ```
 
-- [ ] **Step 9: Ajustar `handleSaveIncome` para usar `errorIngresoForm` en vez de no tener manejo de error de validación de paso**
+- [ ] **Step 9: NO modificar `handleSaveIncome` en Task 1**
 
-`handleSaveIncome` ya valida monto/categoría implícitamente vía las llamadas a `db.js` (no tiene validación explícita propia hoy, a diferencia de `handleSubmitExpense`). No requiere cambios en su cuerpo — la validación de "monto > 0" para avanzar de paso 1 a 2 ya la cubre `validarPasoIngreso` (Step 3), y el submit final del wizard (botón "Guardar" en paso 2) sigue llamando a `handleSaveIncome` sin cambios. **No modificar `handleSaveIncome` en este task.**
+`handleSaveIncome` ya valida monto/categoría implícitamente vía las llamadas a `db.js` (no tiene validación explícita propia hoy, a diferencia de `handleSubmitExpense`). Este task NO lo toca — el guard contra submit prematuro (ver Task 2 Step 3.5) se agrega recién cuando el `<form>` del wizard ya existe en el JSX, para no dejar código muerto sin usuario que lo ejercite.
+
+> **Hallazgo de code-review de Task 1 (a resolver en Task 2):** `handleSubmitExpense` (gastos) tiene un guard `if (pasoGasto < totalPasosGasto) { handleSiguientePaso(); return; }` al inicio, que evita que un submit prematuro del `<form>` (ej. Enter en el input de Monto del paso 1) dispare el guardado real en vez de avanzar de paso. `handleSaveIncome` NO tiene ese guard. Como Task 2 envuelve ambos pasos del wizard de ingreso en un único `<form onSubmit={handleSaveIncome}>` (igual que gastos hace con `id="form-nuevo-gasto"`), sin este guard, presionar Enter en el paso 1 dispararía `db.createIncome`/`updateIncome` con el formulario a medio completar (sin que el usuario haya pasado por el paso 2 de categoría/tipo). Task 2 Step 3.5 agrega este guard explícitamente — no debe omitirse.
 
 - [ ] **Step 10: Lint**
 
@@ -425,6 +427,39 @@ Reemplazar TODO el contenido entre `{faseIngreso === 'form' && (` y su `)}` de c
 
 CRITICAL: la vista `lista` es la MISMA lista de ingresos/recurrentes que existía antes (Task 4 del plan anterior), solo se le quita el `border: incomeEditando === ing.id ? ... : ...` condicional en cada fila (ya no tiene sentido: `incomeEditando` ahora dispara un cambio de vista completo en vez de resaltar una fila dentro del mismo panel) y se le agrega el botón "Nuevo ingreso" arriba, reemplazando al `<form>` que antes estaba siempre visible. La vista `wizard` es un `<form>` nuevo con id `form-ingreso-wizard` (distinto del `id="form-nuevo-gasto"` usado en el modal de gastos, para no colisionar), dividido en pasoIngreso 1/2, sin botones de submit propios dentro del form — el submit vive en el `footer` del `<Modal>` (Task 2 Step 2), igual que gastos.
 
+- [ ] **Step 3.5: Agregar guard contra submit prematuro en `handleSaveIncome`**
+
+**Obligatorio — hallazgo de code-review de Task 1.** El `<form id="form-ingreso-wizard" onSubmit={handleSaveIncome}>` del Step 3 envuelve AMBOS pasos del wizard. Sin este guard, presionar Enter en el input de Monto del paso 1 dispara el submit nativo del `<form>` → `handleSaveIncome` se ejecuta directo, guardando el ingreso sin que el usuario haya pasado por el paso 2 (categoría/tipo quedan en sus defaults sin elección consciente). Mismo mecanismo que ya previene esto en `handleSubmitExpense` (gastos).
+
+Localizar el inicio de `handleSaveIncome`:
+
+```js
+    const handleSaveIncome = async (e) => {
+        e.preventDefault();
+        const hoy = new Date();
+        const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+        setFaseIngreso('guardando');
+```
+
+Reemplazar por:
+
+```js
+    const handleSaveIncome = async (e) => {
+        e.preventDefault();
+        // El form del wizard solo se submitea de verdad en el paso 2 (botón "Agregar
+        // ingreso"/"Actualizar"). Si el submit llega antes (ej. Enter en el input de
+        // Monto del paso 1), avanzamos de paso en vez de guardar a medio completar.
+        if (pasoIngreso < 2) {
+            handleSiguientePasoIngreso();
+            return;
+        }
+        const hoy = new Date();
+        const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+        setFaseIngreso('guardando');
+```
+
+El resto del cuerpo de `handleSaveIncome` (desde el `try {` en adelante) no cambia.
+
 - [ ] **Step 4: Lint y build**
 
 Run: `npm --prefix client run lint && npm --prefix client run build`
@@ -536,6 +571,7 @@ Cortar la conexión un instante y guardar un ingreso — verificar que el spinne
 - Cierre manual desde wizard cierra el modal completo (vía X del header, `onClose` sigue condicionado solo a `faseIngreso === 'form'`, no a `vistaIngreso`) → confirmado en Task 2 Step 2. El botón "Cancelar" interno del wizard, en cambio, vuelve a la lista en vez de cerrar — desviación documentada explícitamente en Task 2 Step 2 como decisión tomada durante la implementación, a validar en Task 4 Step 6. ⚠️ (ver nota abajo)
 - Reapertura siempre arranca en `vistaIngreso: 'lista'` → Task 1 Step 5. ✅
 - Reutilización del patrón de gastos (`key` en botones, bloqueo temporal, validación por paso) → Task 1 Steps 1-3, Task 2 Step 2. ✅
+- Guard contra submit prematuro del `<form>` del wizard (Enter en paso 1 no debe guardar directo) → Task 2 Step 3.5, agregado tras hallazgo de code-review de Task 1 (mismo mecanismo que `handleSubmitExpense` ya tiene para gastos). ✅
 
 **Nota sobre la desviación marcada con ⚠️:** la spec (sección "Fuera de alcance") decía "cancelar desde paso 1 cierra el modal completo, igual que gastos". Al escribir el plan se optó por que "Cancelar" vuelva a la vista de lista en vez de cerrar el modal, por consistencia con el resto del flujo de Ingresos (que evita cerrar el modal salvo por la X). Esto se documentó explícitamente en el texto del task en vez de aplicarse en silencio, y Task 4 Step 6 pide validar este punto puntual con Nicolás durante la verificación manual — si prefiere el comportamiento original de la spec (cerrar el modal), es un cambio de una sola línea (`onClick={() => setVistaIngreso('lista')}` → `onClick={() => { setIsIncomeModalOpen(false); setIncomeEditando(null); }}`).
 
