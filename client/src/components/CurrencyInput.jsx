@@ -10,7 +10,7 @@ import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
  * @param {string} className - Clases CSS adicionales.
  * @param {boolean} required - Si el campo es obligatorio.
  */
-const CurrencyInput = ({ value, onChange, placeholder, className = 'input', required, disabled }) => {
+const CurrencyInput = ({ value, onChange, placeholder, className = 'input', required, disabled, autoFocus }) => {
     const [displayValue, setDisplayValue] = useState('');
     const inputRef = useRef(null);
     const cursorRef = useRef(null);
@@ -129,6 +129,7 @@ const CurrencyInput = ({ value, onChange, placeholder, className = 'input', requ
             onChange={handleChange}
             required={required}
             disabled={disabled}
+            autoFocus={autoFocus}
             autoComplete="off"
             inputMode="decimal"
             onKeyDown={(e) => {

@@ -29,6 +29,15 @@ describe('ChipSelector', () => {
         expect(screen.getByText('Nafta')).toBeInTheDocument();
     });
 
+    it('colapsa de nuevo al tocar "Ver menos"', () => {
+        render(<ChipSelector opciones={OPCIONES} valorSeleccionado={null} onChange={() => {}} limiteVisible={6} />);
+        fireEvent.click(screen.getByText('Ver más'));
+        expect(screen.getByText('Farmacia')).toBeInTheDocument();
+        fireEvent.click(screen.getByText('Ver menos'));
+        expect(screen.queryByText('Farmacia')).not.toBeInTheDocument();
+        expect(screen.getByText('Ver más')).toBeInTheDocument();
+    });
+
     it('llama a onChange con el id de la opción tocada', () => {
         const onChange = vi.fn();
         render(<ChipSelector opciones={OPCIONES} valorSeleccionado={null} onChange={onChange} limiteVisible={6} />);

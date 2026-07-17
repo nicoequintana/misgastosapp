@@ -8255,7 +8255,7 @@ body::after {
   padding: 8px 14px;
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--glass-bg) 78%, transparent);
-  border: 1px solid var(--glass-border);
+  border: 1px solid color-mix(in srgb, var(--chip-color, var(--glass-border)) 55%, var(--glass-border));
   color: var(--text-main);
   font-size: 13px;
   font-weight: 600;
@@ -8268,9 +8268,10 @@ body::after {
 }
 
 .chip-selector__chip--activo {
-  background: var(--primary-light);
-  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
-  color: var(--primary);
+  background: color-mix(in srgb, var(--chip-color, var(--primary)) 18%, var(--glass-bg));
+  border-color: var(--chip-color, var(--primary));
+  border-width: 2px;
+  color: var(--text-main);
 }
 
 .chip-selector__chip--ver-mas {
@@ -8279,4 +8280,11 @@ body::after {
 
 .chip-selector__icono {
   font-size: 18px;
+}
+
+.currency-input--grande {
+  font-size: 32px;
+  font-weight: 800;
+  padding: 20px 16px;
+  text-align: left;
 }

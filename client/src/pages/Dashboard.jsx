@@ -350,7 +350,9 @@ const Dashboard = () => {
         }
 
         try {
-            await db.createExpense(expenseForm);
+            // La fecha del gasto siempre es la del día de carga — no es un campo editable del form.
+            // Se recalcula acá (no solo en el estado inicial) por si el modal quedó abierto de un día para el otro.
+            await db.createExpense({ ...expenseForm, fecha: fechaHoyArgentina() });
             console.log('✅ Gasto creado correctamente');
             // Primero cerramos y notificamos, luego recargamos stats con verificación de alertas
             setIsModalOpen(false);
@@ -703,6 +705,15 @@ const Dashboard = () => {
             >
                 <form id="form-nuevo-gasto" onSubmit={handleSubmitExpense} className="form-container">
                     <div className="form-group">
+                        <label className="form-label-box">Monto</label>
+                        <CurrencyInput
+                            value={expenseForm.monto}
+                            onChange={(val) => setExpenseForm(prev => ({ ...prev, monto: val }))}
+                            className="input currency-input--grande"
+                            autoFocus
+                        />
+                    </div>
+                    <div className="form-group">
                         <label className="form-label-box">Descripción</label>
                         <input
                             type="text"
@@ -710,47 +721,25 @@ const Dashboard = () => {
                             onChange={(e) => setExpenseForm(prev => ({ ...prev, descripcion: e.target.value }))}
                             required
                             className="input"
-                            autoFocus
                         />
                     </div>
-                    <div className="form-grid">
-                        <div className="form-group">
-                            <label className="form-label-box">Monto</label>
-                            <CurrencyInput
-                                value={expenseForm.monto}
-                                onChange={(val) => setExpenseForm(prev => ({ ...prev, monto: val }))}
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label-box">Fecha</label>
-                            <input
-                                type="date"
-                                value={expenseForm.fecha}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, fecha: e.target.value }))}
-                                required
-                                className="input"
-                            />
-                        </div>
+                    <div className="form-group">
+                        <label className="form-label-box">Categoría</label>
+                        <ChipSelector
+                            opciones={categories}
+                            valorSeleccionado={expenseForm.id_categoria ? Number(expenseForm.id_categoria) : null}
+                            onChange={(id) => handleCambioCategoria(id)}
+                            limiteVisible={6}
+                        />
                     </div>
-                    <div className="form-grid">
-                        <div className="form-group">
-                            <label className="form-label-box">Categoría</label>
-                            <ChipSelector
-                                opciones={categories}
-                                valorSeleccionado={expenseForm.id_categoria ? Number(expenseForm.id_categoria) : null}
-                                onChange={(id) => handleCambioCategoria(id)}
-                                limiteVisible={6}
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label-box">Método de Pago</label>
-                            <ChipSelector
-                                opciones={paymentMethods}
-                                valorSeleccionado={expenseForm.id_metodo_pago ? Number(expenseForm.id_metodo_pago) : null}
-                                onChange={(id) => handleCambioMetodoPago(id)}
-                                limiteVisible={6}
-                            />
-                        </div>
+                    <div className="form-group">
+                        <label className="form-label-box">Método de Pago</label>
+                        <ChipSelector
+                            opciones={paymentMethods}
+                            valorSeleccionado={expenseForm.id_metodo_pago ? Number(expenseForm.id_metodo_pago) : null}
+                            onChange={(id) => handleCambioMetodoPago(id)}
+                            limiteVisible={6}
+                        />
                     </div>
                     {expenseForm.esTarjetaCredito && (
                         <>
