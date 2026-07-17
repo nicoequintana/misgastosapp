@@ -4,7 +4,6 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import CurrencyInput from '../components/CurrencyInput';
 import ChipSelector from '../components/ChipSelector';
-import ResultModal from '../components/ResultModal';
 import * as db from '../lib/db';
 import { getTarjetasEnCuotas, getGastosFuturos, getPrestamosEnCuotas, getPrestamosGastosFuturos } from '../lib/db';
 import SummaryCard from '../components/dashboard/SummaryCard';
@@ -1116,14 +1115,6 @@ const Dashboard = () => {
                 onConfirm={handleDeleteAllVariable}
                 title="Eliminar Gastos Variables"
                 message="¿Estás seguro de que deseas eliminar TODOS los gastos variables? Esta acción no se puede deshacer."
-            />
-
-            {/* Popup de resultado inmediato: éxito o error al guardar un gasto */}
-            <ResultModal
-                isOpen={!!resultadoGasto}
-                onClose={() => setResultadoGasto(null)}
-                tipo={resultadoGasto?.tipo}
-                titulo={resultadoGasto?.titulo}
             />
 
         </div>
