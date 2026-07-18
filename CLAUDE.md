@@ -266,10 +266,108 @@ Paso a paso. Concreto. Soluciones simples y robustas sobre elegantes y frágiles
 
 ## graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+Este proyecto utiliza **Graphify** como la fuente principal de conocimiento del código.
 
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+### Reglas de eficiencia de tokens (Obligatorias)
+
+- Utilizar siempre el grafo de conocimiento antes de leer archivos del proyecto, salvo que la tarea sea extremadamente puntual (por ejemplo, modificar un archivo específico ya identificado por Nicolás).
+- Nunca comenzar explorando el repositorio completo o leyendo múltiples archivos si Graphify puede responder la consulta.
+- Minimizar el contexto cargado. Abrir únicamente los archivos que Graphify indique como relevantes.
+- No leer `graphify-out/GRAPH_REPORT.md` salvo que se necesite una revisión de arquitectura completa o que las consultas al grafo no sean suficientes.
+- Priorizar siempre las consultas a Graphify antes que búsquedas recursivas (`grep`, `find`, etc.) o la lectura manual del código.
+
+### Estrategia de consulta
+
+Cuando exista `graphify-out/graph.json`, seguir siempre este orden:
+
+1. Ejecutar:
+
+```bash
+graphify query "<consulta o tarea>"
+```
+
+2. Si se necesitan relaciones entre componentes:
+
+```bash
+graphify path "<A>" "<B>"
+```
+
+3. Si se necesita comprender un concepto específico:
+
+```bash
+graphify explain "<concepto>"
+```
+
+4. Recién después abrir únicamente los archivos que Graphify haya identificado como necesarios.
+
+Si existe `graphify-out/wiki/index.md`, utilizarlo como punto de navegación del proyecto antes de recorrer manualmente el código.
+
+### Actualización del grafo
+
+El grafo de conocimiento forma parte de la documentación viva del proyecto y debe mantenerse siempre sincronizado con el código fuente.
+
+Ejecutar siempre:
+
+```bash
+graphify update .
+```
+
+en cualquiera de las siguientes situaciones:
+
+- Al finalizar cualquier modificación de código.
+- Antes de terminar la sesión de Claude.
+- Antes de entregar el trabajo a Nicolás.
+- Después de crear, eliminar o mover archivos.
+- Después de un refactor importante.
+- Después de modificar arquitectura, APIs, base de datos o relaciones entre componentes.
+
+### Sincronización con ENGRAM
+
+Cada vez que se actualice el conocimiento en ENGRAM, también debe actualizarse el grafo de Graphify.
+
+Reglas obligatorias:
+
+- Si se actualiza ENGRAM → actualizar Graphify.
+- Si finaliza la sesión → actualizar Graphify.
+- Si se modificó código → actualizar Graphify.
+
+Nunca dejar ENGRAM y Graphify desincronizados.
+
+### Modo de trabajo obligatorio
+
+El flujo de trabajo debe ser siempre:
+
+1. Consultar Graphify.
+2. Identificar únicamente los archivos relevantes.
+3. Leer solamente esos archivos.
+4. Realizar los cambios necesarios.
+5. Actualizar ENGRAM (si corresponde).
+6. Ejecutar:
+
+```bash
+graphify update .
+```
+
+7. Finalizar la tarea.
+
+### Contingencia
+
+Si Graphify no estuviera disponible o el grafo aún no hubiera sido generado:
+
+1. Informar la situación a Nicolás.
+2. Ejecutar:
+
+```bash
+graphify update .
+```
+
+3. Reintentar la consulta.
+4. Solo si Graphify continúa sin estar disponible, inspeccionar manualmente el código procurando leer la menor cantidad posible de archivos.
+
+## Principio fundamental
+
+Graphify es la fuente de verdad para comprender el proyecto.
+
+El código fuente debe abrirse únicamente cuando Graphify ya haya reducido el contexto al mínimo necesario.
+
+El objetivo es minimizar el consumo de tokens, evitar lecturas innecesarias del repositorio y mantener el grafo siempre sincronizado con el estado real del proyecto.
