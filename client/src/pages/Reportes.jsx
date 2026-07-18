@@ -440,7 +440,7 @@ const Reportes = () => {
         if (!reporte?.gastos) return [];
         const conCuotas = reporte.gastos.filter(
             g => g.id_gasto_padre != null &&
-                 g.metodos_pago?.nombre?.toUpperCase() === 'TARJETA DE CREDITO'
+                 g.metodos_pago?.acepta_cuotas === true
         );
         if (conCuotas.length === 0) return [];
 

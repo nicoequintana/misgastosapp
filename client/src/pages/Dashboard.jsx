@@ -180,6 +180,7 @@ const Dashboard = () => {
     // Datos de los combos dinámicos (categorías y métodos de pago)
     const [categories, setCategories] = useState([]);
     const [paymentMethods, setPaymentMethods] = useState([]);
+    const [errorOpciones, setErrorOpciones] = useState(null);
 
     // Estado del formulario de nuevo gasto
     const [expenseForm, setExpenseForm] = useState(ESTADO_INICIAL_GASTO);
@@ -281,6 +282,7 @@ const Dashboard = () => {
      */
     const fetchOpciones = useCallback(async () => {
         try {
+            setErrorOpciones(null);
             const [cats, metodos, cuotas, catIngresos, futuros, prestamos, prestamosFut] = await Promise.all([
                 db.getCategories(),
                 db.getPaymentMethods(),
@@ -299,6 +301,7 @@ const Dashboard = () => {
             setGastosFuturos(futuros);
         } catch (err) {
             console.error('❌ Error al obtener opciones:', err);
+            setErrorOpciones('No se pudieron cargar las categorías y métodos de pago.');
         }
     }, []);
 
@@ -927,7 +930,16 @@ const Dashboard = () => {
                             </div>
                             </>
                         )}
-                        {pasoGasto === 2 && (
+                        {pasoGasto === 2 && errorOpciones && (
+                            <div className="form-error">
+                                <span className="material-symbols-outlined">error_outline</span>
+                                {errorOpciones}
+                                <button type="button" className="btn btn-secondary" onClick={fetchOpciones}>
+                                    Reintentar
+                                </button>
+                            </div>
+                        )}
+                        {pasoGasto === 2 && !errorOpciones && (
                             <>
                             <div className="form-group">
                                 <label className="form-label-box">Categoría</label>

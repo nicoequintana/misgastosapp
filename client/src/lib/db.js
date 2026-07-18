@@ -1341,7 +1341,7 @@ export const getGastosByRango = async (desde, hasta) => {
         .select(`
             *,
             categorias:id_categoria (id, nombre),
-            metodos_pago:id_metodo_pago (id, nombre)
+            metodos_pago:id_metodo_pago (id, nombre, acepta_cuotas)
         `)
         .eq('user_id', usuario.id)
         .gte('fecha', desde)
