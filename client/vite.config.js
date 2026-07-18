@@ -4,7 +4,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   test: {
-    environment: 'node',
+    environment: 'jsdom',
+    setupFiles: ['./src/test-setup.js'],
     include: ['src/**/*.test.js', 'src/**/*.test.jsx'],
     coverage: { reporter: ['text'] },
   },

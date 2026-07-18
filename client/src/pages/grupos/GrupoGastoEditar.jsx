@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import CurrencyInput from '../../components/CurrencyInput';
+import ChipSelector from '../../components/ChipSelector';
 import MiembrosSelector from '../../components/grupos/MiembrosSelector';
 import { AuthContext } from '../../context/AuthContext';
 import * as db from '../../lib/db';
 import { fechaHoyArgentina } from '../../utils/format';
+
+const OPCIONES_CUOTAS = Array.from({ length: 18 }, (_, i) => i + 1);
 
 /**
  * Página para editar un gasto grupal existente.
@@ -20,6 +23,7 @@ const GrupoGastoEditar = () => {
     // Estado de datos del grupo
     const [miembros, setMiembros] = useState([]);
     const [categorias, setCategorias] = useState([]);
+    const [metodosPago, setMetodosPago] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [errorCarga, setErrorCarga] = useState(null);
 
@@ -28,32 +32,37 @@ const GrupoGastoEditar = () => {
     const [monto, setMonto] = useState(0);
     const [fecha, setFecha] = useState('');
     const [categoriaId, setCategoriaId] = useState('');
+    const [metodoPagoId, setMetodoPagoId] = useState('');
     const [pagadoPor, setPagadoPor] = useState('');
     const [participantes, setParticipantes] = useState([]);
     const [nota, setNota] = useState('');
-    const [esCuotas, setEsCuotas] = useState(false);
+    const [esTarjeta, setEsTarjeta] = useState(false);
+    const [cuotas, setCuotas] = useState(1);
     const [primeraCuota, setPrimeraCuota] = useState('');
 
     // Estado de envío
-    const [guardando, setGuardando] = useState(false);
     const [errorGuardado, setErrorGuardado] = useState(null);
+    const [fase, setFase] = useState('form');
+    const [resultado, setResultado] = useState(null);
 
-    // Carga el gasto existente, miembros y categorías al montar
+    // Carga el gasto existente, miembros, categorías y métodos de pago al montar
     const cargarDatos = useCallback(async () => {
         if (!grupoId || !gastoId) return;
         try {
             setCargando(true);
             setErrorCarga(null);
 
-            const [datosMiembros, datosCategorias, gastoExistente] = await Promise.all([
+            const [datosMiembros, datosCategorias, datosMetodos, gastoExistente] = await Promise.all([
                 db.obtenerMiembrosDelGrupo(grupoId),
                 db.getCategories(),
+                db.getPaymentMethods(),
                 db.obtenerGastoConParticipantes(gastoId),
             ]);
 
             const activos = (datosMiembros || []).filter((m) => m.estado === 'activo');
             setMiembros(activos);
             setCategorias((datosCategorias || []).filter((c) => !c.es_propia));
+            setMetodosPago(datosMetodos || []);
 
             // Poblar formulario con los datos del gasto
             setDescripcion(gastoExistente.descripcion || '');
@@ -63,9 +72,17 @@ const GrupoGastoEditar = () => {
             setPagadoPor(gastoExistente.pagado_por || '');
             setNota(gastoExistente.nota || '');
             setParticipantes((gastoExistente.participantes || []).map((p) => p.user_id));
+
+            // Método de pago: precargar el chip activo y derivar esTarjeta del flag acepta_cuotas
+            const metodoIdExistente = gastoExistente.id_metodo_pago ? String(gastoExistente.id_metodo_pago) : '';
+            setMetodoPagoId(metodoIdExistente);
+            const metodoExistente = (datosMetodos || []).find(
+                pm => pm.id === gastoExistente.id_metodo_pago
+            );
+            setEsTarjeta(metodoExistente?.acepta_cuotas === true);
+
             // Si es compra en cuotas, cargar el mes de la primera cuota (YYYY-MM)
             const esCuotasGasto = (gastoExistente.cuotas || 1) > 1;
-            setEsCuotas(esCuotasGasto);
             if (esCuotasGasto && gastoExistente.fecha) {
                 setPrimeraCuota(gastoExistente.fecha.slice(0, 7));
             }
@@ -80,6 +97,16 @@ const GrupoGastoEditar = () => {
     useEffect(() => {
         cargarDatos();
     }, [cargarDatos]);
+
+    // Detecta si el método de pago seleccionado acepta cuotas (flag explícito),
+    // igual criterio que en GrupoGastoNuevo.jsx y Dashboard.jsx.
+    const handleCambioMetodoPago = (id) => {
+        const metodo = metodosPago.find(pm => pm.id === Number(id) || pm.id === id);
+        const aceptaCuotas = metodo?.acepta_cuotas === true;
+        setMetodoPagoId(id);
+        setEsTarjeta(aceptaCuotas);
+        if (!aceptaCuotas) { setCuotas(1); setPrimeraCuota(''); }
+    };
 
     // Calcula cuánto le toca a cada participante
     const calcularPorParticipante = () => {
@@ -118,30 +145,46 @@ const GrupoGastoEditar = () => {
             setErrorGuardado('Seleccioná quién pagó.');
             return;
         }
-        if (esCuotas && !primeraCuota) {
+        if (!metodoPagoId) {
+            setErrorGuardado('Seleccioná un método de pago.');
+            return;
+        }
+        if (esTarjeta && !primeraCuota) {
             setErrorGuardado('Indicá en qué mes vence la primera cuota.');
             return;
         }
 
+        setFase('guardando');
+
         try {
-            setGuardando(true);
             await db.actualizarGastoGrupal(gastoId, {
                 grupoId,
                 descripcion,
                 monto,
                 pagadoPor,
                 fecha,
-                primeraCuota: esCuotas ? primeraCuota : undefined,
+                primeraCuota: esTarjeta ? primeraCuota : undefined,
                 idCategoria: categoriaId ? Number(categoriaId) : undefined,
+                idMetodoPago: Number(metodoPagoId),
                 nota: nota || undefined,
                 participantesUserIds: participantes,
             });
-            navigate(`/grupos/${grupoId}`, { state: { tab: 'gastos' } });
+            setResultado({ tipo: 'success', titulo: 'Gasto actualizado' });
+            setFase('resultado');
         } catch (err) {
             console.error('Error al actualizar el gasto:', err);
-            setErrorGuardado(err.message || 'No se pudo actualizar el gasto. Intentá de nuevo.');
-        } finally {
-            setGuardando(false);
+            setResultado({ tipo: 'error', titulo: 'No se pudo actualizar el gasto', mensaje: err.message });
+            setFase('resultado');
+        }
+    };
+
+    /** Vuelve al detalle del grupo tras ver el resultado (éxito o error). */
+    const handleContinuar = () => {
+        if (resultado?.tipo === 'success') {
+            navigate(`/grupos/${grupoId}`, { state: { tab: 'gastos' } });
+        } else {
+            setFase('form');
+            setResultado(null);
         }
     };
 
@@ -175,6 +218,50 @@ const GrupoGastoEditar = () => {
         );
     }
 
+    // ── Fase guardando: spinner ──
+    if (fase === 'guardando') {
+        return (
+            <div className="grupos-page">
+                <div className="result-modal" role="status" aria-live="polite">
+                    <span className="material-symbols-outlined result-modal__icono result-modal__icono--loading" style={{ color: 'var(--primary)', borderColor: 'var(--primary)' }}>
+                        progress_activity
+                    </span>
+                    <h3 className="result-modal__titulo">Guardando cambios...</h3>
+                </div>
+            </div>
+        );
+    }
+
+    // ── Fase resultado: éxito o error ──
+    if (fase === 'resultado' && resultado) {
+        return (
+            <div className="grupos-page">
+                <div className="result-modal">
+                    <span
+                        className="material-symbols-outlined result-modal__icono"
+                        style={{
+                            color: resultado.tipo === 'error' ? 'var(--danger)' : 'var(--success)',
+                            borderColor: resultado.tipo === 'error' ? 'var(--danger)' : 'var(--success)',
+                        }}
+                    >
+                        {resultado.tipo === 'error' ? 'cancel' : 'check_circle'}
+                    </span>
+                    <h3 className="result-modal__titulo">{resultado.titulo}</h3>
+                    {resultado.mensaje && (
+                        <p className="result-modal__subtexto">{resultado.mensaje}</p>
+                    )}
+                    <button
+                        type="button"
+                        className={`btn result-modal__boton result-modal__boton--${resultado.tipo === 'error' ? 'error' : 'success'}`}
+                        onClick={handleContinuar}
+                    >
+                        Continuar
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="grupos-page">
             {/* Encabezado */}
@@ -182,7 +269,6 @@ const GrupoGastoEditar = () => {
                 <button
                     className="btn btn-ghost"
                     onClick={() => navigate(`/grupos/${grupoId}`, { state: { tab: 'gastos' } })}
-                    disabled={guardando}
                 >
                     <span className="material-symbols-outlined">arrow_back</span>
                     Volver
@@ -214,7 +300,6 @@ const GrupoGastoEditar = () => {
                         onChange={(e) => setDescripcion(e.target.value)}
                         maxLength={200}
                         required
-                        disabled={guardando}
                         autoFocus
                     />
                 </div>
@@ -225,12 +310,12 @@ const GrupoGastoEditar = () => {
                         Monto <span className="form-label__required">*</span>
                     </label>
                     <CurrencyInput
+                        id="monto"
                         value={monto}
                         onChange={setMonto}
                         placeholder="0,00"
                         className="input"
                         required
-                        disabled={guardando}
                     />
                 </div>
 
@@ -246,12 +331,55 @@ const GrupoGastoEditar = () => {
                         value={fecha}
                         onChange={(e) => setFecha(e.target.value)}
                         required
-                        disabled={guardando}
                     />
                 </div>
 
-                {/* Mes primera cuota — solo si es compra en cuotas */}
-                {esCuotas && (
+                {/* Campo: Categoría opcional */}
+                <div className="form-group">
+                    <label className="form-label">
+                        Categoría <span className="form-label__opcional">(opcional)</span>
+                    </label>
+                    <ChipSelector
+                        opciones={categorias}
+                        valorSeleccionado={categoriaId ? Number(categoriaId) : null}
+                        onChange={(id) => setCategoriaId(id)}
+                        limiteVisible={6}
+                    />
+                </div>
+
+                {/* Campo: Método de pago */}
+                <div className="form-group">
+                    <label className="form-label">
+                        Método de Pago <span className="form-label__required">*</span>
+                    </label>
+                    <ChipSelector
+                        opciones={metodosPago}
+                        valorSeleccionado={metodoPagoId ? Number(metodoPagoId) : null}
+                        onChange={(id) => handleCambioMetodoPago(id)}
+                        limiteVisible={6}
+                    />
+                </div>
+
+                {/* Mes primera cuota — solo si el método acepta cuotas */}
+                {esTarjeta && (
+                    <>
+                    <div className="form-group">
+                        <label className="form-label" htmlFor="cuotas">
+                            Cuotas <span className="form-label__required">*</span>
+                        </label>
+                        <select
+                            id="cuotas"
+                            className="input"
+                            value={cuotas}
+                            onChange={(e) => setCuotas(parseInt(e.target.value))}
+                        >
+                            {OPCIONES_CUOTAS.map(n => (
+                                <option key={n} value={n}>
+                                    {n === 1 ? '1 cuota (pago único)' : `${n} cuotas`}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                     <div className="form-group">
                         <label className="form-label" htmlFor="primera-cuota">
                             Mes de la primera cuota <span className="form-label__required">*</span>
@@ -263,34 +391,13 @@ const GrupoGastoEditar = () => {
                             value={primeraCuota}
                             onChange={(e) => setPrimeraCuota(e.target.value)}
                             required
-                            disabled={guardando}
                         />
                         <small className="form-hint">
                             El 1° del mes elegido se usa como fecha de vencimiento de la primera cuota.
                         </small>
                     </div>
+                    </>
                 )}
-
-                {/* Campo: Categoría opcional */}
-                <div className="form-group">
-                    <label className="form-label" htmlFor="categoria">
-                        Categoría <span className="form-label__opcional">(opcional)</span>
-                    </label>
-                    <select
-                        id="categoria"
-                        className="input"
-                        value={categoriaId}
-                        onChange={(e) => setCategoriaId(e.target.value)}
-                        disabled={guardando}
-                    >
-                        <option value="">Sin categoría</option>
-                        {categorias.map((categoria) => (
-                            <option key={categoria.id} value={categoria.id}>
-                                {categoria.nombre}
-                            </option>
-                        ))}
-                    </select>
-                </div>
 
                 {/* Campo: Pagado por */}
                 <div className="form-group">
@@ -303,7 +410,6 @@ const GrupoGastoEditar = () => {
                         value={pagadoPor}
                         onChange={(e) => setPagadoPor(e.target.value)}
                         required
-                        disabled={guardando}
                     >
                         <option value="">Seleccioná quién pagó...</option>
                         {miembros.map((m) => (
@@ -366,7 +472,6 @@ const GrupoGastoEditar = () => {
                         onChange={(e) => setNota(e.target.value)}
                         rows={3}
                         maxLength={500}
-                        disabled={guardando}
                     />
                 </div>
 
@@ -376,26 +481,16 @@ const GrupoGastoEditar = () => {
                         type="button"
                         className="btn btn-secondary"
                         onClick={() => navigate(`/grupos/${grupoId}`, { state: { tab: 'gastos' } })}
-                        disabled={guardando}
                     >
                         Cancelar
                     </button>
                     <button
                         type="submit"
                         className="btn btn-primary"
-                        disabled={guardando || participantes.length === 0 || !monto || monto <= 0}
+                        disabled={participantes.length === 0 || !monto || monto <= 0}
                     >
-                        {guardando ? (
-                            <>
-                                <div className="loading-spinner loading-spinner--sm" />
-                                Guardando...
-                            </>
-                        ) : (
-                            <>
-                                <span className="material-symbols-outlined">save</span>
-                                Guardar cambios
-                            </>
-                        )}
+                        <span className="material-symbols-outlined">save</span>
+                        Guardar cambios
                     </button>
                 </div>
             </form>

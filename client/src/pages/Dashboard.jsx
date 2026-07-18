@@ -3,6 +3,7 @@ import { Link, useOutletContext } from 'react-router-dom';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import CurrencyInput from '../components/CurrencyInput';
+import ChipSelector from '../components/ChipSelector';
 import * as db from '../lib/db';
 import { getTarjetasEnCuotas, getGastosFuturos, getPrestamosEnCuotas, getPrestamosGastosFuturos } from '../lib/db';
 import SummaryCard from '../components/dashboard/SummaryCard';
@@ -183,6 +184,19 @@ const Dashboard = () => {
     // Estado del formulario de nuevo gasto
     const [expenseForm, setExpenseForm] = useState(ESTADO_INICIAL_GASTO);
     const [errorForm, setErrorForm] = useState(null);
+    // Paso actual del wizard de carga (1: monto/descripción, 2: categoría/método/cuotas, 3: fijo/variable)
+    const [pasoGasto, setPasoGasto] = useState(1);
+    // Se activa brevemente al cambiar de paso, para deshabilitar los botones de navegación
+    // del footer. Evita que un click sobre "Siguiente" recaiga por error sobre "Guardar"
+    // cuando este último ocupa la misma posición del footer tras el cambio de paso.
+    const [botonesPasoBloqueados, setBotonesPasoBloqueados] = useState(false);
+    // Popup de resultado inmediato tras crear el gasto (éxito o error) — convive con
+    // el historial persistente de NotificacionesContext, no lo reemplaza.
+    const [resultadoGasto, setResultadoGasto] = useState(null);
+    // Fase visual del modal de alta de gasto: 'form' (wizard), 'guardando' (spinner
+    // mientras corre createExpense) o 'resultado' (popup de éxito/error). Todo dentro
+    // del mismo modal para evitar el corte de cerrar+abrir dos modales distintos.
+    const [faseGasto, setFaseGasto] = useState('form');
 
     // Estado del panel de ingresos
     const [ingresosMes, setIngresosMes]             = useState([]);
@@ -191,6 +205,23 @@ const Dashboard = () => {
     const [incomeForm, setIncomeForm]               = useState(INCOME_FORM_INICIAL);
     const [incomeEditando, setIncomeEditando]       = useState(null);
     const [incomeConfirmDelete, setIncomeConfirmDelete] = useState(null);
+    // Fase visual del modal de Ingresos: 'form' (formulario+lista), 'guardando' (spinner
+    // mientras corre la acción) o 'resultado' (popup de éxito/error). A diferencia del
+    // modal de gastos, acá el modal NO se cierra al llegar a 'resultado' — es un panel
+    // persistente pensado para cargar varios ingresos seguidos.
+    const [faseIngreso, setFaseIngreso] = useState('form');
+    const [resultadoIngreso, setResultadoIngreso] = useState(null);
+    // Vista del modal de Ingresos: 'lista' (ingresos del mes + recurrentes + botón "Nuevo
+    // ingreso") o 'wizard' (formulario de alta/edición en 2 pasos). Reemplaza el formulario
+    // siempre-visible anterior por un flujo de wizard, igual que el modal de gastos.
+    const [vistaIngreso, setVistaIngreso] = useState('lista');
+    // Paso actual del wizard de ingreso (1: monto/descripción, 2: categoría/tipo)
+    const [pasoIngreso, setPasoIngreso] = useState(1);
+    // Mismo mecanismo que botonesPasoBloqueados en el wizard de gastos: evita que un click
+    // sobre "Siguiente" recaiga por error sobre "Guardar" cuando este último ocupa la misma
+    // posición del footer tras avanzar al último paso.
+    const [botonesPasoIngresoBloqueados, setBotonesPasoIngresoBloqueados] = useState(false);
+    const [errorIngresoForm, setErrorIngresoForm] = useState(null);
 
     // Grupos de cuotas para la card de tarjeta de crédito
     const [cuotasGrupos, setCuotasGrupos] = useState([]);
@@ -206,10 +237,14 @@ const Dashboard = () => {
      * Obtiene las estadísticas y las carga en el estado.
      * Separado de fetchOpciones para poder llamarlos independientemente.
      */
-    const fetchStats = useCallback(async ({ verificarAlertas = false } = {}) => {
+    const fetchStats = useCallback(async ({ verificarAlertas = false, mostrarSkeleton = true } = {}) => {
         try {
-            setCargando(true);
-            setErrorCarga(null);
+            // El skeleton de pantalla completa solo debe verse en la carga inicial del dashboard.
+            // Las recargas disparadas por guardar/editar/eliminar (con un modal ya abierto encima)
+            // no deben desmontar la página entera — eso se llevaba puesto cualquier modal abierto,
+            // incluido el popup de resultado del alta de gasto.
+            if (mostrarSkeleton) setCargando(true);
+            if (mostrarSkeleton) setErrorCarga(null);
             const data = await db.getStats();
             setStats(data);
             if (verificarAlertas) {
@@ -227,9 +262,12 @@ const Dashboard = () => {
             }
         } catch (err) {
             console.error('❌ Error al obtener estadísticas:', err);
-            setErrorCarga('No se pudieron cargar los datos. Intentá recargar la página.');
+            // Con mostrarSkeleton=false hay un modal/popup abierto encima del dashboard (ej. resultado
+            // de guardar un gasto): no lo tapamos con la pantalla de error de carga completa, el error
+            // ya quedó logueado y las stats simplemente no se refrescaron esta vez.
+            if (mostrarSkeleton) setErrorCarga('No se pudieron cargar los datos. Intentá recargar la página.');
         } finally {
-            setCargando(false);
+            if (mostrarSkeleton) setCargando(false);
             if (primeraVez.current) {
                 primeraVez.current = false;
                 setAppReady(true);
@@ -291,13 +329,32 @@ const Dashboard = () => {
         fetchIngresosMes();
     }, [fetchStats, fetchOpciones, fetchIngresosMes]);
 
-    // Cuando el FAB del bottom nav mobile dispara onNewExpense, abrimos el modal
+    // Cuando el FAB del bottom nav mobile dispara onNewExpense, abrimos el modal.
+    // Usamos handleAbrirNuevoGasto (no setIsModalOpen directo) para que este camino
+    // también resetee wizard/formulario/fase — evita mostrar el resultado de una
+    // sesión anterior si el usuario cerró el modal desde el paso 'resultado'.
     useEffect(() => {
         if (showNewExpense) {
-            setIsModalOpen(true);
+            handleAbrirNuevoGasto();
             setShowNewExpense?.(false);
         }
     }, [showNewExpense, setShowNewExpense]);
+
+    // Bloquea brevemente los botones de navegación del wizard al cambiar de paso.
+    // Evita que un click sobre "Siguiente" recaiga por error sobre "Guardar" cuando
+    // este último ocupa la misma posición del footer tras avanzar al último paso.
+    useEffect(() => {
+        setBotonesPasoBloqueados(true);
+        const timer = setTimeout(() => setBotonesPasoBloqueados(false), 400);
+        return () => clearTimeout(timer);
+    }, [pasoGasto]);
+
+    // Mismo mecanismo que el de arriba, aplicado al wizard de ingresos.
+    useEffect(() => {
+        setBotonesPasoIngresoBloqueados(true);
+        const timer = setTimeout(() => setBotonesPasoIngresoBloqueados(false), 400);
+        return () => clearTimeout(timer);
+    }, [pasoIngreso]);
 
     // Mejorar UX de teclado: permite confirmar acciones con Enter en botones
     useEffect(() => {
@@ -322,12 +379,15 @@ const Dashboard = () => {
         e.preventDefault();
         setErrorForm(null);
 
-        // Validar que todos los campos requeridos estén completos
-        if (!expenseForm.descripcion || !expenseForm.descripcion.trim()) {
-            setErrorForm('Ingresá una descripción para el gasto.');
+        // El form del wizard solo se submitea de verdad en el último paso (botón "Guardar").
+        // Si el submit llega antes (ej. Enter en un campo de un paso intermedio), avanzamos
+        // de paso en vez de guardar el gasto a medio completar.
+        if (pasoGasto < totalPasosGasto) {
+            handleSiguientePaso();
             return;
         }
 
+        // Validar que todos los campos requeridos estén completos (la descripción es opcional)
         if (!expenseForm.monto || Number(expenseForm.monto) <= 0) {
             setErrorForm('El monto debe ser mayor a cero.');
             return;
@@ -348,21 +408,28 @@ const Dashboard = () => {
             return;
         }
 
+        // A partir de acá el form es válido: mostramos el spinner en el mismo modal
+        // en vez de cerrar el wizard y abrir un popup aparte.
+        setFaseGasto('guardando');
+
         try {
-            await db.createExpense(expenseForm);
+            // La descripción es opcional: si el usuario no escribió nada, usamos un texto genérico
+            // para la notificación (la persistencia del default real ocurre en db.createExpense).
+            const descripcionMostrada = expenseForm.descripcion?.trim() || 'SIN DESCRIPCIÓN';
+            // La fecha del gasto siempre es la del día de carga — no es un campo editable del form.
+            // Se recalcula acá (no solo en el estado inicial) por si el modal quedó abierto de un día para el otro.
+            await db.createExpense({ ...expenseForm, fecha: fechaHoyArgentina() });
             console.log('✅ Gasto creado correctamente');
-            // Primero cerramos y notificamos, luego recargamos stats con verificación de alertas
-            setIsModalOpen(false);
             agregarNotificacion({
                 titulo:  'Gasto registrado',
-                mensaje: `Se registró "${expenseForm.descripcion}" por $${Number(expenseForm.monto).toLocaleString('es-AR')}.`,
+                mensaje: `Se registró "${descripcionMostrada}" por $${Number(expenseForm.monto).toLocaleString('es-AR')}.`,
                 tipo:    'success',
                 origen:  'manual',
             });
+            setResultadoGasto({ tipo: 'success', titulo: '¡Gasto registrado!' });
+            setFaseGasto('resultado');
             // Verificar si el gasto supera el umbral de gasto alto
-            verificarAlertaGastoAlto({ descripcion: expenseForm.descripcion, monto: expenseForm.monto });
-            setExpenseForm(ESTADO_INICIAL_GASTO);
-            setErrorForm(null);
+            verificarAlertaGastoAlto({ descripcion: descripcionMostrada, monto: expenseForm.monto });
             // Recargar cuotas si el nuevo gasto es con tarjeta de crédito
             if (expenseForm.esTarjetaCredito) {
                 Promise.all([getTarjetasEnCuotas(), getGastosFuturos()])
@@ -375,21 +442,48 @@ const Dashboard = () => {
                     .then(([prest, prestFut]) => { setPrestamosGrupos(prest); setPrestamosFuturos(prestFut); })
                     .catch(console.error);
             }
-            // Al recargar stats verificamos alertas de saldo y porcentaje
-            await fetchStats({ verificarAlertas: true });
+            // Al recargar stats verificamos alertas de saldo y porcentaje. Sin skeleton: el modal
+            // de resultado ya está mostrándose y no debe desmontarse mientras recargamos en segundo plano.
+            await fetchStats({ verificarAlertas: true, mostrarSkeleton: false });
         } catch (err) {
             console.error('❌ Error al guardar gasto:', err);
-            setErrorForm(err.message || 'No se pudo guardar el gasto. Intentá de nuevo.');
+            setResultadoGasto({ tipo: 'error', titulo: 'No se pudo guardar el gasto', mensaje: err.message });
+            setFaseGasto('resultado');
         }
+    };
+
+    /**
+     * Cierra el modal de alta de gasto. No resetea wizard/formulario/fase acá: el modal
+     * tarda ~300ms en desvanecerse (ver Modal.jsx), y si reseteáramos faseGasto a 'form'
+     * en este mismo click, se alcanzaría a ver el wizard vacío destellando durante ese
+     * fade-out en vez de mantener el popup de resultado hasta que termine de cerrarse.
+     * El reset real ocurre en handleAbrirNuevoGasto, la próxima vez que se abre el modal.
+     */
+    const handleCerrarModalGasto = () => {
+        setIsModalOpen(false);
     };
 
     /** Abre el panel de ingresos y carga los registros del mes y los recurrentes. */
     const handleAbrirIngresos = () => {
         setIncomeForm(INCOME_FORM_INICIAL);
         setIncomeEditando(null);
+        setFaseIngreso('form');
+        setResultadoIngreso(null);
+        setVistaIngreso('lista');
+        setPasoIngreso(1);
+        setErrorIngresoForm(null);
         setIsIncomeModalOpen(true);
         fetchIngresosMes();
         fetchRecurrentes();
+    };
+
+    /** Abre el wizard de alta de ingreso desde la vista de lista, con el formulario vacío. */
+    const handleAbrirWizardIngreso = () => {
+        setIncomeForm(INCOME_FORM_INICIAL);
+        setIncomeEditando(null);
+        setPasoIngreso(1);
+        setErrorIngresoForm(null);
+        setVistaIngreso('wizard');
     };
 
     /**
@@ -399,8 +493,16 @@ const Dashboard = () => {
      */
     const handleSaveIncome = async (e) => {
         e.preventDefault();
+        // El form del wizard solo se submitea de verdad en el paso 2 (botón "Agregar
+        // ingreso"/"Actualizar"). Si el submit llega antes (ej. Enter en el input de
+        // Monto del paso 1), avanzamos de paso en vez de guardar a medio completar.
+        if (pasoIngreso < 2) {
+            handleSiguientePasoIngreso();
+            return;
+        }
         const hoy = new Date();
         const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+        setFaseIngreso('guardando');
         try {
             if (incomeEditando) {
                 await db.updateIncome(incomeEditando, {
@@ -409,6 +511,7 @@ const Dashboard = () => {
                     categoria_id: incomeForm.categoria_id || null,
                 });
                 agregarNotificacion({ titulo: 'Ingreso actualizado', mensaje: `Ingreso de $${Number(incomeForm.monto).toLocaleString('es-AR')} modificado.`, tipo: 'info', origen: 'ingresos' });
+                setResultadoIngreso({ tipo: 'success', titulo: 'Ingreso actualizado' });
             } else {
                 // Si marcó recurrente, también lo registra en ingresos_recurrentes
                 if (incomeForm.es_recurrente) {
@@ -426,11 +529,10 @@ const Dashboard = () => {
                     categoria_id: incomeForm.categoria_id || null,
                 });
                 agregarNotificacion({ titulo: 'Ingreso registrado', mensaje: `Se registró un ingreso de $${Number(incomeForm.monto).toLocaleString('es-AR')}.`, tipo: 'success', origen: 'ingresos' });
+                setResultadoIngreso({ tipo: 'success', titulo: '¡Ingreso registrado!' });
             }
-            setIncomeForm(INCOME_FORM_INICIAL);
-            setIncomeEditando(null);
-            setIsIncomeModalOpen(false);
-            await Promise.all([fetchIngresosMes(), fetchRecurrentes(), fetchStats({ verificarAlertas: true })]);
+            setFaseIngreso('resultado');
+            await Promise.all([fetchIngresosMes(), fetchRecurrentes(), fetchStats({ verificarAlertas: true, mostrarSkeleton: false })]);
         } catch (err) {
             console.error('❌ Error al guardar ingreso:', err);
             agregarNotificacion({
@@ -439,6 +541,8 @@ const Dashboard = () => {
                 tipo: 'error',
                 origen: 'ingresos',
             });
+            setResultadoIngreso({ tipo: 'error', titulo: 'No se pudo guardar el ingreso', mensaje: err.message });
+            setFaseIngreso('resultado');
         }
     };
 
@@ -451,15 +555,21 @@ const Dashboard = () => {
             categoria_id:  ingreso.categoria_id || '',
             es_recurrente: false,
         });
+        setPasoIngreso(1);
+        setErrorIngresoForm(null);
+        setVistaIngreso('wizard');
     };
 
     /** Elimina un ingreso puntual tras confirmación. */
     const handleEliminarIngreso = async (id) => {
+        setIncomeConfirmDelete(null);
+        setFaseIngreso('guardando');
         try {
             await db.deleteIncome(id);
-            setIncomeConfirmDelete(null);
             agregarNotificacion({ titulo: 'Ingreso eliminado', mensaje: 'El ingreso fue eliminado del período.', tipo: 'warning', origen: 'ingresos' });
-            await Promise.all([fetchIngresosMes(), fetchStats({ verificarAlertas: true })]);
+            setResultadoIngreso({ tipo: 'success', titulo: 'Ingreso eliminado' });
+            setFaseIngreso('resultado');
+            await Promise.all([fetchIngresosMes(), fetchStats({ verificarAlertas: true, mostrarSkeleton: false })]);
         } catch (err) {
             console.error('❌ Error al eliminar ingreso:', err);
             agregarNotificacion({
@@ -468,15 +578,20 @@ const Dashboard = () => {
                 tipo: 'error',
                 origen: 'ingresos',
             });
+            setResultadoIngreso({ tipo: 'error', titulo: 'No se pudo eliminar el ingreso' });
+            setFaseIngreso('resultado');
         }
     };
 
     /** Elimina o desactiva un recurrente tras confirmación. */
     const handleEliminarRecurrente = async (id) => {
+        setIncomeConfirmDelete(null);
+        setFaseIngreso('guardando');
         try {
             await db.deleteRecurringIncome(id);
-            setIncomeConfirmDelete(null);
             agregarNotificacion({ titulo: 'Recurrente eliminado', mensaje: 'El ingreso recurrente fue eliminado.', tipo: 'warning', origen: 'ingresos' });
+            setResultadoIngreso({ tipo: 'success', titulo: 'Recurrente eliminado' });
+            setFaseIngreso('resultado');
             await Promise.all([fetchRecurrentes()]);
         } catch (err) {
             console.error('❌ Error al eliminar recurrente:', err);
@@ -486,7 +601,42 @@ const Dashboard = () => {
                 tipo: 'error',
                 origen: 'ingresos',
             });
+            setResultadoIngreso({ tipo: 'error', titulo: 'No se pudo eliminar el recurrente' });
+            setFaseIngreso('resultado');
         }
+    };
+
+    /** Valida los campos del paso actual del wizard de ingreso antes de dejar avanzar. */
+    const validarPasoIngreso = (paso) => {
+        if (paso === 1) {
+            if (!incomeForm.monto || Number(incomeForm.monto) <= 0) {
+                return 'El monto debe ser mayor a cero.';
+            }
+        }
+        return null;
+    };
+
+    const handleSiguientePasoIngreso = () => {
+        const error = validarPasoIngreso(pasoIngreso);
+        if (error) {
+            setErrorIngresoForm(error);
+            return;
+        }
+        setErrorIngresoForm(null);
+        setPasoIngreso(prev => prev + 1);
+    };
+
+    const handleAtrasPasoIngreso = () => {
+        setErrorIngresoForm(null);
+        setPasoIngreso(prev => prev - 1);
+    };
+
+    /** Vuelve a la vista de lista tras ver el resultado, sin cerrar el modal de Ingresos. */
+    const handleVolverFormularioIngreso = () => {
+        setFaseIngreso('form');
+        setResultadoIngreso(null);
+        setVistaIngreso('lista');
+        setPasoIngreso(1);
     };
 
     /**
@@ -497,7 +647,7 @@ const Dashboard = () => {
         try {
             await db.deleteVariableExpenses();
             console.log('✅ Gastos variables eliminados correctamente');
-            await fetchStats({ verificarAlertas: true });
+            await fetchStats({ verificarAlertas: true, mostrarSkeleton: false });
             agregarNotificacion({
                 titulo: 'Gastos variables eliminados',
                 mensaje: 'Todos los gastos variables del período fueron eliminados.',
@@ -522,13 +672,54 @@ const Dashboard = () => {
      * Si faltan categorías o métodos, abre el modal de advertencia de configuración.
      */
     const handleAbrirNuevoGasto = () => {
+        setExpenseForm(ESTADO_INICIAL_GASTO);
+        setErrorForm(null);
+        setPasoGasto(1);
+        setFaseGasto('form');
+        setResultadoGasto(null);
         setIsModalOpen(true);
     };
 
-    // Detecta si el método de pago seleccionado es tarjeta de crédito y actualiza el estado
+    // El paso 3 (Fijo/Variable) no aplica si tarjeta/préstamo ya definieron es_fijo automáticamente
+    const aplicaPasoFijoVariable = !expenseForm.esTarjetaCredito && !expenseForm.esPrestamo;
+    const totalPasosGasto = aplicaPasoFijoVariable ? 3 : 2;
+
+    /** Valida los campos del paso actual antes de dejar avanzar. Devuelve el mensaje de error o null. */
+    const validarPasoGasto = (paso) => {
+        if (paso === 1) {
+            if (!expenseForm.monto || Number(expenseForm.monto) <= 0) {
+                return 'El monto debe ser mayor a cero.';
+            }
+        }
+        if (paso === 2) {
+            if (!expenseForm.id_categoria) return 'Seleccioná una categoría.';
+            if (!expenseForm.id_metodo_pago) return 'Seleccioná un método de pago.';
+            if ((expenseForm.esTarjetaCredito || expenseForm.esPrestamo) && !expenseForm.primeraCuota) {
+                return 'Indicá en qué mes vence la primera cuota.';
+            }
+        }
+        return null;
+    };
+
+    const handleSiguientePaso = () => {
+        const error = validarPasoGasto(pasoGasto);
+        if (error) {
+            setErrorForm(error);
+            return;
+        }
+        setErrorForm(null);
+        setPasoGasto(prev => prev + 1);
+    };
+
+    const handleAtrasPaso = () => {
+        setErrorForm(null);
+        setPasoGasto(prev => prev - 1);
+    };
+
+    // Detecta si el método de pago seleccionado acepta cuotas (flag explícito en metodos_pago.acepta_cuotas)
     const handleCambioMetodoPago = (id) => {
         const metodo = paymentMethods.find(pm => pm.id === Number(id) || pm.id === id);
-        const esTarjeta = metodo?.nombre?.toUpperCase() === 'TARJETA DE CREDITO';
+        const esTarjeta = metodo?.acepta_cuotas === true;
         setExpenseForm(prev => ({
             ...prev,
             id_metodo_pago: id,
@@ -540,10 +731,10 @@ const Dashboard = () => {
         }));
     };
 
-    // Detecta si la categoría seleccionada es PRESTAMOS y activa el modo cuotas
+    // Detecta si la categoría seleccionada es de tipo préstamo (flag explícito en categorias.es_prestamo)
     const handleCambioCategoria = (id) => {
         const cat = categories.find(c => c.id === Number(id) || c.id === id);
-        const esPrestamo = cat?.nombre?.toUpperCase() === 'PRESTAMOS';
+        const esPrestamo = cat?.es_prestamo === true;
         setExpenseForm(prev => ({
             ...prev,
             id_categoria: id,
@@ -683,297 +874,402 @@ const Dashboard = () => {
 
             {/* ========== MODALES ========== */}
 
-            {/* Modal: Nuevo Gasto */}
+            {/* Modal: Nuevo Gasto (wizard de 3 pasos: monto/descripción → categoría/método/cuotas → fijo/variable) */}
             <Modal
                 isOpen={isModalOpen}
-                onClose={() => { setIsModalOpen(false); setErrorForm(null); }}
-                title="Nuevo Gasto"
-                subtitle="Completá los detalles del movimiento"
-                footer={
+                onClose={faseGasto === 'form' ? handleCerrarModalGasto : undefined}
+                title={faseGasto === 'form' ? 'Nuevo Gasto' : undefined}
+                subtitle={faseGasto === 'form' ? `Paso ${pasoGasto} de ${totalPasosGasto}` : undefined}
+                footer={faseGasto === 'form' ? (
                     <div className="form-row">
-                        <button type="button" form="form-nuevo-gasto" onClick={() => setIsModalOpen(false)} className="btn btn-secondary" style={{ flex: 1 }}>
-                            Cancelar
-                        </button>
-                        <button type="submit" form="form-nuevo-gasto" className="btn btn-primary" style={{ flex: 1 }}>
-                            Guardar
-                        </button>
+                        {pasoGasto === 1 ? (
+                            <button key="cancelar" type="button" onClick={handleCerrarModalGasto} className="btn btn-secondary" style={{ flex: 1 }}>
+                                Cancelar
+                            </button>
+                        ) : (
+                            <button key="atras" type="button" onClick={handleAtrasPaso} disabled={botonesPasoBloqueados} className="btn btn-secondary" style={{ flex: 1 }}>
+                                Atrás
+                            </button>
+                        )}
+                        {pasoGasto < totalPasosGasto ? (
+                            <button key="siguiente" type="button" onClick={handleSiguientePaso} disabled={botonesPasoBloqueados} className="btn btn-primary" style={{ flex: 1 }}>
+                                Siguiente
+                            </button>
+                        ) : (
+                            <button key="guardar" type="submit" form="form-nuevo-gasto" disabled={botonesPasoBloqueados} className="btn btn-primary" style={{ flex: 1 }}>
+                                Guardar
+                            </button>
+                        )}
                     </div>
-                }
+                ) : undefined}
             >
-                <form id="form-nuevo-gasto" onSubmit={handleSubmitExpense} className="form-container">
-                    <div className="form-group">
-                        <label className="form-label-box">Descripción</label>
-                        <input
-                            type="text"
-                            value={expenseForm.descripcion}
-                            onChange={(e) => setExpenseForm(prev => ({ ...prev, descripcion: e.target.value }))}
-                            required
-                            className="input"
-                            autoFocus
-                        />
+                {faseGasto === 'form' && (
+                    <form id="form-nuevo-gasto" onSubmit={handleSubmitExpense} className="form-container">
+                        {pasoGasto === 1 && (
+                            <>
+                            <div className="form-group">
+                                <label className="form-label-box">Monto</label>
+                                <CurrencyInput
+                                    value={expenseForm.monto}
+                                    onChange={(val) => setExpenseForm(prev => ({ ...prev, monto: val }))}
+                                    className="input currency-input--grande"
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label-box">Descripción (opcional)</label>
+                                <input
+                                    type="text"
+                                    value={expenseForm.descripcion}
+                                    onChange={(e) => setExpenseForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                                    className="input"
+                                />
+                            </div>
+                            </>
+                        )}
+                        {pasoGasto === 2 && (
+                            <>
+                            <div className="form-group">
+                                <label className="form-label-box">Categoría</label>
+                                <ChipSelector
+                                    opciones={categories}
+                                    valorSeleccionado={expenseForm.id_categoria ? Number(expenseForm.id_categoria) : null}
+                                    onChange={(id) => handleCambioCategoria(id)}
+                                    limiteVisible={6}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label-box">Método de Pago</label>
+                                <ChipSelector
+                                    opciones={paymentMethods}
+                                    valorSeleccionado={expenseForm.id_metodo_pago ? Number(expenseForm.id_metodo_pago) : null}
+                                    onChange={(id) => handleCambioMetodoPago(id)}
+                                    limiteVisible={6}
+                                />
+                            </div>
+                            {expenseForm.esTarjetaCredito && (
+                                <>
+                                <div className="form-group">
+                                    <label className="form-label-box">Cuotas</label>
+                                    <select
+                                        value={expenseForm.cuotas}
+                                        onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
+                                        className="form-select"
+                                    >
+                                        {OPCIONES_CUOTAS_TARJETA.map(n => (
+                                            <option key={n} value={n}>
+                                                {n === 1 ? '1 cuota (pago único)' : `${n} cuotas`}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label-box">Mes de la primera cuota <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                    <input
+                                        type="month"
+                                        className="form-select"
+                                        value={expenseForm.primeraCuota}
+                                        onChange={(e) => setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }))}
+                                        required
+                                    />
+                                    <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
+                                        El 1° del mes elegido es la fecha de vencimiento de la primera cuota.
+                                    </small>
+                                </div>
+                                </>
+                            )}
+                            {expenseForm.esPrestamo && (
+                                <>
+                                <div className="form-group">
+                                    <label className="form-label-box">Cuotas</label>
+                                    <select
+                                        value={expenseForm.cuotas}
+                                        onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
+                                        className="form-select"
+                                    >
+                                        {OPCIONES_CUOTAS_PRESTAMO.map(n => (
+                                            <option key={n} value={n}>
+                                                {n === 1 ? '1 cuota (pago único)' : `${n} cuotas`}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label-box">Mes del primer pago <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                    <input
+                                        type="month"
+                                        className="form-select"
+                                        value={expenseForm.primeraCuota}
+                                        onChange={(e) => setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }))}
+                                        required
+                                    />
+                                    <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
+                                        El 1° del mes elegido es la fecha del primer pago del préstamo.
+                                    </small>
+                                </div>
+                                </>
+                            )}
+                            </>
+                        )}
+                        {pasoGasto === 3 && aplicaPasoFijoVariable && (
+                            <div className="form-group">
+                                <label className="form-label-box">Tipo de gasto</label>
+                                <ChipSelector
+                                    opciones={[
+                                        { id: 'variable', nombre: 'Variable', icono: 'trending_down' },
+                                        { id: 'fijo', nombre: 'Fijo', icono: 'lock' },
+                                    ]}
+                                    valorSeleccionado={expenseForm.es_fijo ? 'fijo' : 'variable'}
+                                    onChange={(id) => setExpenseForm(prev => ({ ...prev, es_fijo: id === 'fijo' }))}
+                                    limiteVisible={2}
+                                />
+                            </div>
+                        )}
+                        {errorForm && (
+                            <p className="edit-form-error" role="alert">{errorForm}</p>
+                        )}
+                    </form>
+                )}
+                {faseGasto === 'guardando' && (
+                    <div className="result-modal" role="status" aria-live="polite">
+                        <span className="material-symbols-outlined result-modal__icono result-modal__icono--loading" style={{ color: 'var(--primary)', borderColor: 'var(--primary)' }}>
+                            progress_activity
+                        </span>
+                        <h3 className="result-modal__titulo">Guardando gasto...</h3>
                     </div>
-                    <div className="form-grid">
-                        <div className="form-group">
-                            <label className="form-label-box">Monto</label>
-                            <CurrencyInput
-                                value={expenseForm.monto}
-                                onChange={(val) => setExpenseForm(prev => ({ ...prev, monto: val }))}
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label-box">Fecha</label>
-                            <input
-                                type="date"
-                                value={expenseForm.fecha}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, fecha: e.target.value }))}
-                                required
-                                className="input"
-                            />
-                        </div>
+                )}
+                {faseGasto === 'resultado' && resultadoGasto && (
+                    <div className="result-modal">
+                        <span
+                            className="material-symbols-outlined result-modal__icono"
+                            style={{
+                                color: resultadoGasto.tipo === 'error' ? 'var(--danger)' : 'var(--success)',
+                                borderColor: resultadoGasto.tipo === 'error' ? 'var(--danger)' : 'var(--success)',
+                            }}
+                        >
+                            {resultadoGasto.tipo === 'error' ? 'cancel' : 'check_circle'}
+                        </span>
+                        <h3 className="result-modal__titulo">{resultadoGasto.titulo}</h3>
+                        {resultadoGasto.mensaje && (
+                            <p className="result-modal__subtexto">{resultadoGasto.mensaje}</p>
+                        )}
+                        <button
+                            type="button"
+                            className={`btn result-modal__boton result-modal__boton--${resultadoGasto.tipo === 'error' ? 'error' : 'success'}`}
+                            onClick={handleCerrarModalGasto}
+                        >
+                            Continuar
+                        </button>
                     </div>
-                    <div className="form-grid">
-                        <div className="form-group">
-                            <label className="form-label-box">Categoría</label>
-                            <select
-                                value={expenseForm.id_categoria}
-                                onChange={(e) => handleCambioCategoria(e.target.value)}
-                                required
-                                className="form-select"
-                            >
-                                <option value="">Seleccionar...</option>
-                                {categories.map(cat => (
-                                    <option key={cat.id} value={cat.id}>{cat.nombre}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label-box">Método de Pago</label>
-                            <select
-                                value={expenseForm.id_metodo_pago}
-                                onChange={(e) => handleCambioMetodoPago(e.target.value)}
-                                required
-                                className="form-select"
-                            >
-                                <option value="">Seleccionar...</option>
-                                {paymentMethods.map(pm => (
-                                    <option key={pm.id} value={pm.id}>{pm.nombre}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-                    {expenseForm.esTarjetaCredito && (
-                        <>
-                        <div className="form-group">
-                            <label className="form-label-box">Cuotas</label>
-                            <select
-                                value={expenseForm.cuotas}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
-                                className="form-select"
-                            >
-                                {OPCIONES_CUOTAS_TARJETA.map(n => (
-                                    <option key={n} value={n}>
-                                        {n === 1 ? '1 cuota (pago único)' : `${n} cuotas`}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label-box">Mes de la primera cuota <span style={{ color: 'var(--danger)' }}>*</span></label>
-                            <input
-                                type="month"
-                                className="form-select"
-                                value={expenseForm.primeraCuota}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }))}
-                                required
-                            />
-                            <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
-                                El 1° del mes elegido es la fecha de vencimiento de la primera cuota.
-                            </small>
-                        </div>
-                        </>
-                    )}
-                    {expenseForm.esPrestamo && (
-                        <>
-                        <div className="form-group">
-                            <label className="form-label-box">Cuotas</label>
-                            <select
-                                value={expenseForm.cuotas}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
-                                className="form-select"
-                            >
-                                {OPCIONES_CUOTAS_PRESTAMO.map(n => (
-                                    <option key={n} value={n}>
-                                        {n === 1 ? '1 cuota (pago único)' : `${n} cuotas`}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label-box">Mes del primer pago <span style={{ color: 'var(--danger)' }}>*</span></label>
-                            <input
-                                type="month"
-                                className="form-select"
-                                value={expenseForm.primeraCuota}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }))}
-                                required
-                            />
-                            <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
-                                El 1° del mes elegido es la fecha del primer pago del préstamo.
-                            </small>
-                        </div>
-                        </>
-                    )}
-                    {!expenseForm.esTarjetaCredito && !expenseForm.esPrestamo && (
-                        <div className="form-checkbox-group">
-                            <input
-                                type="checkbox"
-                                id="es_fijo"
-                                checked={expenseForm.es_fijo}
-                                onChange={(e) => setExpenseForm(prev => ({ ...prev, es_fijo: e.target.checked }))}
-                            />
-                            <label htmlFor="es_fijo">Gasto Fijo</label>
-                        </div>
-                    )}
-                    {errorForm && (
-                        <p className="edit-form-error" role="alert">{errorForm}</p>
-                    )}
-                </form>
+                )}
             </Modal>
 
             {/* Modal: Ingresos */}
             <Modal
                 isOpen={isIncomeModalOpen}
-                onClose={() => { setIsIncomeModalOpen(false); setIncomeEditando(null); }}
-                title="Ingresos"
-                subtitle="Registrá tus ingresos del mes"
-                disableClose={!!incomeConfirmDelete}
-            >
-                <div className="form-container">
-                    <form onSubmit={handleSaveIncome}>
-                        <div className="form-group">
-                            <label className="form-label-box">Monto</label>
-                            <CurrencyInput
-                                key={`income-${incomeEditando ?? 'new'}`}
-                                value={incomeForm.monto}
-                                onChange={(val) => setIncomeForm(prev => ({ ...prev, monto: val }))}
-                                required
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label-box">Descripción (opcional)</label>
-                            <input
-                                type="text"
-                                value={incomeForm.descripcion}
-                                onChange={(e) => setIncomeForm(prev => ({ ...prev, descripcion: e.target.value }))}
-                                className="input"
-                                placeholder="Ej: Sueldo"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label-box">Categoría (opcional)</label>
-                            <select
-                                value={incomeForm.categoria_id}
-                                onChange={(e) => setIncomeForm(prev => ({ ...prev, categoria_id: e.target.value }))}
-                                className="form-select"
-                            >
-                                <option value="">Sin categoría</option>
-                                {categoriaIngresos.map(c => (
-                                    <option key={c.id} value={c.id}>{c.nombre}</option>
-                                ))}
-                            </select>
-                        </div>
-                        {/* Solo mostrar checkbox recurrente al crear, no al editar */}
-                        {!incomeEditando && (
-                            <div className="form-checkbox-group">
-                                <input
-                                    type="checkbox"
-                                    id="es_recurrente"
-                                    checked={incomeForm.es_recurrente}
-                                    onChange={(e) => setIncomeForm(prev => ({ ...prev, es_recurrente: e.target.checked }))}
-                                />
-                                <label htmlFor="es_recurrente">Ingreso recurrente (se repite cada mes)</label>
-                            </div>
+                onClose={faseIngreso === 'form' ? () => {
+                    // Reseteamos vistaIngreso/pasoIngreso acá (no solo en handleAbrirIngresos) para
+                    // que, si el usuario cierra estando a mitad del wizard, no se alcance a ver el
+                    // wizard con datos parciales destellando durante el fade-out de 300ms del modal
+                    // (mismo riesgo ya documentado en handleCerrarModalGasto para el modal de gastos).
+                    setIsIncomeModalOpen(false);
+                    setIncomeEditando(null);
+                    setVistaIngreso('lista');
+                    setPasoIngreso(1);
+                    setErrorIngresoForm(null);
+                } : undefined}
+                title={faseIngreso === 'form' ? (vistaIngreso === 'wizard' ? (incomeEditando ? 'Editar ingreso' : 'Nuevo ingreso') : 'Ingresos') : undefined}
+                subtitle={faseIngreso === 'form' ? (vistaIngreso === 'wizard' ? `Paso ${pasoIngreso} de 2` : 'Registrá tus ingresos del mes') : undefined}
+                footer={faseIngreso === 'form' && vistaIngreso === 'wizard' ? (
+                    <div className="form-row">
+                        {pasoIngreso === 1 ? (
+                            <button key="cancelar" type="button" onClick={() => setVistaIngreso('lista')} className="btn btn-secondary" style={{ flex: 1 }}>
+                                Cancelar
+                            </button>
+                        ) : (
+                            <button key="atras" type="button" onClick={handleAtrasPasoIngreso} disabled={botonesPasoIngresoBloqueados} className="btn btn-secondary" style={{ flex: 1 }}>
+                                Atrás
+                            </button>
                         )}
-                        <div className="form-row" style={{ marginTop: '8px' }}>
-                            {incomeEditando && (
-                                <button
-                                    type="button"
-                                    onClick={() => { setIncomeEditando(null); setIncomeForm(INCOME_FORM_INICIAL); }}
-                                    className="btn btn-secondary"
-                                    style={{ flex: 1 }}
-                                >
-                                    Cancelar
-                                </button>
-                            )}
-                            <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+                        {pasoIngreso < 2 ? (
+                            <button key="siguiente" type="button" onClick={handleSiguientePasoIngreso} disabled={botonesPasoIngresoBloqueados} className="btn btn-primary" style={{ flex: 1 }}>
+                                Siguiente
+                            </button>
+                        ) : (
+                            <button key="guardar" type="submit" form="form-ingreso-wizard" disabled={botonesPasoIngresoBloqueados} className="btn btn-primary" style={{ flex: 1 }}>
                                 {incomeEditando ? 'Actualizar' : 'Agregar ingreso'}
                             </button>
-                        </div>
-                    </form>
+                        )}
+                    </div>
+                ) : undefined}
+                disableClose={!!incomeConfirmDelete}
+            >
+                {faseIngreso === 'form' && vistaIngreso === 'lista' && (
+                    <div className="form-container">
+                        <button type="button" onClick={handleAbrirWizardIngreso} className="btn btn-primary" style={{ width: '100%', marginBottom: '20px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '6px', verticalAlign: 'middle' }}>add</span>
+                            Nuevo ingreso
+                        </button>
 
-                    {/* Lista de ingresos del mes */}
-                    {ingresosMes.length > 0 && (
-                        <div style={{ marginTop: '20px' }}>
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Ingresos de este mes
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {ingresosMes.map(ing => (
-                                    <div key={ing.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', border: incomeEditando === ing.id ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)' }}>
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--success)' }}>
-                                                ${Number(ing.monto).toLocaleString('es-AR')}
+                        {/* Lista de ingresos del mes */}
+                        {ingresosMes.length > 0 && (
+                            <div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Ingresos de este mes
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {ingresosMes.map(ing => (
+                                        <div key={ing.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--success)' }}>
+                                                    ${Number(ing.monto).toLocaleString('es-AR')}
+                                                </div>
+                                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                                    {ing.descripcion || 'Sin descripción'}{ing.categorias_ingresos?.nombre ? ` · ${ing.categorias_ingresos.nombre}` : ''}
+                                                    {ing.recurrente_id && <span style={{ marginLeft: '6px', fontSize: '11px', background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: '4px' }}>recurrente</span>}
+                                                </div>
                                             </div>
-                                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                                {ing.descripcion || 'Sin descripción'}{ing.categorias_ingresos?.nombre ? ` · ${ing.categorias_ingresos.nombre}` : ''}
-                                                {ing.recurrente_id && <span style={{ marginLeft: '6px', fontSize: '11px', background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: '4px' }}>recurrente</span>}
+                                            <div style={{ display: 'flex', gap: '6px', marginLeft: '10px' }}>
+                                                <button type="button" onClick={() => handleEditarIngreso(ing)} className="btn btn-secondary" style={{ padding: '4px 8px' }} title="Editar">
+                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>edit</span>
+                                                </button>
+                                                <button type="button" onClick={() => setIncomeConfirmDelete(ing.id)} className="btn btn-danger-gradient" style={{ padding: '4px 8px' }} title="Eliminar">
+                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
+                                                </button>
                                             </div>
                                         </div>
-                                        <div style={{ display: 'flex', gap: '6px', marginLeft: '10px' }}>
-                                            <button type="button" onClick={() => handleEditarIngreso(ing)} className="btn btn-secondary" style={{ padding: '4px 8px' }} title="Editar">
-                                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>edit</span>
-                                            </button>
-                                            <button type="button" onClick={() => setIncomeConfirmDelete(ing.id)} className="btn btn-danger-gradient" style={{ padding: '4px 8px' }} title="Eliminar">
-                                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
+                                    ))}
+                                </div>
+                                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>Total del mes</span>
+                                    <span style={{ fontWeight: 700, color: 'var(--success)' }}>
+                                        ${ingresosMes.reduce((s, i) => s + Number(i.monto), 0).toLocaleString('es-AR')}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                        {ingresosMes.length === 0 && (
+                            <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px', padding: '12px' }}>
+                                Todavía no registraste ingresos este mes.
+                            </div>
+                        )}
+
+                        {/* Lista de recurrentes activos — informativo */}
+                        {recurrentesActivos.length > 0 && (
+                            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Recurrentes configurados
+                                </div>
+                                {recurrentesActivos.map(rec => (
+                                    <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '4px 0', color: 'var(--text-secondary)' }}>
+                                        <span>{rec.descripcion}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ color: 'var(--success)' }}>${Number(rec.monto).toLocaleString('es-AR')}/mes</span>
+                                            <button type="button" onClick={() => setIncomeConfirmDelete(`rec-${rec.id}`)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0' }} title="Eliminar recurrente">
+                                                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>close</span>
                                             </button>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                                <span style={{ color: 'var(--text-secondary)' }}>Total del mes</span>
-                                <span style={{ fontWeight: 700, color: 'var(--success)' }}>
-                                    ${ingresosMes.reduce((s, i) => s + Number(i.monto), 0).toLocaleString('es-AR')}
-                                </span>
+                        )}
+                    </div>
+                )}
+                {faseIngreso === 'form' && vistaIngreso === 'wizard' && (
+                    <form id="form-ingreso-wizard" onSubmit={handleSaveIncome} className="form-container">
+                        {pasoIngreso === 1 && (
+                            <>
+                            <div className="form-group">
+                                <label className="form-label-box">Monto</label>
+                                <CurrencyInput
+                                    key={`income-${incomeEditando ?? 'new'}`}
+                                    value={incomeForm.monto}
+                                    onChange={(val) => setIncomeForm(prev => ({ ...prev, monto: val }))}
+                                    className="input currency-input--grande"
+                                    autoFocus
+                                    required
+                                />
                             </div>
-                        </div>
-                    )}
-                    {ingresosMes.length === 0 && (
-                        <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px', marginTop: '16px', padding: '12px' }}>
-                            Todavía no registraste ingresos este mes.
-                        </div>
-                    )}
-
-                    {/* Lista de recurrentes activos — informativo */}
-                    {recurrentesActivos.length > 0 && (
-                        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Recurrentes configurados
+                            <div className="form-group">
+                                <label className="form-label-box">Descripción (opcional)</label>
+                                <input
+                                    type="text"
+                                    value={incomeForm.descripcion}
+                                    onChange={(e) => setIncomeForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                                    className="input"
+                                    placeholder="Ej: Sueldo"
+                                />
                             </div>
-                            {recurrentesActivos.map(rec => (
-                                <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '4px 0', color: 'var(--text-secondary)' }}>
-                                    <span>{rec.descripcion}</span>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={{ color: 'var(--success)' }}>${Number(rec.monto).toLocaleString('es-AR')}/mes</span>
-                                        <button type="button" onClick={() => setIncomeConfirmDelete(`rec-${rec.id}`)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0' }} title="Eliminar recurrente">
-                                            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>close</span>
-                                        </button>
-                                    </div>
+                            </>
+                        )}
+                        {pasoIngreso === 2 && (
+                            <>
+                            <div className="form-group">
+                                <label className="form-label-box">Categoría (opcional)</label>
+                                <ChipSelector
+                                    opciones={[
+                                        { id: '', nombre: 'Sin categoría', icono: 'block' },
+                                        ...categoriaIngresos,
+                                    ]}
+                                    valorSeleccionado={incomeForm.categoria_id ? Number(incomeForm.categoria_id) : ''}
+                                    onChange={(id) => setIncomeForm(prev => ({ ...prev, categoria_id: id === '' ? '' : id }))}
+                                    limiteVisible={6}
+                                />
+                            </div>
+                            {/* Solo mostrar selector recurrente al crear, no al editar */}
+                            {!incomeEditando && (
+                                <div className="form-group">
+                                    <label className="form-label-box">Tipo de ingreso</label>
+                                    <ChipSelector
+                                        opciones={[
+                                            { id: 'puntual', nombre: 'Puntual', icono: 'event' },
+                                            { id: 'recurrente', nombre: 'Recurrente', icono: 'repeat' },
+                                        ]}
+                                        valorSeleccionado={incomeForm.es_recurrente ? 'recurrente' : 'puntual'}
+                                        onChange={(id) => setIncomeForm(prev => ({ ...prev, es_recurrente: id === 'recurrente' }))}
+                                        limiteVisible={2}
+                                    />
                                 </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                            )}
+                            </>
+                        )}
+                        {errorIngresoForm && (
+                            <p className="edit-form-error" role="alert">{errorIngresoForm}</p>
+                        )}
+                    </form>
+                )}
+                {faseIngreso === 'guardando' && (
+                    <div className="result-modal" role="status" aria-live="polite">
+                        <span className="material-symbols-outlined result-modal__icono result-modal__icono--loading" style={{ color: 'var(--primary)', borderColor: 'var(--primary)' }}>
+                            progress_activity
+                        </span>
+                        <h3 className="result-modal__titulo">Guardando...</h3>
+                    </div>
+                )}
+                {faseIngreso === 'resultado' && resultadoIngreso && (
+                    <div className="result-modal">
+                        <span
+                            className="material-symbols-outlined result-modal__icono"
+                            style={{
+                                color: resultadoIngreso.tipo === 'error' ? 'var(--danger)' : 'var(--success)',
+                                borderColor: resultadoIngreso.tipo === 'error' ? 'var(--danger)' : 'var(--success)',
+                            }}
+                        >
+                            {resultadoIngreso.tipo === 'error' ? 'cancel' : 'check_circle'}
+                        </span>
+                        <h3 className="result-modal__titulo">{resultadoIngreso.titulo}</h3>
+                        {resultadoIngreso.mensaje && (
+                            <p className="result-modal__subtexto">{resultadoIngreso.mensaje}</p>
+                        )}
+                        <button
+                            type="button"
+                            className={`btn result-modal__boton result-modal__boton--${resultadoIngreso.tipo === 'error' ? 'error' : 'success'}`}
+                            onClick={handleVolverFormularioIngreso}
+                        >
+                            Continuar
+                        </button>
+                    </div>
+                )}
             </Modal>
 
             {/* Confirm: eliminar ingreso o recurrente */}
@@ -1002,7 +1298,6 @@ const Dashboard = () => {
                 title="Eliminar Gastos Variables"
                 message="¿Estás seguro de que deseas eliminar TODOS los gastos variables? Esta acción no se puede deshacer."
             />
-
 
         </div>
     );

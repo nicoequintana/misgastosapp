@@ -11,7 +11,7 @@ import {
 // Factories de datos de prueba
 // ─────────────────────────────────────────────
 
-function mkCuota({ id, id_gasto_padre, numero_cuota, monto, fecha, descripcion = 'ITEM (1/3)', categoria = 'TARJETAS', metodo = 'TARJETA DE CREDITO' }) {
+function mkCuota({ id, id_gasto_padre, numero_cuota, monto, fecha, descripcion = 'ITEM (1/3)', categoria = 'TARJETAS', esPrestamo = false, metodo = 'TARJETA DE CREDITO', aceptaCuotas = true }) {
     return {
         id,
         id_gasto_padre,
@@ -19,13 +19,13 @@ function mkCuota({ id, id_gasto_padre, numero_cuota, monto, fecha, descripcion =
         monto,
         fecha,
         descripcion,
-        categorias: { id: 10, nombre: categoria },
-        metodos_pago: { id: 1, nombre: metodo },
+        categorias: { id: 10, nombre: categoria, es_prestamo: esPrestamo },
+        metodos_pago: { id: 1, nombre: metodo, acepta_cuotas: aceptaCuotas },
     };
 }
 
 function mkPrestamo({ id, id_gasto_padre, numero_cuota, monto, fecha, descripcion = 'PRESTAMO (1/6)' }) {
-    return mkCuota({ id, id_gasto_padre, numero_cuota, monto, fecha, descripcion, categoria: 'PRESTAMOS', metodo: 'TRANSFERENCIA' });
+    return mkCuota({ id, id_gasto_padre, numero_cuota, monto, fecha, descripcion, categoria: 'PRESTAMOS', esPrestamo: true, metodo: 'TRANSFERENCIA', aceptaCuotas: false });
 }
 
 // ─────────────────────────────────────────────
@@ -63,21 +63,20 @@ describe('agruparPorPadre', () => {
 
 describe('filtrarTarjetaCredito', () => {
 
-    it('retiene solo las filas con método TARJETA DE CREDITO', () => {
+    it('retiene solo las filas cuyo método de pago acepta cuotas', () => {
         const rows = [
-            mkCuota({ id: 1, id_gasto_padre: 1, numero_cuota: 1, monto: 100, fecha: '2025-01-01', metodo: 'TARJETA DE CREDITO' }),
-            mkCuota({ id: 2, id_gasto_padre: 2, numero_cuota: 1, monto: 200, fecha: '2025-01-01', metodo: 'EFECTIVO' }),
-            mkCuota({ id: 3, id_gasto_padre: 3, numero_cuota: 1, monto: 300, fecha: '2025-01-01', metodo: 'tarjeta de credito' }),
+            mkCuota({ id: 1, id_gasto_padre: 1, numero_cuota: 1, monto: 100, fecha: '2025-01-01', metodo: 'TARJETA DE CREDITO', aceptaCuotas: true }),
+            mkCuota({ id: 2, id_gasto_padre: 2, numero_cuota: 1, monto: 200, fecha: '2025-01-01', metodo: 'EFECTIVO', aceptaCuotas: false }),
+            mkCuota({ id: 3, id_gasto_padre: 3, numero_cuota: 1, monto: 300, fecha: '2025-01-01', metodo: 'VISA', aceptaCuotas: true }),
         ];
         const result = filtrarTarjetaCredito(rows);
-        // Case-insensitive: id 1 y 3 pasan
         expect(result).toHaveLength(2);
         expect(result.map(r => r.id)).toEqual([1, 3]);
     });
 
-    it('devuelve array vacío si ninguno coincide', () => {
+    it('devuelve array vacío si ninguno acepta cuotas', () => {
         const rows = [
-            mkCuota({ id: 1, id_gasto_padre: 1, numero_cuota: 1, monto: 100, fecha: '2025-01-01', metodo: 'DEBITO' }),
+            mkCuota({ id: 1, id_gasto_padre: 1, numero_cuota: 1, monto: 100, fecha: '2025-01-01', metodo: 'DEBITO', aceptaCuotas: false }),
         ];
         expect(filtrarTarjetaCredito(rows)).toHaveLength(0);
     });
@@ -89,6 +88,16 @@ describe('filtrarTarjetaCredito', () => {
 
     it('devuelve array vacío con input vacío', () => {
         expect(filtrarTarjetaCredito([])).toHaveLength(0);
+    });
+
+    it('filtra por el flag acepta_cuotas, no por el nombre del método de pago', () => {
+        const rows = [
+            mkCuota({ id: 1, id_gasto_padre: 100, numero_cuota: 1, monto: 500, fecha: '2025-01-01', metodo: 'VISA PLATINUM', aceptaCuotas: true }),
+            mkCuota({ id: 2, id_gasto_padre: 200, numero_cuota: 1, monto: 300, fecha: '2025-01-01', metodo: 'TARJETA DE CREDITO', aceptaCuotas: false }),
+        ];
+        const resultado = filtrarTarjetaCredito(rows);
+        expect(resultado).toHaveLength(1);
+        expect(resultado[0].id).toBe(1);
     });
 });
 
@@ -109,9 +118,9 @@ describe('filtrarPrestamos', () => {
         expect(result.map(r => r.id)).toEqual([1, 3]);
     });
 
-    it('es case-insensitive: acepta "prestamos" en minúsculas', () => {
+    it('retiene la fila si es_prestamo es true sin importar el nombre de la categoría', () => {
         const row = { ...mkPrestamo({ id: 1, id_gasto_padre: 1, numero_cuota: 1, monto: 100, fecha: '2025-01-01' }) };
-        row.categorias = { id: 5, nombre: 'prestamos' };
+        row.categorias = { id: 5, nombre: 'creditos', es_prestamo: true };
         expect(filtrarPrestamos([row])).toHaveLength(1);
     });
 
@@ -127,6 +136,16 @@ describe('filtrarPrestamos', () => {
         ];
         expect(filtrarPrestamos(rows)).toHaveLength(1);
         expect(filtrarTarjetaCredito(rows)).toHaveLength(1);
+    });
+
+    it('filtra por el flag es_prestamo, no por el nombre de la categoría', () => {
+        const rows = [
+            mkCuota({ id: 1, id_gasto_padre: 100, numero_cuota: 1, monto: 500, fecha: '2025-01-01', categoria: 'CREDITOS PERSONALES', esPrestamo: true }),
+            mkCuota({ id: 2, id_gasto_padre: 200, numero_cuota: 1, monto: 300, fecha: '2025-01-01', categoria: 'PRESTAMOS', esPrestamo: false }),
+        ];
+        const resultado = filtrarPrestamos(rows);
+        expect(resultado).toHaveLength(1);
+        expect(resultado[0].id).toBe(1);
     });
 });
 

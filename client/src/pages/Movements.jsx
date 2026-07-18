@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import GlassCard from '../components/GlassCard';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
+import ChipSelector from '../components/ChipSelector';
+import ResultModal from '../components/ResultModal';
 import { formatCurrency, formatDate } from '../utils/format';
 import CurrencyInput from '../components/CurrencyInput';
 import GrupoFuturosCard from '../components/movements/GrupoFuturosCard';
@@ -30,6 +32,10 @@ const Movements = () => {
     const [gastoEliminando, setGastoEliminando] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [eliminando, setEliminando] = useState(false);
+
+    // Popup de resultado inmediato tras editar/eliminar un gasto (éxito o error) — convive
+    // con el historial persistente de NotificacionesContext, no lo reemplaza.
+    const [resultadoGasto, setResultadoGasto] = useState(null);
 
     const [categories, setCategories] = useState([]);
     const [paymentMethods, setPaymentMethods] = useState([]);
@@ -228,6 +234,7 @@ const Movements = () => {
                 tipo: 'warning',
                 origen: 'manual',
             });
+            setResultadoGasto({ tipo: 'success', titulo: '¡Gasto eliminado!' });
         } catch (err) {
             console.error('❌ Error al eliminar el gasto:', err);
             agregarNotificacion({
@@ -236,6 +243,7 @@ const Movements = () => {
                 tipo: 'error',
                 origen: 'manual',
             });
+            setResultadoGasto({ tipo: 'error', titulo: '¡Error al eliminar!' });
         } finally {
             setEliminando(false);
         }
@@ -289,9 +297,11 @@ const Movements = () => {
                 tipo: 'info',
                 origen: 'manual',
             });
+            setResultadoGasto({ tipo: 'success', titulo: '¡Gasto actualizado!' });
         } catch (err) {
             console.error('❌ Error al actualizar el gasto:', err);
             setErrorEdicion('No se pudo actualizar el gasto. Intentá de nuevo.');
+            setResultadoGasto({ tipo: 'error', titulo: '¡Error al actualizar!' });
         } finally {
             setGuardando(false);
         }
@@ -507,29 +517,21 @@ const Movements = () => {
                         </div>
                         <div className="form-group">
                             <label className="form-label-box">Categoría</label>
-                            <select
-                                value={gastoEditando.id_categoria}
-                                onChange={(e) => setGastoEditando(prev => ({ ...prev, id_categoria: e.target.value }))}
-                                required
-                                disabled={guardando}
-                                className="form-select"
-                            >
-                                <option value="">Seleccionar...</option>
-                                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.nombre}</option>)}
-                            </select>
+                            <ChipSelector
+                                opciones={categories}
+                                valorSeleccionado={gastoEditando.id_categoria ? Number(gastoEditando.id_categoria) : null}
+                                onChange={(id) => setGastoEditando(prev => ({ ...prev, id_categoria: id }))}
+                                limiteVisible={6}
+                            />
                         </div>
                         <div className="form-group">
                             <label className="form-label-box">Método de Pago</label>
-                            <select
-                                value={gastoEditando.id_metodo_pago}
-                                onChange={(e) => setGastoEditando(prev => ({ ...prev, id_metodo_pago: e.target.value }))}
-                                required
-                                disabled={guardando}
-                                className="form-select"
-                            >
-                                <option value="">Seleccionar...</option>
-                                {paymentMethods.map(pm => <option key={pm.id} value={pm.id}>{pm.nombre}</option>)}
-                            </select>
+                            <ChipSelector
+                                opciones={paymentMethods}
+                                valorSeleccionado={gastoEditando.id_metodo_pago ? Number(gastoEditando.id_metodo_pago) : null}
+                                onChange={(id) => setGastoEditando(prev => ({ ...prev, id_metodo_pago: id }))}
+                                limiteVisible={6}
+                            />
                         </div>
                         <div className="form-group">
                             <label className="form-label-box">Fecha</label>
@@ -542,15 +544,17 @@ const Movements = () => {
                                 className="input"
                             />
                         </div>
-                        <div className="form-checkbox-group">
-                            <input
-                                type="checkbox"
-                                id="es_fijo_edit"
-                                checked={gastoEditando.es_fijo}
-                                onChange={(e) => setGastoEditando(prev => ({ ...prev, es_fijo: e.target.checked }))}
-                                disabled={guardando}
+                        <div className="form-group">
+                            <label className="form-label-box">Tipo de gasto</label>
+                            <ChipSelector
+                                opciones={[
+                                    { id: 'variable', nombre: 'Variable', icono: 'trending_down' },
+                                    { id: 'fijo', nombre: 'Fijo', icono: 'lock' },
+                                ]}
+                                valorSeleccionado={gastoEditando.es_fijo ? 'fijo' : 'variable'}
+                                onChange={(id) => setGastoEditando(prev => ({ ...prev, es_fijo: id === 'fijo' }))}
+                                limiteVisible={2}
                             />
-                            <label htmlFor="es_fijo_edit">Gasto Fijo</label>
                         </div>
                         {errorEdicion && (
                             <p className="edit-form-error">{errorEdicion}</p>
@@ -645,6 +649,14 @@ const Movements = () => {
                 title="Eliminar compra en cuotas"
                 message={`¿Confirmas eliminar todas las cuotas de "${grupoEliminando?.descripcionBase || 'esta compra'}"? Se borran los ${grupoEliminando?.cuotasFuturas?.length || ''} meses restantes.`}
                 loading={eliminandoGrupo}
+            />
+
+            {/* Popup de resultado inmediato: éxito o error al editar/eliminar un gasto */}
+            <ResultModal
+                isOpen={!!resultadoGasto}
+                onClose={() => setResultadoGasto(null)}
+                tipo={resultadoGasto?.tipo}
+                titulo={resultadoGasto?.titulo}
             />
         </div>
     );

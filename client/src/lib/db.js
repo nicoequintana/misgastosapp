@@ -133,8 +133,8 @@ export const getExpenses = async () => {
         .from('gastos')
         .select(`
             *,
-            categorias:id_categoria (id, nombre),
-            metodos_pago:id_metodo_pago (id, nombre)
+            categorias:id_categoria (id, nombre, icono),
+            metodos_pago:id_metodo_pago (id, nombre, icono)
         `)
         .eq('user_id', usuario.id)
         .gte('fecha', desde)
@@ -162,10 +162,6 @@ export const getExpenses = async () => {
 export const createExpense = async (gasto) => {
     const usuario = await obtenerUsuarioActivo();
 
-    if (typeof gasto.descripcion !== 'string' || !gasto.descripcion.trim()) {
-        throw new Error('La descripción debe ser un texto válido');
-    }
-
     validarMonto(gasto.monto);
     const montoNumero = Number(gasto.monto);
 
@@ -173,7 +169,10 @@ export const createExpense = async (gasto) => {
     const esPrestamo = gasto.esPrestamo === true;
     const esCuotas = esTarjetaCredito || esPrestamo;
     const cuotas = esCuotas ? Math.max(1, Math.min(120, parseInt(gasto.cuotas) || 1)) : 1;
-    const descripcionBase = gasto.descripcion.trim().toUpperCase();
+    // La descripción es opcional: si el usuario no escribe nada, usamos un texto genérico.
+    const descripcionBase = (typeof gasto.descripcion === 'string' && gasto.descripcion.trim())
+        ? gasto.descripcion.trim().toUpperCase()
+        : 'SIN DESCRIPCIÓN';
 
     if (!esCuotas) {
         // Gasto normal: inserción única
@@ -287,12 +286,11 @@ export const getTarjetasEnCuotas = async () => {
         .from('gastos')
         .select(`
             id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre,
-            categorias:id_categoria (id, nombre),
-            metodos_pago:id_metodo_pago (id, nombre)
+            categorias:id_categoria (id, nombre, es_prestamo),
+            metodos_pago:id_metodo_pago (id, nombre, acepta_cuotas)
         `)
         .eq('user_id', usuario.id)
         .not('id_gasto_padre', 'is', null)
-        .ilike('metodos_pago.nombre', 'TARJETA DE CREDITO')
         .order('id_gasto_padre', { ascending: true })
         .order('numero_cuota', { ascending: true });
 
@@ -323,8 +321,8 @@ export const getPrestamosEnCuotas = async () => {
         .from('gastos')
         .select(`
             id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre,
-            categorias:id_categoria (id, nombre),
-            metodos_pago:id_metodo_pago (id, nombre)
+            categorias:id_categoria (id, nombre, es_prestamo),
+            metodos_pago:id_metodo_pago (id, nombre, acepta_cuotas)
         `)
         .eq('user_id', usuario.id)
         .not('id_gasto_padre', 'is', null)
@@ -362,8 +360,8 @@ export const getPrestamosGastosFuturos = async () => {
         .from('gastos')
         .select(`
             id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre,
-            categorias:id_categoria (id, nombre),
-            metodos_pago:id_metodo_pago (id, nombre)
+            categorias:id_categoria (id, nombre, es_prestamo),
+            metodos_pago:id_metodo_pago (id, nombre, acepta_cuotas)
         `)
         .eq('user_id', usuario.id)
         .not('id_gasto_padre', 'is', null)
@@ -398,8 +396,8 @@ export const getGastosFuturos = async () => {
         .from('gastos')
         .select(`
             id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre,
-            categorias:id_categoria (id, nombre),
-            metodos_pago:id_metodo_pago (id, nombre)
+            categorias:id_categoria (id, nombre, es_prestamo),
+            metodos_pago:id_metodo_pago (id, nombre, acepta_cuotas)
         `)
         .eq('user_id', usuario.id)
         .not('id_gasto_padre', 'is', null)
@@ -633,10 +631,11 @@ export const getCategories = async () => {
  * Las categorías personales son visibles solo para ese usuario.
  *
  * @param {string} nombre - Nombre de la categoría (se normaliza a mayúsculas)
+ * @param {string} [icono='label'] - Nombre del ícono Material Symbols
  * @returns {Object} La categoría creada
  * @throws {Error} Si el nombre está vacío o ya existe una categoría con ese nombre
  */
-export const createCategory = async (nombre) => {
+export const createCategory = async (nombre, icono = 'label') => {
     const usuario = await obtenerUsuarioActivo();
 
     if (!nombre || !nombre.trim()) {
@@ -647,7 +646,7 @@ export const createCategory = async (nombre) => {
 
     const { data, error } = await supabase
         .from('categorias')
-        .insert([{ nombre: nombreNormalizado, user_id: usuario.id }])
+        .insert([{ nombre: nombreNormalizado, user_id: usuario.id, icono }])
         .select()
         .single();
 
@@ -683,19 +682,118 @@ export const deleteCategory = async (id) => {
 };
 
 /**
- * Obtiene todos los métodos de pago.
- * Ahora son globales y vienen pre-configurados en Supabase.
- * 
- * @returns {Array} Lista de métodos de pago ordenados alfabéticamente
+ * Obtiene los métodos de pago visibles para el usuario:
+ * - Globales (user_id IS NULL)
+ * - Propios del usuario autenticado
+ *
+ * @returns {Array} Lista de métodos de pago ordenados alfabéticamente, con flag `es_propio`
  */
 export const getPaymentMethods = async () => {
+    const usuario = await obtenerUsuarioActivo();
+
     const { data, error } = await supabase
         .from('metodos_pago')
         .select('*')
+        .or(`user_id.is.null,user_id.eq.${usuario.id}`)
         .order('nombre');
 
     if (error) throw error;
-    return data ?? [];
+    return (data ?? []).map(pm => ({
+        ...pm,
+        es_propio: pm.user_id === usuario.id,
+    }));
+};
+
+/**
+ * Crea un método de pago personal para el usuario autenticado.
+ *
+ * @param {Object} metodo
+ * @param {string} metodo.nombre
+ * @param {'efectivo'|'tarjeta'|'cuenta'} metodo.tipo
+ * @param {string} [metodo.icono='payments']
+ * @param {boolean} [metodo.acepta_cuotas=false]
+ * @returns {Object} El método de pago creado
+ */
+export const createPaymentMethod = async ({ nombre, tipo, icono = 'payments', acepta_cuotas = false }) => {
+    const usuario = await obtenerUsuarioActivo();
+
+    if (!nombre || !nombre.trim()) {
+        throw new Error('El nombre del método de pago no puede estar vacío');
+    }
+    if (!['efectivo', 'tarjeta', 'cuenta'].includes(tipo)) {
+        throw new Error('Tipo de método de pago inválido');
+    }
+
+    const { data, error } = await supabase
+        .from('metodos_pago')
+        .insert([{
+            nombre: nombre.trim().toUpperCase(),
+            tipo,
+            icono,
+            acepta_cuotas: Boolean(acepta_cuotas),
+            user_id: usuario.id,
+            activo: true,
+        }])
+        .select()
+        .single();
+
+    if (error) {
+        console.error('❌ Error en createPaymentMethod:', error);
+        throw error;
+    }
+    return { ...data, es_propio: true };
+};
+
+/**
+ * Actualiza un método de pago propio del usuario autenticado.
+ * Las RLS impiden actualizar métodos globales o de otros usuarios.
+ *
+ * @param {number} id
+ * @param {Object} cambios - { nombre?, tipo?, icono?, acepta_cuotas? }
+ */
+export const updatePaymentMethod = async (id, cambios) => {
+    const usuario = await obtenerUsuarioActivo();
+
+    const { data, error } = await supabase
+        .from('metodos_pago')
+        .update({
+            ...(cambios.nombre !== undefined ? { nombre: cambios.nombre.trim().toUpperCase() } : {}),
+            ...(cambios.tipo !== undefined ? { tipo: cambios.tipo } : {}),
+            ...(cambios.icono !== undefined ? { icono: cambios.icono } : {}),
+            ...(cambios.acepta_cuotas !== undefined ? { acepta_cuotas: Boolean(cambios.acepta_cuotas) } : {}),
+        })
+        .eq('id', id)
+        .eq('user_id', usuario.id)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('❌ Error en updatePaymentMethod:', error);
+        throw error;
+    }
+    return data;
+};
+
+/**
+ * Elimina un método de pago propio del usuario autenticado.
+ * Solo se pueden eliminar métodos propios (user_id = auth.uid()).
+ *
+ * @param {number} id
+ * @throws {Error} Si el método tiene gastos asociados (FK constraint) o no es propio
+ */
+export const deletePaymentMethod = async (id) => {
+    const usuario = await obtenerUsuarioActivo();
+
+    const { error } = await supabase
+        .from('metodos_pago')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', usuario.id);
+
+    if (error) {
+        console.error('❌ Error en deletePaymentMethod:', error);
+        throw error;
+    }
 };
 
 
@@ -1862,6 +1960,7 @@ export const crearGastoGrupal = async ({
     fecha,
     nota,
     idCategoria,
+    idMetodoPago,
     participantesUserIds,
 }) => {
     if (!grupoId) throw new Error('ID de grupo requerido');
@@ -1869,6 +1968,7 @@ export const crearGastoGrupal = async ({
     validarMonto(monto);
     const montoNum = Number(monto);
     if (!pagadoPor) throw new Error('El pagador es requerido');
+    if (!idMetodoPago) throw new Error('El método de pago es requerido');
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         throw new Error('Debe haber al menos un participante');
     }
@@ -1878,7 +1978,7 @@ export const crearGastoGrupal = async ({
     const res = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}/gastos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, nota, idCategoria, participantesUserIds }),
+        body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, nota, idCategoria, idMetodoPago, participantesUserIds }),
     });
 
     const json = await res.json();
@@ -1913,6 +2013,7 @@ export const crearGastoGrupalEnCuotas = async ({
     primeraCuota,
     nota,
     idCategoria,
+    idMetodoPago,
     participantesUserIds,
 }) => {
     if (!grupoId) throw new Error('ID de grupo requerido');
@@ -1922,6 +2023,7 @@ export const crearGastoGrupalEnCuotas = async ({
     const cantCuotas = Math.max(1, Math.min(18, parseInt(cuotas) || 1));
     if (!pagadoPor) throw new Error('El pagador es requerido');
     if (!primeraCuota) throw new Error('Indicá en qué mes vence la primera cuota');
+    if (!idMetodoPago) throw new Error('El método de pago es requerido');
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         throw new Error('Debe haber al menos un participante');
     }
@@ -1940,6 +2042,7 @@ export const crearGastoGrupalEnCuotas = async ({
             primeraCuota,
             nota,
             idCategoria,
+            idMetodoPago,
             participantesUserIds,
         }),
     });
@@ -1951,7 +2054,7 @@ export const crearGastoGrupalEnCuotas = async ({
 
 /**
  * Obtiene los gastos en cuotas activos de un grupo, agrupados por id_gasto_padre.
- * Solo incluye compras con tarjeta de crédito (metodo_pago = 'TARJETA DE CREDITO').
+ * Solo incluye compras con método de pago que acepta cuotas (metodos_pago.acepta_cuotas = true).
  * Útil para mostrar el panel de cuotas en el detalle del grupo.
  *
  * @param {number} grupoId - ID del grupo
@@ -1962,10 +2065,9 @@ export const obtenerCuotasGrupal = async (grupoId) => {
 
     const { data, error } = await supabase
         .from('grupo_gastos')
-        .select('id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre, metodo_pago, estado, pagado_por')
+        .select('id, descripcion, monto, fecha, cuotas, numero_cuota, id_gasto_padre, estado, pagado_por, metodos_pago:id_metodo_pago(acepta_cuotas)')
         .eq('grupo_id', grupoId)
         .eq('estado', 'activo')
-        .eq('metodo_pago', 'TARJETA DE CREDITO')
         .not('id_gasto_padre', 'is', null)
         .order('id_gasto_padre', { ascending: true })
         .order('numero_cuota', { ascending: true });
@@ -1973,9 +2075,12 @@ export const obtenerCuotasGrupal = async (grupoId) => {
     if (error) throw new Error(error.message);
     if (!data || data.length === 0) return [];
 
+    const soloTarjeta = filtrarTarjetaCredito(data);
+    if (soloTarjeta.length === 0) return [];
+
     // Agrupar por id_gasto_padre
     const grupos = new Map();
-    for (const cuota of data) {
+    for (const cuota of soloTarjeta) {
         const padreId = cuota.id_gasto_padre;
         if (!grupos.has(padreId)) grupos.set(padreId, []);
         grupos.get(padreId).push(cuota);
@@ -2122,10 +2227,11 @@ export const anularCuotasGrupales = async (gastoId, grupoId, force = false) => {
  * @param {Object} campos - Campos a actualizar: descripcion, monto, pagadoPor, fecha, idCategoria, nota, participantesUserIds
  * @returns {Object} El gasto actualizado con los nuevos participantes
  */
-export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, monto, pagadoPor, fecha, primeraCuota, idCategoria, nota, participantesUserIds }) => {
+export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, monto, pagadoPor, fecha, primeraCuota, idCategoria, idMetodoPago, nota, participantesUserIds }) => {
     if (!gastoId) throw new Error('ID de gasto inválido');
     if (!grupoId) throw new Error('ID de grupo inválido');
     if (!participantesUserIds?.length) throw new Error('Se requiere al menos un participante');
+    if (!idMetodoPago) throw new Error('El método de pago es requerido');
     validarMonto(monto);
     const montoNum = Number(monto);
 
@@ -2134,7 +2240,7 @@ export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, mon
     const res = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}/gastos/${gastoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, primeraCuota, idCategoria, nota, participantesUserIds }),
+        body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, primeraCuota, idCategoria, idMetodoPago, nota, participantesUserIds }),
     });
 
     const json = await res.json();

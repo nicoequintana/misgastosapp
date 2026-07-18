@@ -4,13 +4,14 @@ import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
  * Componente de entrada de texto especializado para valores monetarios.
  * Maneja el formateo en tiempo real con separadores de miles (.) y decimales (,)
  * siguiendo la convención argentina (es-AR).
+ * @param {string} id - Id del input, para asociarlo con un <label htmlFor>.
  * @param {number|string} value - El valor numérico interno.
  * @param {function} onChange - Callback que recibe el nuevo valor numérico.
  * @param {string} placeholder - Texto de ayuda cuando el input está vacío.
  * @param {string} className - Clases CSS adicionales.
  * @param {boolean} required - Si el campo es obligatorio.
  */
-const CurrencyInput = ({ value, onChange, placeholder, className = 'input', required, disabled }) => {
+const CurrencyInput = ({ id, value, onChange, placeholder, className = 'input', required, disabled, autoFocus }) => {
     const [displayValue, setDisplayValue] = useState('');
     const inputRef = useRef(null);
     const cursorRef = useRef(null);
@@ -122,6 +123,7 @@ const CurrencyInput = ({ value, onChange, placeholder, className = 'input', requ
     return (
         <input
             ref={inputRef}
+            id={id}
             type="text"
             className={className}
             placeholder={placeholder}
@@ -129,6 +131,7 @@ const CurrencyInput = ({ value, onChange, placeholder, className = 'input', requ
             onChange={handleChange}
             required={required}
             disabled={disabled}
+            autoFocus={autoFocus}
             autoComplete="off"
             inputMode="decimal"
             onKeyDown={(e) => {
