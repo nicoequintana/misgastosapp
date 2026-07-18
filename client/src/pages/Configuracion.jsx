@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useTheme, THEMES } from '../context/ThemeContext';
+// Selector de temas deshabilitado temporalmente (reestyling a paleta lime única).
+// import { useTheme, THEMES } from '../context/ThemeContext';
 import GlassCard from '../components/GlassCard';
 import IconPicker from '../components/IconPicker';
 import { useNotificaciones } from '../context/NotificacionesContext';
@@ -11,7 +12,8 @@ import * as db from '../lib/db';
  */
 const Configuracion = () => {
     const { user } = useAuth();
-    const { themeId, applyTheme } = useTheme();
+    // Selector de temas deshabilitado temporalmente — ver bloque comentado más abajo.
+    // const { themeId, applyTheme } = useTheme();
     const { config, guardarConfig } = useNotificaciones();
 
     const [guardandoConfig, setGuardandoConfig] = useState(false);
@@ -211,8 +213,8 @@ const Configuracion = () => {
     const avatar = user?.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`;
     const telefono = user?.user_metadata?.phone || null;
 
-    const lightThemes = THEMES.filter(t => t.mode === 'light');
-    const darkThemes = THEMES.filter(t => t.mode === 'dark');
+    // const lightThemes = THEMES.filter(t => t.mode === 'light');
+    // const darkThemes = THEMES.filter(t => t.mode === 'dark');
 
     return (
         <div className="config-page">
@@ -241,6 +243,8 @@ const Configuracion = () => {
             </GlassCard>
 
             {/* ── TEMAS ──────────────────────────────── */}
+            {/* Selector de temas deshabilitado temporalmente (reestyling a paleta lime única).
+                Se reactiva descomentando este bloque + los 18 temas en themes.js/index.css.
             <GlassCard className="config-section">
                 <div className="config-section-header">
                     <span className="material-symbols-outlined config-section-icon">palette</span>
@@ -271,6 +275,7 @@ const Configuracion = () => {
                     </div>
                 </div>
             </GlassCard>
+            */}
 
             {/* ── MIS CATEGORÍAS ────────────────────── */}
             <GlassCard className="config-section">
