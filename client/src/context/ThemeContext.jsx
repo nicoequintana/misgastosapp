@@ -3,7 +3,7 @@ import { useAuth } from './AuthContext';
 import { getPerfilUsuario, updateThemeUsuario } from '../lib/db';
 import { THEMES } from './themes';
 
-const FALLBACK_THEME = 'light-lime';
+const FALLBACK_THEME = 'light-azure';
 
 const ThemeContext = createContext({});
 

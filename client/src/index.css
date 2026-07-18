@@ -109,73 +109,11 @@
 }
 
 /* ============================================================
-   TEMAS — reestyling lime (selector deshabilitado temporalmente).
-   Los 18 temas originales quedan comentados abajo por si se
-   reactiva el selector en Configuracion.jsx.
+   TEMAS — 6 CLARO + 6 OSCURO
+   El tema por defecto (light-azure) es el :root ya definido.
    ============================================================ */
 
-/* ── LIGHT: LIME (default) ── */
-[data-theme='light-lime'] {
-  --primary: #84a70a;
-  --primary-rgb: 132, 167, 10;
-  --primary-light: rgba(132, 167, 10, 0.1);
-  --primary-glow: rgba(132, 167, 10, 0.25);
-  --shadow-primary: 0 8px 16px rgba(132, 167, 10, 0.2);
-  --app-bg: radial-gradient(ellipse at top right, #f7fbe9 0%, #eaf5c9 40%, #f2f7e3 100%);
-  --app-bg-solid: #fbfdf5;
-  --text-main: #2b3306;
-  --text-muted: #5b6b1a;
-  --text-secondary: #4a5714;
-  --text-primary: #84a70a;
-  --glass-bg: rgba(255, 255, 255, 0.78);
-  --glass-border: rgba(132, 167, 10, 0.14);
-  --sidebar-bg: rgba(255, 255, 255, 0.95);
-  --sidebar-border: rgba(132, 167, 10, 0.1);
-  --header-bg: rgba(251, 253, 245, 0.88);
-  --card-shadow: 0 10px 30px -5px rgba(132, 167, 10, 0.1), 0 4px 10px -3px rgba(0,0,0,.04);
-  --input-bg: rgba(132, 167, 10, 0.05);
-  --input-border: rgba(132, 167, 10, 0.14);
-  --row-hover: rgba(132, 167, 10, 0.05);
-  --hover-bg: rgba(132, 167, 10, 0.06);
-  --modal-overlay: rgba(43, 51, 6, 0.45);
-  --tag-bg: rgba(132, 167, 10, 0.08);
-  --separator-color: rgba(132, 167, 10, 0.12);
-  color-scheme: light;
-}
-
-/* ── DARK: LIME ── */
-[data-theme='dark-lime'] {
-  --primary: #c4e838;
-  --primary-rgb: 196, 232, 56;
-  --primary-light: rgba(196, 232, 56, 0.14);
-  --primary-glow: rgba(196, 232, 56, 0.32);
-  --shadow-primary: 0 8px 20px rgba(196, 232, 56, 0.25);
-  --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  --app-bg: radial-gradient(ellipse at 75% 5%, #1c2410 0%, #141a08 40%, #0a0d04 100%);
-  --app-bg-solid: #0d1006;
-  --text-main: #edf6cf;
-  --text-muted: rgba(237, 246, 207, 0.5);
-  --text-secondary: rgba(210, 228, 160, 0.65);
-  --text-primary: #c4e838;
-  --glass-bg: rgba(196, 232, 56, 0.07);
-  --glass-border: rgba(196, 232, 56, 0.18);
-  --sidebar-bg: rgba(10, 13, 4, 0.82);
-  --sidebar-border: rgba(196, 232, 56, 0.12);
-  --header-bg: rgba(10, 13, 4, 0.72);
-  --card-shadow: 0 20px 40px -8px rgba(0,0,0,.4), 0 0 30px rgba(196,232,56,0.06);
-  --input-bg: rgba(196, 232, 56, 0.07);
-  --input-border: rgba(196, 232, 56, 0.15);
-  --row-hover: rgba(196, 232, 56, 0.06);
-  --hover-bg: rgba(196, 232, 56, 0.08);
-  --modal-overlay: rgba(0, 0, 0, 0.75);
-  --tag-bg: rgba(196, 232, 56, 0.1);
-  --separator-color: rgba(196, 232, 56, 0.12);
-  color-scheme: dark;
-}
-
-/* ── 18 temas originales (deshabilitados) ── */
-/*
-── LIGHT: AZURE (default) ──
+/* ── LIGHT: AZURE (default) ── */
 [data-theme='light-azure'] {
   --primary: #137fec;
   --primary-rgb: 19, 127, 236;
@@ -204,7 +142,7 @@
   color-scheme: light;
 }
 
-── LIGHT: SAGE ──
+/* ── LIGHT: SAGE ── */
 [data-theme='light-sage'] {
   --primary: #059669;
   --primary-rgb: 5, 150, 105;
@@ -233,7 +171,7 @@
   color-scheme: light;
 }
 
-── LIGHT: ROSE ──
+/* ── LIGHT: ROSE ── */
 [data-theme='light-rose'] {
   --primary: #e11d48;
   --primary-rgb: 225, 29, 72;
@@ -262,7 +200,7 @@
   color-scheme: light;
 }
 
-── LIGHT: VIOLET ──
+/* ── LIGHT: VIOLET ── */
 [data-theme='light-violet'] {
   --primary: #7c3aed;
   --primary-rgb: 124, 58, 237;
@@ -291,7 +229,7 @@
   color-scheme: light;
 }
 
-── LIGHT: AMBER ──
+/* ── LIGHT: AMBER ── */
 [data-theme='light-amber'] {
   --primary: #d97706;
   --primary-rgb: 217, 119, 6;
@@ -320,7 +258,7 @@
   color-scheme: light;
 }
 
-── LIGHT: SLATE ──
+/* ── LIGHT: SLATE ── */
 [data-theme='light-slate'] {
   --primary: #475569;
   --primary-rgb: 71, 85, 105;
@@ -349,7 +287,7 @@
   color-scheme: light;
 }
 
-── DARK: OCEAN ──
+/* ── DARK: OCEAN ── */
 [data-theme='dark-ocean'] {
   --primary: #38bdf8;
   --primary-rgb: 56, 189, 248;
@@ -379,7 +317,7 @@
   color-scheme: dark;
 }
 
-── DARK: AURORA ──
+/* ── DARK: AURORA ── */
 [data-theme='dark-aurora'] {
   --primary: #34d399;
   --primary-rgb: 52, 211, 153;
@@ -409,7 +347,7 @@
   color-scheme: dark;
 }
 
-── DARK: CRIMSON ──
+/* ── DARK: CRIMSON ── */
 [data-theme='dark-crimson'] {
   --primary: #fb7185;
   --primary-rgb: 251, 113, 133;
@@ -439,7 +377,7 @@
   color-scheme: dark;
 }
 
-── DARK: AMETHYST ──
+/* ── DARK: AMETHYST ── */
 [data-theme='dark-amethyst'] {
   --primary: #a78bfa;
   --primary-rgb: 167, 139, 250;
@@ -469,7 +407,7 @@
   color-scheme: dark;
 }
 
-── DARK: GOLD ──
+/* ── DARK: GOLD ── */
 [data-theme='dark-gold'] {
   --primary: #fbbf24;
   --primary-rgb: 251, 191, 36;
@@ -499,7 +437,7 @@
   color-scheme: dark;
 }
 
-── DARK: CARBON ──
+/* ── DARK: CARBON ── */
 [data-theme='dark-carbon'] {
   --primary: #94a3b8;
   --primary-rgb: 148, 163, 184;
@@ -529,7 +467,7 @@
   color-scheme: dark;
 }
 
-── LIGHT: CORAL ──
+/* ── LIGHT: CORAL ── */
 [data-theme='light-coral'] {
   --primary: #ff4757;
   --primary-rgb: 255, 71, 87;
@@ -558,7 +496,7 @@
   color-scheme: light;
 }
 
-── LIGHT: MINT ──
+/* ── LIGHT: MINT ── */
 [data-theme='light-mint'] {
   --primary: #00c896;
   --primary-rgb: 0, 200, 150;
@@ -587,7 +525,7 @@
   color-scheme: light;
 }
 
-── LIGHT: PEACH ──
+/* ── LIGHT: PEACH ── */
 [data-theme='light-peach'] {
   --primary: #ff7043;
   --primary-rgb: 255, 112, 67;
@@ -616,7 +554,7 @@
   color-scheme: light;
 }
 
-── DARK: NEON ──
+/* ── DARK: NEON ── */
 [data-theme='dark-neon'] {
   --primary: #39ff14;
   --primary-rgb: 57, 255, 20;
@@ -646,7 +584,7 @@
   color-scheme: dark;
 }
 
-── DARK: VOLCANIC ──
+/* ── DARK: VOLCANIC ── */
 [data-theme='dark-volcanic'] {
   --primary: #ff6600;
   --primary-rgb: 255, 102, 0;
@@ -676,7 +614,7 @@
   color-scheme: dark;
 }
 
-── DARK: MIDNIGHT ──
+/* ── DARK: MIDNIGHT ── */
 [data-theme='dark-midnight'] {
   --primary: #818cf8;
   --primary-rgb: 129, 140, 248;
@@ -706,7 +644,6 @@
   color-scheme: dark;
 }
 
-*/
 /* ── DARK legacy (compatibilidad con toggle antiguo) ── */
 [data-theme='dark'] {
   --app-bg: radial-gradient(ellipse at top right, #1a2a3a 0%, #111820 50%, #0c1219 100%);
