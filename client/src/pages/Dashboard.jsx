@@ -507,7 +507,16 @@ const Dashboard = () => {
         const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
         setFaseIngreso('guardando');
         try {
-            if (incomeEditando) {
+            const editandoRecurrente = typeof incomeEditando === 'string' && incomeEditando.startsWith('rec-');
+            if (editandoRecurrente) {
+                await db.updateRecurringIncome(Number(incomeEditando.replace('rec-', '')), {
+                    monto:        incomeForm.monto,
+                    descripcion:  incomeForm.descripcion,
+                    categoria_id: incomeForm.categoria_id || null,
+                });
+                agregarNotificacion({ titulo: 'Recurrente actualizado', mensaje: `Ingreso recurrente de $${Number(incomeForm.monto).toLocaleString('es-AR')} modificado.`, tipo: 'info', origen: 'ingresos' });
+                setResultadoIngreso({ tipo: 'success', titulo: 'Recurrente actualizado' });
+            } else if (incomeEditando) {
                 await db.updateIncome(incomeEditando, {
                     monto:        incomeForm.monto,
                     descripcion:  incomeForm.descripcion,
@@ -584,6 +593,20 @@ const Dashboard = () => {
             setResultadoIngreso({ tipo: 'error', titulo: 'No se pudo eliminar el ingreso' });
             setFaseIngreso('resultado');
         }
+    };
+
+    /** Carga los datos del recurrente seleccionado en el formulario para editar. */
+    const handleEditarRecurrente = (rec) => {
+        setIncomeEditando(`rec-${rec.id}`);
+        setIncomeForm({
+            monto:         String(rec.monto),
+            descripcion:   rec.descripcion || '',
+            categoria_id:  rec.categoria_id || '',
+            es_recurrente: false,
+        });
+        setPasoIngreso(1);
+        setErrorIngresoForm(null);
+        setVistaIngreso('wizard');
     };
 
     /** Elimina o desactiva un recurrente tras confirmación. */
@@ -1090,7 +1113,7 @@ const Dashboard = () => {
                     setPasoIngreso(1);
                     setErrorIngresoForm(null);
                 } : undefined}
-                title={faseIngreso === 'form' ? (vistaIngreso === 'wizard' ? (incomeEditando ? 'Editar ingreso' : 'Nuevo ingreso') : 'Ingresos') : undefined}
+                title={faseIngreso === 'form' ? (vistaIngreso === 'wizard' ? (typeof incomeEditando === 'string' && incomeEditando.startsWith('rec-') ? 'Editar recurrente' : incomeEditando ? 'Editar ingreso' : 'Nuevo ingreso') : 'Ingresos') : undefined}
                 subtitle={faseIngreso === 'form' ? (vistaIngreso === 'wizard' ? `Paso ${pasoIngreso} de 2` : 'Registrá tus ingresos del mes') : undefined}
                 footer={faseIngreso === 'form' && vistaIngreso === 'wizard' ? (
                     <div className="form-row">
@@ -1142,10 +1165,10 @@ const Dashboard = () => {
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', gap: '6px', marginLeft: '10px' }}>
-                                                <button type="button" onClick={() => handleEditarIngreso(ing)} className="btn btn-secondary" style={{ padding: '4px 8px' }} title="Editar">
+                                                <button type="button" onClick={() => handleEditarIngreso(ing)} className="btn btn-secondary" style={{ width: 'auto', flexShrink: 0, padding: '4px 8px' }} title="Editar">
                                                     <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>edit</span>
                                                 </button>
-                                                <button type="button" onClick={() => setIncomeConfirmDelete(ing.id)} className="btn btn-danger-gradient" style={{ padding: '4px 8px' }} title="Eliminar">
+                                                <button type="button" onClick={() => setIncomeConfirmDelete(ing.id)} className="btn btn-danger-gradient" style={{ width: 'auto', flexShrink: 0, padding: '4px 8px' }} title="Eliminar">
                                                     <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
                                                 </button>
                                             </div>
@@ -1173,12 +1196,15 @@ const Dashboard = () => {
                                     Recurrentes configurados
                                 </div>
                                 {recurrentesActivos.map(rec => (
-                                    <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '4px 0', color: 'var(--text-secondary)' }}>
+                                    <div key={rec.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', padding: '4px 0', color: 'var(--text-secondary)' }}>
                                         <span>{rec.descripcion}</span>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                             <span style={{ color: 'var(--success)' }}>${Number(rec.monto).toLocaleString('es-AR')}/mes</span>
-                                            <button type="button" onClick={() => setIncomeConfirmDelete(`rec-${rec.id}`)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0' }} title="Eliminar recurrente">
-                                                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>close</span>
+                                            <button type="button" onClick={() => handleEditarRecurrente(rec)} className="btn btn-secondary" style={{ width: 'auto', flexShrink: 0, padding: '4px 8px' }} title="Editar recurrente">
+                                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>edit</span>
+                                            </button>
+                                            <button type="button" onClick={() => setIncomeConfirmDelete(`rec-${rec.id}`)} className="btn btn-danger-gradient" style={{ width: 'auto', flexShrink: 0, padding: '4px 8px' }} title="Eliminar recurrente">
+                                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
                                             </button>
                                         </div>
                                     </div>
