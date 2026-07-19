@@ -1,26 +1,36 @@
 import { useState, useEffect } from 'react';
 
 /**
- * Altura real del viewport visual, en píxeles. A diferencia de 100dvh, se achica
- * cuando aparece el teclado virtual en mobile (Visual Viewport API) — sin esto,
- * un modal fijo abajo queda tapado por el teclado al enfocar un input.
- * Devuelve null en navegadores sin soporte (fallback: no limitar altura).
+ * Alto y offset real del viewport visual (Visual Viewport API). A diferencia de
+ * 100dvh, se achica cuando aparece el teclado virtual en mobile — sin esto, un
+ * modal fijo abajo queda tapado por el teclado al enfocar un input.
+ * offsetTop es necesario porque en iOS/Chrome mobile el layout viewport (donde
+ * vive un position:fixed) no se mueve al abrir el teclado, pero el viewport
+ * visual sí se desplaza hacia abajo — sin sumarlo, el overlay queda desalineado
+ * respecto a lo que el usuario realmente ve y el modal se corta por arriba.
+ * Devuelve { height: null, offsetTop: 0 } en navegadores sin soporte (fallback: no limitar altura).
  */
 export const useVisualViewportHeight = () => {
-    const [height, setHeight] = useState(() => window.visualViewport?.height ?? null);
+    const [viewport, setViewport] = useState(() => ({
+        height: window.visualViewport?.height ?? null,
+        offsetTop: window.visualViewport?.offsetTop ?? 0,
+    }));
 
     useEffect(() => {
-        const viewport = window.visualViewport;
-        if (!viewport) return;
+        const visualViewport = window.visualViewport;
+        if (!visualViewport) return;
 
-        const actualizar = () => setHeight(viewport.height);
-        viewport.addEventListener('resize', actualizar);
-        viewport.addEventListener('scroll', actualizar);
+        const actualizar = () => setViewport({
+            height: visualViewport.height,
+            offsetTop: visualViewport.offsetTop,
+        });
+        visualViewport.addEventListener('resize', actualizar);
+        visualViewport.addEventListener('scroll', actualizar);
         return () => {
-            viewport.removeEventListener('resize', actualizar);
-            viewport.removeEventListener('scroll', actualizar);
+            visualViewport.removeEventListener('resize', actualizar);
+            visualViewport.removeEventListener('scroll', actualizar);
         };
     }, []);
 
-    return height;
+    return viewport;
 };

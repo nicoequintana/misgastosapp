@@ -12,7 +12,7 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, footer, disableClos
     const handleClose = (!disableClose && onClose) ? onClose : undefined;
     const [isVisible, setIsVisible] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
-    const viewportHeight = useVisualViewportHeight();
+    const { height: viewportHeight, offsetTop: viewportOffsetTop } = useVisualViewportHeight();
 
     /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
@@ -43,7 +43,11 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, footer, disableClos
 
     // Al enfocar un input en mobile, el teclado reduce el viewport visual pero no el
     // 100dvh del layout — sin esto el modal (anclado abajo) queda tapado por el teclado.
-    const overlayStyle = viewportHeight ? { height: `${viewportHeight}px` } : undefined;
+    // offsetTop compensa que el layout viewport (donde vive este position:fixed) no se
+    // mueve al abrir el teclado, aunque el viewport visual sí se desplace hacia abajo.
+    const overlayStyle = viewportHeight
+        ? { height: `${viewportHeight}px`, top: `${viewportOffsetTop}px` }
+        : undefined;
 
     const modalContent = (
         <div className={overlayClass} style={overlayStyle} onClick={handleClose}>
