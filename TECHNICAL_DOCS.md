@@ -456,7 +456,7 @@ Pagos reales entre miembros para saldar deudas.
 | Tabla | SELECT | INSERT | UPDATE | DELETE |
 |-------|--------|--------|--------|--------|
 | `categorias` | user_id IS NULL OR = auth.uid() | auth.uid() = user_id | — | auth.uid() = user_id |
-| `metodos_pago` | todos | false | false | false |
+| `metodos_pago` | user_id IS NULL OR = auth.uid() | auth.uid() = user_id | auth.uid() = user_id | auth.uid() = user_id |
 | `gastos` | auth.uid() = user_id | auth.uid() = user_id | auth.uid() = user_id | auth.uid() = user_id |
 | `ingresos` | auth.uid() = user_id | auth.uid() = user_id | auth.uid() = user_id | auth.uid() = user_id |
 | `usuarios` | auth.uid() = id | auth.uid() = id | auth.uid() = id | — |

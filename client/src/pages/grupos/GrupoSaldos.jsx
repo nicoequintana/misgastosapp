@@ -7,20 +7,12 @@ import SaldoTable from '../../components/grupos/SaldoTable';
 import TransferenciasSugeridas from '../../components/grupos/TransferenciasSugeridas';
 import * as db from '../../lib/db';
 import { calcularTransferencias } from '../../lib/grupos/saldos';
-import { fechaHoyArgentina } from '../../utils/format';
+import { fechaHoyArgentina, formatCurrency, formatDate } from '../../utils/format';
 
-// Funciones puras de formato fuera del componente — no se recrean en cada render
-const formatearMonto = (valor) =>
-    Math.abs(valor).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const formatearFecha = (fecha) => {
-    if (!fecha) return '–';
-    const fechaStr = String(fecha).split('T')[0];
-    return new Date(`${fechaStr}T12:00:00Z`).toLocaleDateString('es-AR', {
-        day: '2-digit', month: 'short', year: 'numeric',
-        timeZone: 'America/Argentina/Buenos_Aires',
-    });
-};
+// El $ se agrega en cada punto de uso del JSX porque el signo de saldo (+/-)
+// va antes del monto — no puede vivir dentro de este helper.
+const formatearMonto = (valor) => formatCurrency(Math.abs(valor));
+const formatearFecha = (fecha) => formatDate(fecha, { month: 'short' });
 
 /**
  * Página/panel de saldos y liquidaciones de un grupo.

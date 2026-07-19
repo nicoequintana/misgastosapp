@@ -72,6 +72,56 @@ const buscarUsuarioPorEmail = async (supabaseAdmin, email) => {
     return null;
 };
 
+// Valida participantesUserIds/pagadoPor (formato UUID + membresía activa) y el
+// método de pago (existe, es global o propio del pagador, y si requiereCuotas
+// además acepta cuotas). Usado por POST/PUT /gastos y POST /gastos-cuotas para
+// evitar que las 3 rutas repliquen y desincronicen la misma validación.
+// Devuelve { error: { status, mensaje } } en caso de fallo, o { participantesUnicos, metodoPago } en éxito.
+const validarParticipantesYMetodoPago = async (supabaseAdmin, {
+    grupoId,
+    pagadoPor,
+    participantesUserIds,
+    idMetodoPago,
+    requiereCuotas = false,
+}) => {
+    const participantesUnicos = [...new Set(participantesUserIds)];
+    if (participantesUnicos.some(id => !UUID_REGEX.test(id))) {
+        return { error: { status: 400, mensaje: 'participantesUserIds contiene IDs inválidos' } };
+    }
+    if (!UUID_REGEX.test(pagadoPor)) {
+        return { error: { status: 400, mensaje: 'pagadoPor contiene un ID inválido' } };
+    }
+
+    // El método de pago debe existir y ser global o propio del pagador (metodos_pago
+    // puede ser global o por usuario — no se acepta el ID de un método privado ajeno).
+    // pagadoPor ya fue validado como UUID arriba, por lo que es seguro interpolarlo acá.
+    const { data: metodoPago } = await supabaseAdmin
+        .from('metodos_pago').select('id, acepta_cuotas')
+        .eq('id', idMetodoPago)
+        .or(`user_id.is.null,user_id.eq.${pagadoPor}`)
+        .maybeSingle();
+    if (!metodoPago) return { error: { status: 400, mensaje: 'Método de pago inválido' } };
+    if (requiereCuotas && !metodoPago.acepta_cuotas) {
+        return { error: { status: 400, mensaje: 'El método de pago seleccionado no acepta cuotas' } };
+    }
+
+    // Verificar que todos los participantes y el pagador son miembros activos del grupo
+    const idsAValidar = [...new Set([...participantesUnicos, pagadoPor])];
+    const { data: miembrosActivos } = await supabaseAdmin
+        .from('grupo_miembros').select('user_id')
+        .eq('grupo_id', grupoId).eq('estado', 'activo').in('user_id', idsAValidar);
+    const idsValidos = new Set((miembrosActivos || []).map(m => m.user_id));
+    if (!idsValidos.has(pagadoPor)) {
+        return { error: { status: 400, mensaje: 'El pagador no es miembro activo del grupo' } };
+    }
+    const noMiembros = participantesUnicos.filter(id => !idsValidos.has(id));
+    if (noMiembros.length > 0) {
+        return { error: { status: 400, mensaje: 'Algunos participantes no son miembros activos del grupo' } };
+    }
+
+    return { participantesUnicos, metodoPago };
+};
+
 const validarAdminGrupo = async (supabaseAdmin, grupoId, userId) => {
     const { data: membresia, error } = await supabaseAdmin
         .from('grupo_miembros')
@@ -497,8 +547,7 @@ router.post('/invitaciones/aceptar', requireAuth, async (req, res) => {
         return res.status(400).json({ ok: false, error: 'El campo token es requerido' });
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(token.trim())) {
+    if (!UUID_REGEX.test(token.trim())) {
         return res.status(400).json({ ok: false, error: 'Token de invitación inválido' });
     }
 
@@ -797,37 +846,10 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
             .eq('grupo_id', grupoId).eq('user_id', user.id).eq('estado', 'activo').maybeSingle();
         if (!membresia) return res.status(403).json({ ok: false, error: 'No sos miembro activo de este grupo' });
 
-        const participantesUnicos = [...new Set(participantesUserIds)];
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (participantesUnicos.some(id => !uuidRegex.test(id))) {
-            return res.status(400).json({ ok: false, error: 'participantesUserIds contiene IDs inválidos' });
-        }
-        if (!uuidRegex.test(pagadoPor)) {
-            return res.status(400).json({ ok: false, error: 'pagadoPor contiene un ID inválido' });
-        }
-
-        // El método de pago debe existir y ser global o propio del pagador (metodos_pago
-        // puede ser global o por usuario — no se acepta el ID de un método privado ajeno).
-        const { data: metodoPago } = await supabaseAdmin
-            .from('metodos_pago').select('id')
-            .eq('id', idMetodoPago)
-            .or(`user_id.is.null,user_id.eq.${pagadoPor}`)
-            .maybeSingle();
-        if (!metodoPago) return res.status(400).json({ ok: false, error: 'Método de pago inválido' });
-
-        // Verificar que todos los participantes y el pagador son miembros activos del grupo
-        const idsAValidar = [...new Set([...participantesUnicos, pagadoPor])];
-        const { data: miembrosActivos } = await supabaseAdmin
-            .from('grupo_miembros').select('user_id')
-            .eq('grupo_id', grupoId).eq('estado', 'activo').in('user_id', idsAValidar);
-        const idsValidos = new Set((miembrosActivos || []).map(m => m.user_id));
-        if (!idsValidos.has(pagadoPor)) {
-            return res.status(400).json({ ok: false, error: 'El pagador no es miembro activo del grupo' });
-        }
-        const noMiembros = participantesUnicos.filter(id => !idsValidos.has(id));
-        if (noMiembros.length > 0) {
-            return res.status(400).json({ ok: false, error: 'Algunos participantes no son miembros activos del grupo' });
-        }
+        const { error: errValidacion, participantesUnicos } = await validarParticipantesYMetodoPago(supabaseAdmin, {
+            grupoId, pagadoPor, participantesUserIds, idMetodoPago,
+        });
+        if (errValidacion) return res.status(errValidacion.status).json({ ok: false, error: errValidacion.mensaje });
 
         const { data: gasto, error: errGasto } = await supabaseAdmin
             .from('grupo_gastos')
@@ -910,37 +932,10 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
         if (!gastoActual) return res.status(404).json({ ok: false, error: 'Gasto no encontrado o ya anulado' });
         if (gastoActual.pagado_por !== user.id) return res.status(403).json({ ok: false, error: 'Solo quien pagó el gasto puede editarlo' });
 
-        const participantesUnicos = [...new Set(participantesUserIds)];
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (participantesUnicos.some(id => !uuidRegex.test(id))) {
-            return res.status(400).json({ ok: false, error: 'participantesUserIds contiene IDs inválidos' });
-        }
-        if (!uuidRegex.test(pagadoPor)) {
-            return res.status(400).json({ ok: false, error: 'pagadoPor contiene un ID inválido' });
-        }
-
-        // El método de pago debe existir y ser global o propio del pagador (metodos_pago
-        // puede ser global o por usuario — no se acepta el ID de un método privado ajeno).
-        const { data: metodoPago } = await supabaseAdmin
-            .from('metodos_pago').select('id')
-            .eq('id', idMetodoPago)
-            .or(`user_id.is.null,user_id.eq.${pagadoPor}`)
-            .maybeSingle();
-        if (!metodoPago) return res.status(400).json({ ok: false, error: 'Método de pago inválido' });
-
-        // Verificar que todos los participantes y el pagador son miembros activos del grupo
-        const idsAValidarPut = [...new Set([...participantesUnicos, pagadoPor])];
-        const { data: miembrosActivosPut } = await supabaseAdmin
-            .from('grupo_miembros').select('user_id')
-            .eq('grupo_id', grupoId).eq('estado', 'activo').in('user_id', idsAValidarPut);
-        const idsValidosPut = new Set((miembrosActivosPut || []).map(m => m.user_id));
-        if (!idsValidosPut.has(pagadoPor)) {
-            return res.status(400).json({ ok: false, error: 'El pagador no es miembro activo del grupo' });
-        }
-        const noMiembrosPut = participantesUnicos.filter(id => !idsValidosPut.has(id));
-        if (noMiembrosPut.length > 0) {
-            return res.status(400).json({ ok: false, error: 'Algunos participantes no son miembros activos del grupo' });
-        }
+        const { error: errValidacion, participantesUnicos } = await validarParticipantesYMetodoPago(supabaseAdmin, {
+            grupoId, pagadoPor, participantesUserIds, idMetodoPago,
+        });
+        if (errValidacion) return res.status(errValidacion.status).json({ ok: false, error: errValidacion.mensaje });
 
         const { data: gasto, error: errUpdate } = await supabaseAdmin
             .from('grupo_gastos')
@@ -1325,18 +1320,6 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
     }
     if (!idMetodoPago) return res.status(400).json({ ok: false, error: 'El método de pago es requerido' });
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const participantesUnicos = [...new Set(participantesUserIds)];
-    if (participantesUnicos.some(id => !uuidRegex.test(id))) {
-        return res.status(400).json({ ok: false, error: 'participantesUserIds contiene IDs inválidos' });
-    }
-    // Se valida el formato de pagadoPor acá (antes de usarlo en cualquier query) porque
-    // más abajo se interpola en un filtro .or() de metodos_pago — sin este chequeo previo
-    // un valor con sintaxis especial de PostgREST (comas, paréntesis) podría alterar el filtro.
-    if (!uuidRegex.test(pagadoPor)) {
-        return res.status(400).json({ ok: false, error: 'pagadoPor contiene un ID inválido' });
-    }
-
     try {
         // Verificar membresía activa
         const { data: membresia } = await supabaseAdmin
@@ -1344,31 +1327,10 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
             .eq('grupo_id', grupoId).eq('user_id', user.id).eq('estado', 'activo').maybeSingle();
         if (!membresia) return res.status(403).json({ ok: false, error: 'No sos miembro activo de este grupo' });
 
-        // El método de pago debe existir y aceptar cuotas (flag explícito, no string-match).
-        // metodos_pago puede ser global (user_id NULL) o propio de un usuario — se limita
-        // a global o propio del pagador para no aceptar el ID de un método privado ajeno.
-        // pagadoPor ya fue validado como UUID antes del try, por lo que es seguro interpolarlo acá.
-        const { data: metodoPago } = await supabaseAdmin
-            .from('metodos_pago').select('id, acepta_cuotas')
-            .eq('id', idMetodoPago)
-            .or(`user_id.is.null,user_id.eq.${pagadoPor}`)
-            .maybeSingle();
-        if (!metodoPago) return res.status(400).json({ ok: false, error: 'Método de pago inválido' });
-        if (!metodoPago.acepta_cuotas) return res.status(400).json({ ok: false, error: 'El método de pago seleccionado no acepta cuotas' });
-
-        // Verificar que todos los participantes y el pagador son miembros activos del grupo
-        const idsAValidarCuotas = [...new Set([...participantesUnicos, pagadoPor])];
-        const { data: miembrosActivosCuotas } = await supabaseAdmin
-            .from('grupo_miembros').select('user_id')
-            .eq('grupo_id', grupoId).eq('estado', 'activo').in('user_id', idsAValidarCuotas);
-        const idsValidosCuotas = new Set((miembrosActivosCuotas || []).map(m => m.user_id));
-        if (!idsValidosCuotas.has(pagadoPor)) {
-            return res.status(400).json({ ok: false, error: 'El pagador no es miembro activo del grupo' });
-        }
-        const noMiembrosCuotas = participantesUnicos.filter(id => !idsValidosCuotas.has(id));
-        if (noMiembrosCuotas.length > 0) {
-            return res.status(400).json({ ok: false, error: 'Algunos participantes no son miembros activos del grupo' });
-        }
+        const { error: errValidacion, participantesUnicos } = await validarParticipantesYMetodoPago(supabaseAdmin, {
+            grupoId, pagadoPor, participantesUserIds, idMetodoPago, requiereCuotas: true,
+        });
+        if (errValidacion) return res.status(errValidacion.status).json({ ok: false, error: errValidacion.mensaje });
 
         const descripcionBase = descripcion.trim().toUpperCase();
 

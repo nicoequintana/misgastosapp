@@ -11,14 +11,16 @@ export const fechaHoyArgentina = () => {
 /**
  * Formatea un valor numérico como moneda argentina (ARS).
  * @param {number|string} value - El valor a formatear.
+ * @param {{ conSigno?: boolean }} [opciones] - Si conSigno, antepone "$ ".
  * @returns {string} El valor formateado o un string vacío.
  */
-export const formatCurrency = (value) => {
+export const formatCurrency = (value, { conSigno = false } = {}) => {
     if (value === null || value === undefined || value === '') return '';
-    return Number(value).toLocaleString('es-AR', {
+    const formateado = Number(value).toLocaleString('es-AR', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     });
+    return conSigno ? `$ ${formateado}` : formateado;
 };
 
 /**
@@ -36,11 +38,13 @@ export const calcularMesSiguiente = () => {
 
 /**
  * Formatea una fecha de manera robusta para Argentina.
- * Usa la zona horaria local para evitar el desfase UTC.
+ * Usa mediodía UTC como ancla para evitar el desfase de un día que produce
+ * parsear "YYYY-MM-DD" directo (JS lo interpreta como medianoche UTC).
  * @param {string} dateStr - Fecha en formato ISO o YYYY-MM-DD
- * @returns {string} Fecha formateada dd/mm/aaaa, o 'N/A' / 'Fecha inválida'
+ * @param {{ month?: '2-digit'|'short'|'long' }} [opciones] - Formato del mes (default '2-digit')
+ * @returns {string} Fecha formateada, o 'N/A' / 'Fecha inválida'
  */
-export const formatDate = (dateStr) => {
+export const formatDate = (dateStr, { month = '2-digit' } = {}) => {
     if (!dateStr) return 'N/A';
     try {
         const fechaStr = String(dateStr).split('T')[0];
@@ -48,7 +52,7 @@ export const formatDate = (dateStr) => {
         if (isNaN(date.getTime())) return 'Fecha inválida';
         return date.toLocaleDateString('es-AR', {
             day: '2-digit',
-            month: '2-digit',
+            month,
             year: 'numeric',
             timeZone: 'America/Argentina/Buenos_Aires',
         });

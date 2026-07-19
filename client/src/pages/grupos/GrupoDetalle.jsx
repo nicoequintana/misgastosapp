@@ -9,6 +9,7 @@ import InvitarMiembroModal from '../../components/grupos/InvitarMiembroModal';
 import ConfirmModal from '../../components/ConfirmModal';
 import { useAuth } from '../../context/AuthContext';
 import * as db from '../../lib/db';
+import { formatDate } from '../../utils/format';
 
 // Definición de los tabs disponibles en el detalle del grupo
 const TABS = [
@@ -238,17 +239,8 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
         }
     };
 
-    // Formatea una fecha para mostrar al usuario
-    const formatearFecha = (fecha) => {
-        if (!fecha) return '–';
-        const fechaStr = String(fecha).split('T')[0];
-        return new Date(`${fechaStr}T12:00:00Z`).toLocaleDateString('es-AR', {
-            day: '2-digit',
-            month: 'long',
-            year: 'numeric',
-            timeZone: 'America/Argentina/Buenos_Aires',
-        });
-    };
+    // Formatea una fecha para mostrar al usuario (fallback '–' propio de esta página)
+    const formatearFecha = (fecha) => (!fecha ? '–' : formatDate(fecha, { month: 'long' }));
 
     // Hooks SIEMPRE antes de cualquier return condicional
     const miembrosActivos = useMemo(

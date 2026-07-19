@@ -211,7 +211,7 @@ ALTER TABLE gastos ADD COLUMN etiqueta TEXT;
 - Gasto requiere: monto > 0, categoría, método de pago, fecha, tipo fijo/variable. La descripción es opcional — si no se completa, se guarda como "SIN DESCRIPCIÓN".
 - `descripcion` → MAYÚSCULAS antes de guardar.
 - `es_fijo = true` → fijo (recurrente). `es_fijo = false` → variable (espontáneo).
-- Eliminar gasto: solo variables, requiere `ConfirmModal`, recargar estadísticas después. Nunca fijos ni datos de otro usuario.
+- Eliminar/editar gasto: aplica a fijos y variables por igual, requiere `ConfirmModal` en el delete, recargar estadísticas después. Nunca datos de otro usuario.
 - Ingresos: 1 por usuario/mes. Si no existe, crear en 0. Base para saldo disponible y ahorro estimado (20%).
 
 ---
