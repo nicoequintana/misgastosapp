@@ -511,7 +511,6 @@ export const NotificacionesProvider = ({ children }) => {
      */
     const verificarProyecciones = useCallback(async (stats) => {
         if (!user || !stats || stats.ingresoMensual === 0) return;
-        if (!config.notificar_proyecciones) return;
 
         const ahora = new Date();
         const diasEnMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0).getDate();
@@ -529,8 +528,11 @@ export const NotificacionesProvider = ({ children }) => {
         // Cuánto puede gastar por día para no quedarse en rojo
         const gastoDiarioDisponible = saldoDisponible / diasRestantes;
 
-        // Alerta: saldo proyectado a fin de mes queda negativo
+        // Alertas de proyección (email/notificación) — solo si el usuario las habilitó.
+        // El cálculo de gastoDiarioDisponible sigue siempre, independiente de este flag,
+        // porque el dashboard lo necesita como dato aunque las alertas estén apagadas.
         if (
+            config.notificar_proyecciones &&
             gastoProyectado > ingresoMensual &&
             puedeDispararAlerta('proyeccion_saldo_negativo')
         ) {
@@ -553,6 +555,7 @@ export const NotificacionesProvider = ({ children }) => {
         const objetivoAhorro = ingresoMensual * (Number(config.objetivo_ahorro_porcentaje) / 100);
         const ahorroProyectado = ingresoMensual - gastoProyectado;
         if (
+            config.notificar_proyecciones &&
             objetivoAhorro > 0 &&
             ahorroProyectado < objetivoAhorro &&
             puedeDispararAlerta('ahorro_en_riesgo')

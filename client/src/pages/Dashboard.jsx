@@ -24,6 +24,10 @@ const ESTADO_INICIAL_GASTO = {
     id_categoria: '',
     id_metodo_pago: '',
     es_fijo: false,
+    // true cuando el usuario ya eligió fijo/variable antes de abrir el wizard
+    // (ej. clic en la fila "Gastos Fijos"/"Gastos Variables" del summary-panel):
+    // salta el paso 3 en vez de pedirlo de nuevo.
+    tipoPreseleccionado: false,
     fecha: fechaHoyArgentina(),
     cuotas: 1,
     esTarjetaCredito: false,
@@ -109,8 +113,15 @@ const Dashboard = () => {
         configNotifRef.current                      = configNotif;
     }, [verificarAlertasFinancieras, verificarAlertasGastosFijos, verificarAlertaConcentracionCategoria, verificarProyecciones, generarResumenDiario, generarResumenSemanal, generarResumenMensual, configNotif]);
 
-    // Gasto diario disponible calculado por verificarProyecciones
-    const [gastoDiarioDisponible, setGastoDiarioDisponible] = useState(null);
+    // Gasto diario disponible: dato derivado de stats, se recalcula solo con cada actualización
+    // (no depende de notificaciones ni de ingresoMensual > 0 — es puro saldoDisponible / días restantes).
+    const gastoDiarioDisponible = useMemo(() => {
+        const ahora = new Date();
+        const diasEnMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0).getDate();
+        const diasRestantes = diasEnMes - ahora.getDate();
+        if (diasRestantes <= 0) return null;
+        return Math.max(0, stats.saldoDisponible / diasRestantes);
+    }, [stats.saldoDisponible]);
 
     /**
      * Dispara resúmenes diario/semanal/mensual si el usuario los tiene habilitados por email.
@@ -175,7 +186,6 @@ const Dashboard = () => {
     // Control de los modales de la UI
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
-    const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
     // Datos de los combos dinámicos (categorías y métodos de pago)
     const [categories, setCategories] = useState([]);
@@ -252,11 +262,7 @@ const Dashboard = () => {
                 verificarAlertasFinancierasRef.current(data);
                 verificarAlertasGastosFijosRef.current(data);
                 verificarAlertaConcentracionRef.current(data);
-                verificarProyeccionesRef.current(data).then(proyeccion => {
-                    if (proyeccion?.gastoDiarioDisponible !== undefined) {
-                        setGastoDiarioDisponible(proyeccion.gastoDiarioDisponible);
-                    }
-                }).catch(e => console.error('❌ Error al verificar proyecciones:', e));
+                verificarProyeccionesRef.current(data).catch(e => console.error('❌ Error al verificar proyecciones:', e));
                 // Disparar resúmenes automáticos si el usuario los tiene habilitados.
                 // Usa el mismo throttle de localStorage para enviar cada resumen como máximo una vez por día.
                 dispararResumenesRef.current?.(data);
@@ -666,34 +672,6 @@ const Dashboard = () => {
     };
 
     /**
-     * Elimina todos los gastos variables del mes.
-     * Se usa al inicio de un nuevo período/ciclo.
-     */
-    const handleDeleteAllVariable = async () => {
-        try {
-            await db.deleteVariableExpenses();
-            console.log('✅ Gastos variables eliminados correctamente');
-            await fetchStats({ verificarAlertas: true, mostrarSkeleton: false });
-            agregarNotificacion({
-                titulo: 'Gastos variables eliminados',
-                mensaje: 'Todos los gastos variables del período fueron eliminados.',
-                tipo: 'warning',
-                origen: 'manual',
-            });
-        } catch (err) {
-            console.error('❌ Error al eliminar gastos variables:', err);
-            agregarNotificacion({
-                titulo: 'Error al eliminar',
-                mensaje: 'No se pudieron eliminar los gastos variables. Intentá de nuevo.',
-                tipo: 'error',
-                origen: 'gastos',
-            });
-        } finally {
-            setConfirmDeleteAll(false);
-        }
-    };
-
-    /**
      * Valida si el usuario tiene datos maestros para crear un gasto.
      * Si faltan categorías o métodos, abre el modal de advertencia de configuración.
      */
@@ -706,8 +684,19 @@ const Dashboard = () => {
         setIsModalOpen(true);
     };
 
-    // El paso 3 (Fijo/Variable) no aplica si tarjeta/préstamo ya definieron es_fijo automáticamente
-    const aplicaPasoFijoVariable = !expenseForm.esTarjetaCredito && !expenseForm.esPrestamo;
+    /** Abre el wizard de gasto con el tipo (fijo/variable) ya definido, saltando ese paso. */
+    const handleAbrirNuevoGastoConTipo = (esFijo) => {
+        setExpenseForm({ ...ESTADO_INICIAL_GASTO, es_fijo: esFijo, tipoPreseleccionado: true });
+        setErrorForm(null);
+        setPasoGasto(1);
+        setFaseGasto('form');
+        setResultadoGasto(null);
+        setIsModalOpen(true);
+    };
+
+    // El paso 3 (Fijo/Variable) no aplica si tarjeta/préstamo ya definieron es_fijo automáticamente,
+    // ni si el usuario ya lo eligió antes de abrir el wizard (ver handleAbrirNuevoGastoConTipo)
+    const aplicaPasoFijoVariable = !expenseForm.esTarjetaCredito && !expenseForm.esPrestamo && !expenseForm.tipoPreseleccionado;
     const totalPasosGasto = aplicaPasoFijoVariable ? 3 : 2;
 
     /** Valida los campos del paso actual antes de dejar avanzar. Devuelve el mensaje de error o null. */
@@ -802,32 +791,24 @@ const Dashboard = () => {
                     <h1>Dashboard</h1>
                     <p>Resumen general de tus finanzas personales</p>
                 </div>
-                <div className="dashboard-actions">
-                    <button onClick={handleAbrirIngresos} className="btn btn-income">
-                        <span className="material-symbols-outlined">account_balance</span>
-                        <span>Ingresos</span>
-                    </button>
-                    <button onClick={handleAbrirNuevoGasto} className="btn btn-primary">
-                        <span className="material-symbols-outlined">add</span>
-                        <span>Nuevo Gasto</span>
-                    </button>
-                    <button
-                        onClick={() => setImportesOcultos(v => !v)}
-                        className="btn btn-secondary btn-toggle-amounts"
-                        title={importesOcultos ? 'Mostrar importes' : 'Ocultar importes'}
-                        aria-label={importesOcultos ? 'Mostrar importes' : 'Ocultar importes'}
-                    >
-                        <span className="material-symbols-outlined">
-                            {importesOcultos ? 'visibility' : 'visibility_off'}
-                        </span>
-                        <span className="btn-toggle-amounts__label">
-                            {importesOcultos ? 'Mostrar importes' : 'Ocultar importes'}
-                        </span>
-                    </button>
-                </div>
+                <button
+                    onClick={() => setImportesOcultos(v => !v)}
+                    className="btn btn-secondary btn-toggle-amounts"
+                    title={importesOcultos ? 'Mostrar importes' : 'Ocultar importes'}
+                    aria-label={importesOcultos ? 'Mostrar importes' : 'Ocultar importes'}
+                >
+                    <span className="material-symbols-outlined">
+                        {importesOcultos ? 'visibility' : 'visibility_off'}
+                    </span>
+                    <span className="btn-toggle-amounts__label">
+                        {importesOcultos ? 'Mostrar importes' : 'Ocultar importes'}
+                    </span>
+                </button>
             </div>
 
-            <div className="summary-panel">
+            {/* Filas clickeables: cada una abre el wizard correspondiente ya preseteado.
+                Ingresos ocupa fila propia; Fijos/Variables comparten la fila de abajo. */}
+            <div className="summary-panel summary-panel--carga">
                 <SummaryCard
                     title="Ingresos"
                     amount={stats.ingresoMensual}
@@ -835,15 +816,7 @@ const Dashboard = () => {
                     color="success"
                     subtitle="Ingreso registrado"
                     hidden={importesOcultos}
-                />
-                <SummaryCard
-                    title="Saldo Disponible"
-                    amount={stats.saldoDisponible}
-                    icon="account_balance_wallet"
-                    color="primary"
-                    dominant
-                    subtitle={stats.saldoDisponible >= 0 ? 'Estás en positivo' : 'Superaste el ingreso'}
-                    hidden={importesOcultos}
+                    onClick={handleAbrirIngresos}
                 />
                 <SummaryCard
                     title="Gastos Fijos"
@@ -852,6 +825,7 @@ const Dashboard = () => {
                     color="warning"
                     subtitle="Compromisos del mes"
                     hidden={importesOcultos}
+                    onClick={() => handleAbrirNuevoGastoConTipo(true)}
                 />
                 <SummaryCard
                     title="Gastos Variables"
@@ -859,6 +833,20 @@ const Dashboard = () => {
                     icon="payments"
                     color="danger"
                     subtitle="Gastos discrecionales"
+                    hidden={importesOcultos}
+                    onClick={() => handleAbrirNuevoGastoConTipo(false)}
+                />
+            </div>
+
+            {/* Métricas de resultado: solo lectura, sin acción de carga */}
+            <div className="summary-panel">
+                <SummaryCard
+                    title="Saldo Disponible"
+                    amount={stats.saldoDisponible}
+                    icon="account_balance_wallet"
+                    color="primary"
+                    dominant
+                    subtitle={stats.saldoDisponible >= 0 ? 'Estás en positivo' : 'Superaste el ingreso'}
                     hidden={importesOcultos}
                 />
                 {gastoDiarioDisponible !== null && (
@@ -882,21 +870,17 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* Card unificada de tarjeta de crédito: mes en curso + mes siguiente */}
-            <TarjetasCuotasCard grupos={cuotasGrupos} gastosFuturos={gastosFuturos} />
+            {/* Card unificada de tarjeta de crédito: mes en curso + mes siguiente.
+                Solo se muestra si hay al menos una compra en cuotas registrada (mismo criterio que PrestamosCard). */}
+            {cuotasGrupos.length > 0 && (
+                <TarjetasCuotasCard grupos={cuotasGrupos} gastosFuturos={gastosFuturos} />
+            )}
 
             {/* Card de préstamos en cuotas: solo se muestra si hay al menos un préstamo registrado */}
             {prestamosGrupos.length > 0 && (
                 <PrestamosCard grupos={prestamosGrupos} gastosFuturos={prestamosFuturos} />
             )}
 
-            {/* Botón de acción peligrosa: eliminar todos los gastos variables */}
-            {/* <div className="dashboard-footer">
-                <button onClick={() => setConfirmDeleteAll(true)} className="btn btn-danger-gradient">
-                    <span className="material-symbols-outlined">delete_sweep</span>
-                    <span>Eliminar gastos variables</span>
-                </button>
-            </div> */}
 
             {/* ========== MODALES ========== */}
 
@@ -1327,15 +1311,6 @@ const Dashboard = () => {
                     message={typeof incomeConfirmDelete === 'string' && incomeConfirmDelete.startsWith('rec-') ? 'Se eliminarán los próximos registros automáticos de este ingreso recurrente.' : '¿Querés eliminar este ingreso? El total del mes se recalculará.'}
                 />
             )}
-
-            {/* Modal: Confirmar eliminación de gastos variables */}
-            <ConfirmModal
-                isOpen={!!(confirmDeleteAll && !confirmDeleteAll?.isConfigWarning)}
-                onClose={() => setConfirmDeleteAll(false)}
-                onConfirm={handleDeleteAllVariable}
-                title="Eliminar Gastos Variables"
-                message="¿Estás seguro de que deseas eliminar TODOS los gastos variables? Esta acción no se puede deshacer."
-            />
 
         </div>
     );
