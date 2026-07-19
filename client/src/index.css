@@ -2450,20 +2450,23 @@ body::after {
     font-size: 18px;
   }
 
-  /* Modal full-screen en mobile */
+  /* Modal centrado en mobile (no bottom-sheet): header y footer quedan fijos
+     (flex-shrink: 0) y es .modal-body quien absorbe la falta de espacio con
+     scroll interno cuando el teclado virtual reduce el alto disponible —
+     así los botones de acción del footer nunca quedan fuera de pantalla. */
   .modal-overlay {
-    padding: 0;
-    align-items: flex-end;
+    padding: var(--space-4);
+    align-items: center;
   }
 
   .modal-content {
     width: 100%;
-    max-width: 100%;
-    /* max-height relativo al overlay (85% de su alto): el overlay ya ajusta su
-       propia altura al viewport visual real vía JS (ver Modal.jsx), así que esto
-       sigue funcionando incluso con el teclado virtual abierto. */
-    max-height: 85%;
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    max-width: 400px;
+    /* max-height relativo al overlay: el overlay ya ajusta su propia altura
+       al viewport visual real vía JS (ver Modal.jsx), así que esto sigue
+       funcionando incluso con el teclado virtual abierto. */
+    max-height: 90%;
+    border-radius: var(--radius-xl);
     margin: 0;
     overflow: hidden;
   }
