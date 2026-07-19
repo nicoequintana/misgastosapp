@@ -1265,32 +1265,6 @@ body::after {
   border: 1px solid var(--sidebar-border);
 }
 
-.action-btn {
-  background: var(--tag-bg);
-  border: 1px solid var(--sidebar-border);
-  cursor: pointer;
-  padding: var(--space-2);
-  border-radius: var(--radius-sm);
-  transition: var(--transition-spring);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.action-btn:hover {
-  background: var(--input-bg);
-  transform: scale(1.1);
-  box-shadow: var(--shadow-sm);
-}
-
-.action-btn.edit {
-  color: var(--primary);
-}
-
-.action-btn.delete {
-  color: var(--danger);
-}
-
 /* Dashboard Summary Panel — filas de datos, sin interactividad */
 .summary-row-icon {
   width: 36px;
@@ -2217,22 +2191,8 @@ body::after {
   font-size: clamp(12px, 1.5vw, 14px);
 }
 
-.dashboard-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.dashboard-actions .btn {
+.btn-toggle-amounts {
   width: auto;
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: var(--radius-md);
-  gap: var(--space-2);
-}
-
-.dashboard-actions .btn-toggle-amounts {
   padding: 10px;
   aspect-ratio: 1;
   flex-shrink: 0;
@@ -2307,13 +2267,6 @@ body::after {
   flex-direction: column;
 }
 
-/* Allow table container to grow and fill available space */
-.table-responsive {
-  width: 100%;
-  overflow: visible;
-  flex: 1;
-}
-
 .dashboard-footer {
   display: flex;
   gap: 12px;
@@ -2331,19 +2284,6 @@ body::after {
   display: flex;
   gap: 12px;
   margin-top: 8px;
-}
-
-/* Settings Page Styles */
-.settings-page {
-  padding: 32px;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.settings-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
 }
 
 /* ==========================================================================
@@ -2426,16 +2366,6 @@ body::after {
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
   }
 
-  /* Settings Page Tablet */
-  .settings-page {
-    padding: 20px;
-  }
-
-  .settings-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-
 }
 
 /* TABLET (768px–1024px) — ajuste de densidad en tablas antes de colapsar a cards */
@@ -2463,24 +2393,9 @@ body::after {
   }
 
   .dashboard-header {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
     gap: 16px;
-  }
-
-  .dashboard-actions {
-    width: 100%;
-    display: flex;
-    gap: 12px;
-  }
-
-  .dashboard-actions .btn {
-    flex: 1;
-  }
-
-  .dashboard-actions .btn-toggle-amounts {
-    flex: 0 0 auto;
-    width: auto;
   }
 
   .movements-filters {
@@ -2507,6 +2422,11 @@ body::after {
   /* En mobile: quitar borde derecho (columna única) */
   .summary-row:nth-child(odd) {
     border-right: none;
+  }
+
+  .summary-panel--carga .summary-row:nth-child(2) {
+    border-right: none;
+    border-bottom: 1px solid var(--glass-border);
   }
 
   .tables-grid {
@@ -2593,29 +2513,6 @@ body::after {
     padding: 12px 16px;
   }
 
-  /* Settings Page Mobile - Mejorar visibilidad de inputs */
-  .settings-page {
-    padding: 12px;
-  }
-
-  .settings-grid {
-    gap: 16px;
-  }
-
-  .settings-page .input {
-    font-size: 16px;
-    padding: 16px;
-    /* Input más grande y visible */
-  }
-
-  .settings-page h1 {
-    font-size: 24px;
-  }
-
-  .settings-page h2 {
-    font-size: 16px;
-  }
-
   /* Data Tables Mobile */
   .data-table th,
   .data-table td {
@@ -2638,21 +2535,9 @@ body::after {
     margin-bottom: 24px;
   }
 
-  .dashboard-actions {
-    flex-direction: column;
-    width: 100%;
-    gap: 12px;
-  }
-
-  .dashboard-actions .btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .dashboard-actions .btn-toggle-amounts {
+  .btn-toggle-amounts {
     width: auto;
     flex: 0 0 auto;
-    align-self: flex-end;
     aspect-ratio: unset;
     padding: 8px 14px;
     font-size: 12px;
@@ -2661,17 +2546,12 @@ body::after {
     gap: var(--space-2);
   }
 
-  .dashboard-actions .btn-toggle-amounts .material-symbols-outlined {
+  .btn-toggle-amounts .material-symbols-outlined {
     font-size: 16px;
   }
 
   .btn-toggle-amounts__label {
     display: inline;
-  }
-
-  /* Restaurar texto en botones full-width para mejor UX */
-  .dashboard-actions .btn span:not(.material-symbols-outlined) {
-    display: inline-block;
   }
 
   /* Header adjustments for crowded space */
@@ -3037,8 +2917,43 @@ body::after {
   border-bottom: none;
 }
 
+/* Panel de carga (Ingresos/Fijos/Variables): Ingresos en fila propia,
+   Fijos y Variables comparten la fila de abajo — orden inverso al genérico. */
+.summary-panel--carga .summary-row:first-child {
+  grid-column: 1 / -1;
+  border-right: none;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.summary-panel--carga .summary-row:nth-child(2) {
+  grid-column: auto;
+  border-right: 1px solid var(--glass-border);
+  border-bottom: none;
+}
+
+.summary-panel--carga .summary-row:nth-child(3) {
+  grid-column: auto;
+  border-right: none;
+  border-bottom: none;
+}
+
 .summary-row--dominant {
   background: rgba(var(--primary-rgb), 0.04);
+}
+
+.summary-row--clickable {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.summary-row--clickable:hover,
+.summary-row--clickable:focus-visible {
+  background: rgba(var(--primary-rgb), 0.06);
+}
+
+.summary-row--clickable:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
 }
 
 .summary-row-label {
@@ -3252,6 +3167,8 @@ body::after {
   width: 100%;
   /* Eliminamos el overflow scroll interno de la card por pedido del usuario */
   overflow: visible;
+  /* flex: 1 permite que .expense-table-card (flex column) estire la tabla a la altura completa */
+  flex: 1;
 }
 
 .data-table {
@@ -3360,129 +3277,6 @@ body::after {
   overflow: hidden;
   text-overflow: ellipsis;
   width: 100%;
-}
-
-/* ==========================================================================
-   SETTINGS PAGE
-   ========================================================================== */
-
-.settings-page {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.settings-header {
-  margin-bottom: var(--space-8);
-}
-
-.settings-title {
-  font-size: 32px;
-  font-weight: 900;
-  color: var(--text-main);
-  letter-spacing: -1px;
-  margin-bottom: var(--space-2);
-}
-
-.settings-subtitle {
-  color: var(--text-muted);
-  font-size: 14px;
-}
-
-.settings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: var(--space-6);
-}
-
-.settings-card-header {
-  margin-bottom: var(--space-6);
-}
-
-.settings-card-title {
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--text-main);
-  margin-bottom: var(--space-2);
-}
-
-.settings-card-subtitle {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.settings-form {
-  margin-bottom: var(--space-6);
-}
-
-.settings-input-group {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.settings-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.settings-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--input-bg);
-  border-radius: 12px;
-  border: 1px solid var(--glass-border);
-  transition: all 0.2s ease;
-}
-
-.settings-item:hover {
-  border-color: var(--primary-glow);
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.settings-item-text {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.settings-actions {
-  display: flex;
-  gap: 4px;
-}
-
-.btn-icon-action {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s ease;
-}
-
-.btn-icon-action:hover {
-  background: var(--glass-border);
-}
-
-.btn-icon-action.edit {
-  color: var(--primary);
-}
-
-.btn-icon-action.delete {
-  color: var(--danger);
-}
-
-.btn-icon-action.save {
-  color: var(--success);
-}
-
-.btn-icon-action.cancel {
-  color: var(--text-muted);
 }
 
 /* ==========================================================================
@@ -8208,10 +8002,6 @@ body::after {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.icon-picker__buscador {
-  width: 100%;
 }
 
 .icon-picker__grid {

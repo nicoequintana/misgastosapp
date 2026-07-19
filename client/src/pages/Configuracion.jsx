@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, THEMES } from '../context/ThemeContext';
 import GlassCard from '../components/GlassCard';
 import IconPicker from '../components/IconPicker';
+import ChipSelector from '../components/ChipSelector';
 import { useNotificaciones } from '../context/NotificacionesContext';
 import * as db from '../lib/db';
+import { useGestionCatalogo } from '../hooks/useGestionCatalogo';
 
 /**
  * Página de configuración: perfil del usuario y selector de tema visual.
@@ -19,150 +21,58 @@ const Configuracion = () => {
     // Estado local del formulario de config (copia del contexto para edición)
     const [formConfig, setFormConfig] = useState(null);
 
-    // ── Estado de categorías personales ──────────────────────────────
-    const [categorias, setCategorias] = useState([]);
-    const [cargandoCats, setCargandoCats] = useState(true);
+    // ── Catálogo de categorías personales ────────────────────────────
+    const catCategorias = useGestionCatalogo({
+        fetchItems: db.getCategories,
+        crearItem: ({ nombre, icono }) => db.createCategory(nombre, icono),
+        eliminarItem: db.deleteCategory,
+        getNombre: (c) => c.nombre,
+        nombreEntidad: 'la categoría',
+    });
     const [nuevaCategoria, setNuevaCategoria] = useState('');
-    const [guardandoCat, setGuardandoCat] = useState(false);
-    const [errorCat, setErrorCat] = useState('');
-    const [eliminandoCatId, setEliminandoCatId] = useState(null);
-    const [confirmEliminarCat, setConfirmEliminarCat] = useState(null);
-
-    // ── Estado de ícono para nueva categoría ─────────────────────────
     const [iconoNuevaCategoria, setIconoNuevaCategoria] = useState('label');
 
-    // ── Estado de métodos de pago personales ─────────────────────────
-    const [metodosPago, setMetodosPago] = useState([]);
-    const [cargandoMetodos, setCargandoMetodos] = useState(true);
-    const [nuevoMetodo, setNuevoMetodo] = useState({ nombre: '', tipo: 'efectivo', icono: 'payments', acepta_cuotas: false });
-    const [guardandoMetodo, setGuardandoMetodo] = useState(false);
-    const [errorMetodo, setErrorMetodo] = useState('');
-    const [eliminandoMetodoId, setEliminandoMetodoId] = useState(null);
-    const [confirmEliminarMetodo, setConfirmEliminarMetodo] = useState(null);
+    // ── Catálogo de métodos de pago personales ───────────────────────
+    const catMetodosPago = useGestionCatalogo({
+        fetchItems: db.getPaymentMethods,
+        crearItem: db.createPaymentMethod,
+        eliminarItem: db.deletePaymentMethod,
+        getNombre: (pm) => pm.nombre,
+        nombreEntidad: 'el método de pago',
+    });
+    const [nuevoMetodo, setNuevoMetodo] = useState({ nombre: '', icono: 'payments', acepta_cuotas: false });
 
     // Inicializar formConfig cuando el contexto carga la config real
-    React.useEffect(() => {
+    useEffect(() => {
         if (config) setFormConfig({ ...config });
     }, [config]);
-
-    // Carga inicial de categorías
-    const fetchCategorias = useCallback(async () => {
-        setCargandoCats(true);
-        try {
-            const data = await db.getCategories();
-            setCategorias(data);
-        } catch (err) {
-            console.error('❌ Error al cargar categorías:', err);
-        } finally {
-            setCargandoCats(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchCategorias();
-    }, [fetchCategorias]);
 
     const handleCrearCategoria = async (e) => {
         e.preventDefault();
         if (!nuevaCategoria.trim()) {
-            setErrorCat('Ingresá un nombre para la categoría');
+            catCategorias.setError('Ingresá un nombre para la categoría');
             return;
         }
-        // Verificar duplicados localmente
-        const existe = categorias.some(
-            c => c.nombre.toLowerCase() === nuevaCategoria.trim().toLowerCase()
-        );
-        if (existe) {
-            setErrorCat('Ya existe una categoría con ese nombre');
-            return;
-        }
-        setGuardandoCat(true);
-        setErrorCat('');
-        try {
-            const nueva = await db.createCategory(nuevaCategoria, iconoNuevaCategoria);
-            setCategorias(prev => [...prev, nueva].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+        if (catCategorias.validarDuplicado(nuevaCategoria)) return;
+
+        const creada = await catCategorias.crear({ nombre: nuevaCategoria, icono: iconoNuevaCategoria });
+        if (creada) {
             setNuevaCategoria('');
             setIconoNuevaCategoria('label');
-        } catch (err) {
-            setErrorCat(err.message || 'Error al crear la categoría');
-        } finally {
-            setGuardandoCat(false);
         }
     };
-
-    const handleEliminarCategoria = async (id) => {
-        setEliminandoCatId(id);
-        try {
-            await db.deleteCategory(id);
-            setCategorias(prev => prev.filter(c => c.id !== id));
-        } catch (err) {
-            // Si hay gastos asociados, FK constraint lo bloquea
-            const mensaje = err.code === '23503'
-                ? 'No podés eliminar esta categoría porque tiene gastos asociados.'
-                : (err.message || 'Error al eliminar la categoría');
-            setErrorCat(mensaje);
-        } finally {
-            setEliminandoCatId(null);
-            setConfirmEliminarCat(null);
-        }
-    };
-
-    // Carga inicial de métodos de pago
-    const fetchMetodosPago = useCallback(async () => {
-        setCargandoMetodos(true);
-        try {
-            const data = await db.getPaymentMethods();
-            setMetodosPago(data);
-        } catch (err) {
-            console.error('❌ Error al cargar métodos de pago:', err);
-        } finally {
-            setCargandoMetodos(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchMetodosPago();
-    }, [fetchMetodosPago]);
 
     const handleCrearMetodoPago = async (e) => {
         e.preventDefault();
         if (!nuevoMetodo.nombre.trim()) {
-            setErrorMetodo('Ingresá un nombre para el método de pago');
+            catMetodosPago.setError('Ingresá un nombre para el método de pago');
             return;
         }
-        const existe = metodosPago.some(
-            pm => pm.nombre.toLowerCase() === nuevoMetodo.nombre.trim().toLowerCase()
-        );
-        if (existe) {
-            setErrorMetodo('Ya existe un método de pago con ese nombre');
-            return;
-        }
-        setGuardandoMetodo(true);
-        setErrorMetodo('');
-        try {
-            const creado = await db.createPaymentMethod(nuevoMetodo);
-            setMetodosPago(prev => [...prev, creado].sort((a, b) => a.nombre.localeCompare(b.nombre)));
-            setNuevoMetodo({ nombre: '', tipo: 'efectivo', icono: 'payments', acepta_cuotas: false });
-        } catch (err) {
-            setErrorMetodo(err.message || 'Error al crear el método de pago');
-        } finally {
-            setGuardandoMetodo(false);
-        }
-    };
+        if (catMetodosPago.validarDuplicado(nuevoMetodo.nombre)) return;
 
-    const handleEliminarMetodoPago = async (id) => {
-        setEliminandoMetodoId(id);
-        try {
-            await db.deletePaymentMethod(id);
-            setMetodosPago(prev => prev.filter(pm => pm.id !== id));
-        } catch (err) {
-            const mensaje = err.code === '23503'
-                ? 'No podés eliminar este método de pago porque tiene gastos asociados.'
-                : (err.message || 'Error al eliminar el método de pago');
-            setErrorMetodo(mensaje);
-        } finally {
-            setEliminandoMetodoId(null);
-            setConfirmEliminarMetodo(null);
+        const creado = await catMetodosPago.crear(nuevoMetodo);
+        if (creado) {
+            setNuevoMetodo({ nombre: '', icono: 'payments', acepta_cuotas: false });
         }
     };
 
@@ -292,7 +202,7 @@ const Configuracion = () => {
                             value={nuevaCategoria}
                             onChange={(e) => {
                                 setNuevaCategoria(e.target.value);
-                                setErrorCat('');
+                                catCategorias.setError('');
                             }}
                             placeholder="Nueva categoría..."
                             className="input cats-config-input"
@@ -301,38 +211,38 @@ const Configuracion = () => {
                         <button
                             type="submit"
                             className="btn btn-primary cats-config-btn"
-                            disabled={guardandoCat}
+                            disabled={catCategorias.guardando}
                         >
                             <span className="material-symbols-outlined">add</span>
-                            <span>{guardandoCat ? 'Creando...' : 'Crear'}</span>
+                            <span>{catCategorias.guardando ? 'Creando...' : 'Crear'}</span>
                         </button>
                     </div>
                     <IconPicker valorSeleccionado={iconoNuevaCategoria} onChange={setIconoNuevaCategoria} />
-                    {errorCat && (
-                        <p className="cats-config-error">{errorCat}</p>
+                    {catCategorias.error && (
+                        <p className="cats-config-error">{catCategorias.error}</p>
                     )}
                 </form>
 
                 {/* Lista de categorías */}
-                {cargandoCats ? (
+                {catCategorias.cargando ? (
                     <div className="cats-config-loading">
                         <span className="material-symbols-outlined cats-config-loading-icon">sync</span>
                         Cargando categorías...
                     </div>
                 ) : (
                     <div className="cats-config-list">
-                        {categorias.length === 0 && (
+                        {catCategorias.items.length === 0 && (
                             <p className="cats-config-empty">No hay categorías configuradas.</p>
                         )}
 
                         {/* Categorías globales */}
-                        {categorias.filter(c => !c.es_propia).length > 0 && (
+                        {catCategorias.items.filter(c => !c.es_propia).length > 0 && (
                             <div className="cats-config-group">
                                 <p className="cats-config-group-label">
                                     <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>public</span>
                                     {' '}Globales
                                 </p>
-                                {categorias.filter(c => !c.es_propia).map(cat => (
+                                {catCategorias.items.filter(c => !c.es_propia).map(cat => (
                                     <div key={cat.id} className="cats-config-item cats-config-item--global">
                                         <span className="material-symbols-outlined cats-config-item-icon">label</span>
                                         <span className="cats-config-item-name">{cat.nombre}</span>
@@ -343,33 +253,33 @@ const Configuracion = () => {
                         )}
 
                         {/* Categorías propias del usuario */}
-                        {categorias.filter(c => c.es_propia).length > 0 && (
+                        {catCategorias.items.filter(c => c.es_propia).length > 0 && (
                             <div className="cats-config-group">
                                 <p className="cats-config-group-label">
                                     <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>star</span>
                                     {' '}Mis categorías
                                 </p>
-                                {categorias.filter(c => c.es_propia).map(cat => (
+                                {catCategorias.items.filter(c => c.es_propia).map(cat => (
                                     <div key={cat.id} className="cats-config-item cats-config-item--propia">
                                         <span className="material-symbols-outlined cats-config-item-icon">label</span>
                                         <span className="cats-config-item-name">{cat.nombre}</span>
 
                                         {/* Confirmar antes de eliminar */}
-                                        {confirmEliminarCat === cat.id ? (
+                                        {catCategorias.confirmEliminarId === cat.id ? (
                                             <div className="cats-config-item-confirm">
                                                 <span className="cats-config-item-confirm-text">¿Eliminar?</span>
                                                 <button
                                                     type="button"
                                                     className="cats-config-item-confirm-yes"
-                                                    onClick={() => handleEliminarCategoria(cat.id)}
-                                                    disabled={eliminandoCatId === cat.id}
+                                                    onClick={() => catCategorias.eliminar(cat.id)}
+                                                    disabled={catCategorias.eliminandoId === cat.id}
                                                 >
-                                                    {eliminandoCatId === cat.id ? '...' : 'Sí'}
+                                                    {catCategorias.eliminandoId === cat.id ? '...' : 'Sí'}
                                                 </button>
                                                 <button
                                                     type="button"
                                                     className="cats-config-item-confirm-no"
-                                                    onClick={() => setConfirmEliminarCat(null)}
+                                                    onClick={() => catCategorias.setConfirmEliminarId(null)}
                                                 >
                                                     No
                                                 </button>
@@ -378,7 +288,7 @@ const Configuracion = () => {
                                             <button
                                                 type="button"
                                                 className="cats-config-item-delete"
-                                                onClick={() => setConfirmEliminarCat(cat.id)}
+                                                onClick={() => catCategorias.setConfirmEliminarId(cat.id)}
                                                 title="Eliminar categoría"
                                             >
                                                 <span className="material-symbols-outlined">delete</span>
@@ -414,25 +324,15 @@ const Configuracion = () => {
                             className="input cats-config-input"
                             maxLength={60}
                         />
-                        <select
-                            value={nuevoMetodo.tipo}
-                            onChange={(e) => setNuevoMetodo(prev => ({ ...prev, tipo: e.target.value }))}
-                            className="form-select"
-                        >
-                            <option value="efectivo">Efectivo</option>
-                            <option value="tarjeta">Tarjeta</option>
-                            <option value="cuenta">Cuenta</option>
-                        </select>
                     </div>
-                    <div className="form-checkbox-group">
-                        <input
-                            type="checkbox"
-                            id="acepta_cuotas"
-                            checked={nuevoMetodo.acepta_cuotas}
-                            onChange={(e) => setNuevoMetodo(prev => ({ ...prev, acepta_cuotas: e.target.checked }))}
-                        />
-                        <label htmlFor="acepta_cuotas">Acepta pago en cuotas</label>
-                    </div>
+                    <ChipSelector
+                        opciones={[
+                            { id: false, nombre: 'Sin cuotas', icono: 'block' },
+                            { id: true, nombre: 'Con cuotas', icono: 'calendar_view_week' },
+                        ]}
+                        valorSeleccionado={nuevoMetodo.acepta_cuotas}
+                        onChange={(valor) => setNuevoMetodo(prev => ({ ...prev, acepta_cuotas: valor }))}
+                    />
                     <IconPicker
                         valorSeleccionado={nuevoMetodo.icono}
                         onChange={(icono) => setNuevoMetodo(prev => ({ ...prev, icono }))}
@@ -440,30 +340,30 @@ const Configuracion = () => {
                     <button
                         type="submit"
                         className="btn btn-primary cats-config-btn"
-                        disabled={guardandoMetodo}
+                        disabled={catMetodosPago.guardando}
                     >
                         <span className="material-symbols-outlined">add</span>
-                        <span>{guardandoMetodo ? 'Creando...' : 'Crear'}</span>
+                        <span>{catMetodosPago.guardando ? 'Creando...' : 'Crear'}</span>
                     </button>
-                    {errorMetodo && (
-                        <p className="cats-config-error">{errorMetodo}</p>
+                    {catMetodosPago.error && (
+                        <p className="cats-config-error">{catMetodosPago.error}</p>
                     )}
                 </form>
 
-                {cargandoMetodos ? (
+                {catMetodosPago.cargando ? (
                     <div className="cats-config-loading">
                         <span className="material-symbols-outlined cats-config-loading-icon">sync</span>
                         Cargando métodos de pago...
                     </div>
                 ) : (
                     <div className="cats-config-list">
-                        {metodosPago.filter(pm => !pm.es_propio).length > 0 && (
+                        {catMetodosPago.items.filter(pm => !pm.es_propio).length > 0 && (
                             <div className="cats-config-group">
                                 <p className="cats-config-group-label">
                                     <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>public</span>
                                     {' '}Globales
                                 </p>
-                                {metodosPago.filter(pm => !pm.es_propio).map(pm => (
+                                {catMetodosPago.items.filter(pm => !pm.es_propio).map(pm => (
                                     <div key={pm.id} className="cats-config-item cats-config-item--global">
                                         <span className="material-symbols-outlined cats-config-item-icon">{pm.icono}</span>
                                         <span className="cats-config-item-name">{pm.nombre}</span>
@@ -473,32 +373,32 @@ const Configuracion = () => {
                             </div>
                         )}
 
-                        {metodosPago.filter(pm => pm.es_propio).length > 0 && (
+                        {catMetodosPago.items.filter(pm => pm.es_propio).length > 0 && (
                             <div className="cats-config-group">
                                 <p className="cats-config-group-label">
                                     <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>star</span>
                                     {' '}Mis métodos
                                 </p>
-                                {metodosPago.filter(pm => pm.es_propio).map(pm => (
+                                {catMetodosPago.items.filter(pm => pm.es_propio).map(pm => (
                                     <div key={pm.id} className="cats-config-item cats-config-item--propia">
                                         <span className="material-symbols-outlined cats-config-item-icon">{pm.icono}</span>
                                         <span className="cats-config-item-name">{pm.nombre}</span>
 
-                                        {confirmEliminarMetodo === pm.id ? (
+                                        {catMetodosPago.confirmEliminarId === pm.id ? (
                                             <div className="cats-config-item-confirm">
                                                 <span className="cats-config-item-confirm-text">¿Eliminar?</span>
                                                 <button
                                                     type="button"
                                                     className="cats-config-item-confirm-yes"
-                                                    onClick={() => handleEliminarMetodoPago(pm.id)}
-                                                    disabled={eliminandoMetodoId === pm.id}
+                                                    onClick={() => catMetodosPago.eliminar(pm.id)}
+                                                    disabled={catMetodosPago.eliminandoId === pm.id}
                                                 >
-                                                    {eliminandoMetodoId === pm.id ? '...' : 'Sí'}
+                                                    {catMetodosPago.eliminandoId === pm.id ? '...' : 'Sí'}
                                                 </button>
                                                 <button
                                                     type="button"
                                                     className="cats-config-item-confirm-no"
-                                                    onClick={() => setConfirmEliminarMetodo(null)}
+                                                    onClick={() => catMetodosPago.setConfirmEliminarId(null)}
                                                 >
                                                     No
                                                 </button>
@@ -507,7 +407,7 @@ const Configuracion = () => {
                                             <button
                                                 type="button"
                                                 className="cats-config-item-delete"
-                                                onClick={() => setConfirmEliminarMetodo(pm.id)}
+                                                onClick={() => catMetodosPago.setConfirmEliminarId(pm.id)}
                                                 title="Eliminar método de pago"
                                             >
                                                 <span className="material-symbols-outlined">delete</span>

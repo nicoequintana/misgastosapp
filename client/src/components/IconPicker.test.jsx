@@ -8,13 +8,6 @@ describe('IconPicker', () => {
         expect(screen.getByLabelText(/shopping_cart/i)).toBeInTheDocument();
     });
 
-    it('filtra íconos por texto de búsqueda', () => {
-        render(<IconPicker valorSeleccionado="label" onChange={() => {}} />);
-        fireEvent.change(screen.getByPlaceholderText('Buscar ícono...'), { target: { value: 'car' } });
-        expect(screen.getByLabelText('directions_car')).toBeInTheDocument();
-        expect(screen.queryByLabelText('health_and_safety')).not.toBeInTheDocument();
-    });
-
     it('llama a onChange con el nombre del ícono tocado', () => {
         const onChange = vi.fn();
         render(<IconPicker valorSeleccionado="label" onChange={onChange} />);

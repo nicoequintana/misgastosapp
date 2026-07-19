@@ -575,23 +575,6 @@ export const deleteExpense = async (id) => {
     if (error) throw error;
 };
 
-/**
- * Elimina todos los gastos NO fijos del usuario autenticado.
- * Útil para el "reseteo mensual" de gastos variables.
- * RLS garantiza que solo se borren los gastos del usuario actual.
- */
-export const deleteVariableExpenses = async () => {
-    const usuario = await obtenerUsuarioActivo();
-
-    const { error } = await supabase
-        .from('gastos')
-        .delete()
-        .eq('user_id', usuario.id)
-        .eq('es_fijo', false);
-
-    if (error) throw error;
-};
-
 // ==================== CATEGORÍAS ====================
 
 /**
@@ -709,26 +692,21 @@ export const getPaymentMethods = async () => {
  *
  * @param {Object} metodo
  * @param {string} metodo.nombre
- * @param {'efectivo'|'tarjeta'|'cuenta'} metodo.tipo
  * @param {string} [metodo.icono='payments']
  * @param {boolean} [metodo.acepta_cuotas=false]
  * @returns {Object} El método de pago creado
  */
-export const createPaymentMethod = async ({ nombre, tipo, icono = 'payments', acepta_cuotas = false }) => {
+export const createPaymentMethod = async ({ nombre, icono = 'payments', acepta_cuotas = false }) => {
     const usuario = await obtenerUsuarioActivo();
 
     if (!nombre || !nombre.trim()) {
         throw new Error('El nombre del método de pago no puede estar vacío');
-    }
-    if (!['efectivo', 'tarjeta', 'cuenta'].includes(tipo)) {
-        throw new Error('Tipo de método de pago inválido');
     }
 
     const { data, error } = await supabase
         .from('metodos_pago')
         .insert([{
             nombre: nombre.trim().toUpperCase(),
-            tipo,
             icono,
             acepta_cuotas: Boolean(acepta_cuotas),
             user_id: usuario.id,
@@ -749,7 +727,7 @@ export const createPaymentMethod = async ({ nombre, tipo, icono = 'payments', ac
  * Las RLS impiden actualizar métodos globales o de otros usuarios.
  *
  * @param {number} id
- * @param {Object} cambios - { nombre?, tipo?, icono?, acepta_cuotas? }
+ * @param {Object} cambios - { nombre?, icono?, acepta_cuotas? }
  */
 export const updatePaymentMethod = async (id, cambios) => {
     const usuario = await obtenerUsuarioActivo();
@@ -758,7 +736,6 @@ export const updatePaymentMethod = async (id, cambios) => {
         .from('metodos_pago')
         .update({
             ...(cambios.nombre !== undefined ? { nombre: cambios.nombre.trim().toUpperCase() } : {}),
-            ...(cambios.tipo !== undefined ? { tipo: cambios.tipo } : {}),
             ...(cambios.icono !== undefined ? { icono: cambios.icono } : {}),
             ...(cambios.acepta_cuotas !== undefined ? { acepta_cuotas: Boolean(cambios.acepta_cuotas) } : {}),
         })
@@ -979,20 +956,6 @@ export const getIncomeCategories = async () => {
     }
 
     return (data ?? []).map(c => ({ ...c, es_propia: c.user_id === usuario.id }));
-};
-
-// Alias para compatibilidad con código antiguo — usa getIncomesByMonth del mes actual
-export const getIncome = async () => {
-    const hoy = new Date();
-    const total = await getIncomeTotalByMonth(hoy.getFullYear(), hoy.getMonth() + 1);
-    return { monto: total };
-};
-
-// Alias mantenido para compatibilidad — ahora usa createIncome
-export const saveIncome = async (monto) => {
-    const hoy = new Date();
-    const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
-    return createIncome({ monto, fecha });
 };
 
 // ==================== INGRESOS RECURRENTES ====================

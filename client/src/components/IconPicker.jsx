@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React from 'react';
 
 // Lista curada de Material Symbols para categorías y métodos de pago.
 // Se mantiene acotada (no la librería completa) para consistencia visual y peso de bundle.
@@ -14,31 +14,16 @@ const ICONOS_CURADOS = [
 ];
 
 /**
- * Grid de selección de ícono con buscador de texto simple.
+ * Grid de selección de ícono.
  *
  * @param {string} valorSeleccionado - nombre del ícono actualmente elegido
  * @param {(icono: string) => void} onChange
  */
 const IconPicker = ({ valorSeleccionado, onChange }) => {
-    const [busqueda, setBusqueda] = useState('');
-
-    const filtrados = useMemo(() => {
-        if (!busqueda.trim()) return ICONOS_CURADOS;
-        const q = busqueda.trim().toLowerCase();
-        return ICONOS_CURADOS.filter(nombre => nombre.includes(q));
-    }, [busqueda]);
-
     return (
         <div className="icon-picker">
-            <input
-                type="text"
-                className="input icon-picker__buscador"
-                placeholder="Buscar ícono..."
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-            />
             <div className="icon-picker__grid">
-                {filtrados.map(nombre => (
+                {ICONOS_CURADOS.map(nombre => (
                     <button
                         key={nombre}
                         type="button"
