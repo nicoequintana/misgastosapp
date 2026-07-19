@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import WelcomeTour from '../components/WelcomeTour';
+import NoveltyModal from '../components/NoveltyModal';
 import { setSeo } from '../utils/seo';
 
 // Funciones puras de pathname — se definen fuera del componente para evitar recrearlas en cada render
@@ -117,6 +118,7 @@ const MainLayout = () => {
     return (
         <div className={`main-layout ${isMobile ? 'mobile' : ''} ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
             <WelcomeTour />
+            <NoveltyModal />
             <Sidebar
                 isOpen={isSidebarOpen}
                 isMobile={isMobile}
