@@ -932,11 +932,22 @@ body::after {
   backdrop-filter: blur(16px) saturate(1.2);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
   z-index: 9999;
+  animation: modalFadeIn 0.25s ease;
+}
+
+/* Contenedor invisible del tamaño del espacio realmente libre (se achica y
+   reposiciona vía JS con el viewport visual cuando el teclado está abierto,
+   ver Modal.jsx) — separado de .modal-overlay para que el fondo oscuro/blur
+   siempre cubra toda la pantalla, sin importar cuánto se reduzca este. */
+.modal-viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--space-5);
-  animation: modalFadeIn 0.25s ease;
+  box-sizing: border-box;
 }
 
 .modal-content {
@@ -2454,16 +2465,16 @@ body::after {
      (flex-shrink: 0) y es .modal-body quien absorbe la falta de espacio con
      scroll interno cuando el teclado virtual reduce el alto disponible —
      así los botones de acción del footer nunca quedan fuera de pantalla. */
-  .modal-overlay {
+  .modal-viewport {
     padding: var(--space-4);
-    align-items: center;
   }
 
   .modal-content {
     width: 100%;
     max-width: 400px;
-    /* max-height por defecto (sin teclado abierto); con teclado, Modal.jsx
-       sobrescribe este valor inline según el viewport visual real. */
+    /* max-height por defecto (sin teclado abierto); con teclado, .modal-viewport
+       se achica vía JS (ver Modal.jsx) y este 90% sigue funcionando sobre su
+       nuevo alto real. */
     max-height: 90%;
     border-radius: var(--radius-xl);
     margin: 0;

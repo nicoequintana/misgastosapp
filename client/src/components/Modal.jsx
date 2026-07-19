@@ -42,38 +42,42 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, footer, disableClos
     const contentClass = isClosing ? 'modal-content glass-card closing' : 'modal-content glass-card';
 
     // El overlay siempre cubre la pantalla completa (nunca se achica), para que el
-    // fondo oscuro/blur tape el dashboard incluso con el teclado abierto. Es
-    // .modal-content quien se ajusta al espacio real disponible: su max-height se
-    // calcula a partir del viewport visual (que sí se reduce con el teclado) y se
-    // reposiciona con marginTop para compensar el offsetTop que el teclado genera
-    // en iOS/Chrome mobile (el layout viewport de este position:fixed no se mueve,
-    // pero el viewport visual sí se desplaza hacia abajo).
-    const contentStyle = viewportHeight
-        ? { maxHeight: `${viewportHeight * 0.9}px`, marginTop: `${viewportOffsetTop}px` }
+    // fondo oscuro/blur tape el dashboard incluso con el teclado abierto. Adentro,
+    // .modal-viewport es un contenedor invisible del tamaño del espacio REALMENTE
+    // libre (viewport visual, que sí se reduce con el teclado) y desplazado con
+    // top según offsetTop — así .modal-content se centra dentro de ese espacio
+    // libre, nunca contra la pantalla completa (que incluiría la zona tapada
+    // por el teclado). offsetTop compensa que el layout viewport de este
+    // position:fixed no se mueve al abrir el teclado, aunque el viewport visual
+    // sí se desplace hacia abajo (iOS/Chrome mobile).
+    const viewportStyle = viewportHeight
+        ? { height: `${viewportHeight}px`, top: `${viewportOffsetTop}px` }
         : undefined;
 
     const modalContent = (
         <div className={overlayClass} onClick={handleClose}>
-            <div className={contentClass} style={contentStyle} onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <div>
-                        {title && <h3 className="modal-title">{title}</h3>}
-                        {subtitle && <p className="modal-subtitle">{subtitle}</p>}
+            <div className="modal-viewport" style={viewportStyle}>
+                <div className={contentClass} onClick={e => e.stopPropagation()}>
+                    <div className="modal-header">
+                        <div>
+                            {title && <h3 className="modal-title">{title}</h3>}
+                            {subtitle && <p className="modal-subtitle">{subtitle}</p>}
+                        </div>
+                        {handleClose && (
+                            <button className="modal-close" onClick={handleClose}>
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        )}
                     </div>
-                    {handleClose && (
-                        <button className="modal-close" onClick={handleClose}>
-                            <span className="material-symbols-outlined">close</span>
-                        </button>
+                    <div className="modal-body">
+                        {children}
+                    </div>
+                    {footer && (
+                        <div className="modal-footer">
+                            {footer}
+                        </div>
                     )}
                 </div>
-                <div className="modal-body">
-                    {children}
-                </div>
-                {footer && (
-                    <div className="modal-footer">
-                        {footer}
-                    </div>
-                )}
             </div>
         </div>
     );
