@@ -2459,8 +2459,10 @@ body::after {
   .modal-content {
     width: 100%;
     max-width: 100%;
-    max-height: 85vh;
-    max-height: 85dvh;
+    /* max-height relativo al overlay (85% de su alto): el overlay ya ajusta su
+       propia altura al viewport visual real vía JS (ver Modal.jsx), así que esto
+       sigue funcionando incluso con el teclado virtual abierto. */
+    max-height: 85%;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     margin: 0;
     overflow: hidden;

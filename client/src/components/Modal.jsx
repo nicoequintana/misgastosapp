@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useVisualViewportHeight } from '../hooks/useVisualViewportHeight';
 
 /**
  * Componente de modal genérico con efecto glassmorphism y animaciones de entrada/salida.
@@ -11,6 +12,7 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, footer, disableClos
     const handleClose = (!disableClose && onClose) ? onClose : undefined;
     const [isVisible, setIsVisible] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
+    const viewportHeight = useVisualViewportHeight();
 
     /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
@@ -39,8 +41,12 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, footer, disableClos
     const overlayClass = isClosing ? 'modal-overlay closing' : 'modal-overlay';
     const contentClass = isClosing ? 'modal-content glass-card closing' : 'modal-content glass-card';
 
+    // Al enfocar un input en mobile, el teclado reduce el viewport visual pero no el
+    // 100dvh del layout — sin esto el modal (anclado abajo) queda tapado por el teclado.
+    const overlayStyle = viewportHeight ? { height: `${viewportHeight}px` } : undefined;
+
     const modalContent = (
-        <div className={overlayClass} onClick={handleClose}>
+        <div className={overlayClass} style={overlayStyle} onClick={handleClose}>
             <div className={contentClass} onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <div>
