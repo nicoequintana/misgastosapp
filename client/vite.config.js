@@ -45,6 +45,9 @@ export default defineConfig({
         clientsClaim: true,
         // Cachea assets estáticos del build
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // La fuente variable de Material Symbols (todos los íconos, self-hosted) pesa ~4MB —
+        // supera el límite default de 2MB. Se descarga una sola vez y queda cacheada localmente.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         // Estrategia network-first para rutas de la app (requiere auth activa)
         navigateFallback: '/index.html',
         // Excluir el callback OAuth — el SW no debe interceptar URLs con ?code=
@@ -54,25 +57,6 @@ export default defineConfig({
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: 'NetworkOnly',
-          },
-          {
-            // Stylesheets de Google Fonts — stale-while-revalidate para actualizar en background
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'google-fonts-stylesheets',
-              expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-          {
-            // Archivos de fuente binarios de gstatic — cache-first, no cambian nunca
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-webfonts',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
           },
         ],
       },
