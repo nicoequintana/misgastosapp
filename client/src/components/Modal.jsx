@@ -41,17 +41,20 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, footer, disableClos
     const overlayClass = isClosing ? 'modal-overlay closing' : 'modal-overlay';
     const contentClass = isClosing ? 'modal-content glass-card closing' : 'modal-content glass-card';
 
-    // Al enfocar un input en mobile, el teclado reduce el viewport visual pero no el
-    // 100dvh del layout — sin esto el modal (anclado abajo) queda tapado por el teclado.
-    // offsetTop compensa que el layout viewport (donde vive este position:fixed) no se
-    // mueve al abrir el teclado, aunque el viewport visual sí se desplace hacia abajo.
-    const overlayStyle = viewportHeight
-        ? { height: `${viewportHeight}px`, top: `${viewportOffsetTop}px` }
+    // El overlay siempre cubre la pantalla completa (nunca se achica), para que el
+    // fondo oscuro/blur tape el dashboard incluso con el teclado abierto. Es
+    // .modal-content quien se ajusta al espacio real disponible: su max-height se
+    // calcula a partir del viewport visual (que sí se reduce con el teclado) y se
+    // reposiciona con marginTop para compensar el offsetTop que el teclado genera
+    // en iOS/Chrome mobile (el layout viewport de este position:fixed no se mueve,
+    // pero el viewport visual sí se desplaza hacia abajo).
+    const contentStyle = viewportHeight
+        ? { maxHeight: `${viewportHeight * 0.9}px`, marginTop: `${viewportOffsetTop}px` }
         : undefined;
 
     const modalContent = (
-        <div className={overlayClass} style={overlayStyle} onClick={handleClose}>
-            <div className={contentClass} onClick={e => e.stopPropagation()}>
+        <div className={overlayClass} onClick={handleClose}>
+            <div className={contentClass} style={contentStyle} onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <div>
                         {title && <h3 className="modal-title">{title}</h3>}
