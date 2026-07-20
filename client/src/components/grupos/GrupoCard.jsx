@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatCurrency } from '../../utils/format';
 
 /**
  * Card glassmorphism para mostrar un grupo de gastos compartidos en la lista.
@@ -18,7 +19,7 @@ const GrupoCard = ({ grupo, saldoNeto, cantidadMiembros, onClick }) => {
         if (saldoNeto > 0) {
             return (
                 <span className="grupo-card__saldo grupo-card__saldo--favor">
-                    Te deben ${saldoNeto.toFixed(2)}
+                    Te deben ${formatCurrency(saldoNeto)}
                 </span>
             );
         }
@@ -26,7 +27,7 @@ const GrupoCard = ({ grupo, saldoNeto, cantidadMiembros, onClick }) => {
         if (saldoNeto < 0) {
             return (
                 <span className="grupo-card__saldo grupo-card__saldo--deuda">
-                    Debés ${Math.abs(saldoNeto).toFixed(2)}
+                    Debés ${formatCurrency(Math.abs(saldoNeto))}
                 </span>
             );
         }
@@ -44,7 +45,7 @@ const GrupoCard = ({ grupo, saldoNeto, cantidadMiembros, onClick }) => {
             onClick={() => onClick && onClick(grupo.id)}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && onClick && onClick(grupo.id)}
+            onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && onClick) { e.preventDefault(); onClick(grupo.id); } }}
             aria-label={`Grupo ${grupo.nombre}`}
         >
             {/* Encabezado: nombre + estado */}

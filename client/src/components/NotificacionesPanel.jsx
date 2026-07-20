@@ -116,7 +116,7 @@ const NotificacionItem = ({ notificacion, onLeer, onVerDetalle }) => {
             onClick={handleClick}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && handleClick()}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); } }}
         >
             <div className="notif-item-icono">
                 <span className="material-symbols-outlined">{icono}</span>
