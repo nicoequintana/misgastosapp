@@ -3,6 +3,36 @@
 > Auditoría completa read-only. **No se modificó ningún archivo de código.** Fecha: 2026-07-20.
 > Metodología: análisis estático manual + 7 agentes especializados en paralelo (5 judges de seguridad ciegos, 1 refactor/dead-code, 1 UX/UI) + suite de tests ejecutada + coverage + `npm audit`.
 > Cada hallazgo cita evidencia `archivo:línea`. Prioridad: **P1** crítico · **P2** importante · **P3** pulido.
+>
+> **Actualización 2026-07-20 (sesión de implementación):** Sprints 1, 2 y 3 completados y verificados (tests + prueba manual en la app). Ver detalle abajo.
+
+---
+
+## Estado de implementación (post-auditoría)
+
+### ✅ Sprint 1 — Seguridad y correctitud
+
+S-01, S-02, S-03, `npm audit fix` (client+server), C-01 (createExpense atómico vía RPC). Todo probado end-to-end.
+
+### ✅ Sprint 2 — UX crítico
+
+UX-01 (focus-trap/ESC/ARIA en Modal), UX-02 (hover-lift solo en cards interactivas), UX-03 (touch targets ≥44px). Confirmado visualmente por Nicolás.
+
+### ✅ Sprint 3 — Deuda técnica
+
+- DC-01 (7 exports muertos en `db.js`), DC-02 (test deshabilitado) — hecho.
+- **R4 — 2 hallazgos NUEVOS no documentados en el análisis original**, encontrados al revisar la duplicación de lógica de cuotas:
+  - `POST /gastos-cuotas` (crear gasto grupal en cuotas) tenía el mismo bug de atomicidad que C-01 → resuelto con RPC `create_grupo_gasto_installments`.
+  - `PUT /gastos/:gastoId` (editar gasto grupal en cuotas) tenía el mismo bug de atomicidad **más** un bug de producto: el formulario mostraba/editaba el monto de UNA cuota puntual (no el total) y no permitía cambiar la cantidad de cuotas; además duplicaba el sufijo `(N/total)` en la descripción en cada edición → resuelto con RPC `update_grupo_gasto_installments` v2 + fix de frontend. Probado con doble edición en la app real.
+- R5 (regex/constantes duplicadas) — consolidado: `limpiarSufijoCuota()` en `cuotasGroupHelper.js` (reemplaza 4 copias del regex de sufijo) y `fechaHoyArgentina()` en `grupos.js` (reemplaza 3 copias del literal de timezone).
+
+### ⏳ Pendiente — R1/R2 (split de `db.js` y `grupos.js`)
+
+No encarado en esta sesión por tamaño/riesgo (mover ~2000 líneas de código sin bug de por medio, alto riesgo de romper algo sutil). Recomendado para una sesión dedicada aparte, función por función, con tests de regresión antes de cada movimiento.
+
+### Sin encarar
+
+Resto de hallazgos P2/P3 de UX (A3–A8, B4–B6, C1–C4, D1–D6) y R6–R10 del refactor original.
 
 ---
 
