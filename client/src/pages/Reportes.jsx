@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import GlassCard from '../components/GlassCard';
 import { getReporteByRango } from '../lib/db';
 import { formatCurrency } from '../utils/format';
+import { limpiarSufijoCuota } from '../lib/cuotasGroupHelper';
 import TarjetasCuotasCard from '../components/dashboard/TarjetasCuotasCard';
 
 // ==================== HELPERS ====================
@@ -455,7 +456,7 @@ const Reportes = () => {
         return Object.values(grupos).map(cuotas => {
             const ordenadas = [...cuotas].sort((a, b) => (a.numero_cuota ?? 0) - (b.numero_cuota ?? 0));
             const primera = ordenadas[0];
-            const descripcionBase = primera.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
+            const descripcionBase = limpiarSufijoCuota(primera.descripcion);
             const totalOriginal = ordenadas.reduce((s, c) => s + parseFloat(c.monto), 0);
             const pagadas = ordenadas.filter(c => (c.fecha || '').split('T')[0] <= hoyStr).length;
             return {

@@ -5,6 +5,19 @@
  */
 
 /**
+ * Quita el sufijo "(N/total)" que llevan las descripciones de cuotas
+ * individuales (ej. "VIAJE (2/3)" → "VIAJE"). Usado tanto para mostrar la
+ * descripción base de una compra en cuotas como para no reenviar el sufijo
+ * duplicado al editar (R5 — mejoras.md, regex repetida en 4 lugares).
+ *
+ * @param {string} descripcion
+ * @returns {string}
+ */
+export function limpiarSufijoCuota(descripcion) {
+    return (descripcion || '').replace(/\s*\(\d+\/\d+\)$/, '');
+}
+
+/**
  * Agrupa un array de filas de gastos por id_gasto_padre.
  *
  * @param {Array} rows - Filas de gastos con id_gasto_padre
@@ -51,7 +64,7 @@ export function filtrarPrestamos(rows) {
 export function transformarGrupoCuotas(cuotas, hoyStr, mesCorrienteInicio, mesCorrienteFin) {
     const ordenadas = [...cuotas].sort((a, b) => a.numero_cuota - b.numero_cuota);
     const primera = ordenadas[0];
-    const descripcionBase = primera.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
+    const descripcionBase = limpiarSufijoCuota(primera.descripcion);
     const totalOriginal = ordenadas.reduce((s, c) => s + parseFloat(c.monto || 0), 0);
     const pagadas = ordenadas.filter(c => c.fecha.split('T')[0] <= hoyStr).length;
     const montoMesCorriente = ordenadas
@@ -86,7 +99,7 @@ export function transformarGrupoCuotas(cuotas, hoyStr, mesCorrienteInicio, mesCo
 export function transformarGrupoCuotasFuturas(cuotas, mesSigInicio, mesSigFin) {
     const ordenadas = [...cuotas].sort((a, b) => (a.numero_cuota ?? 0) - (b.numero_cuota ?? 0));
     const primera = ordenadas[0];
-    const descripcionBase = primera.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
+    const descripcionBase = limpiarSufijoCuota(primera.descripcion);
     const montoMesSiguiente = ordenadas
         .filter(c => {
             const f = (c.fecha || '').split('T')[0];

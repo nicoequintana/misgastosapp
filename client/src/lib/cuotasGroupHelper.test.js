@@ -5,7 +5,32 @@ import {
     filtrarPrestamos,
     transformarGrupoCuotas,
     transformarGrupoCuotasFuturas,
+    limpiarSufijoCuota,
 } from './cuotasGroupHelper';
+
+// limpiarSufijoCuota (R5 — consolida el regex antes duplicado en 4 lugares)
+describe('limpiarSufijoCuota', () => {
+    it('quita el sufijo "(N/total)" de una descripción', () => {
+        expect(limpiarSufijoCuota('VIAJE (2/3)')).toBe('VIAJE');
+    });
+
+    it('no modifica una descripción sin sufijo', () => {
+        expect(limpiarSufijoCuota('SUPERMERCADO')).toBe('SUPERMERCADO');
+    });
+
+    it('quita solo el sufijo final, no paréntesis en medio del texto', () => {
+        expect(limpiarSufijoCuota('CENA (con Juan) (1/2)')).toBe('CENA (con Juan)');
+    });
+
+    it('retorna string vacío para null/undefined', () => {
+        expect(limpiarSufijoCuota(null)).toBe('');
+        expect(limpiarSufijoCuota(undefined)).toBe('');
+    });
+
+    it('maneja números de más de un dígito', () => {
+        expect(limpiarSufijoCuota('NOTEBOOK (12/18)')).toBe('NOTEBOOK');
+    });
+});
 
 // ─────────────────────────────────────────────
 // Factories de datos de prueba

@@ -6,6 +6,7 @@ import {
     filtrarPrestamos,
     transformarGrupoCuotas,
     transformarGrupoCuotasFuturas,
+    limpiarSufijoCuota,
 } from './cuotasGroupHelper';
 
 /**
@@ -1824,7 +1825,7 @@ export const obtenerCuotasGrupal = async (grupoId) => {
     return Array.from(grupos.values()).map(cuotasList => {
         const primera = cuotasList[0];
         // Quitar el sufijo "(1/N)" para mostrar la descripción base
-        const descripcionBase = primera.descripcion.replace(/\s*\(\d+\/\d+\)$/, '');
+        const descripcionBase = limpiarSufijoCuota(primera.descripcion);
         const totalOriginal = cuotasList.reduce((sum, c) => sum + Number(c.monto), 0);
         const pagadas  = cuotasList.filter(c => c.fecha <= hoy).length;
         const pendientes = cuotasList.filter(c => c.fecha > hoy).length;

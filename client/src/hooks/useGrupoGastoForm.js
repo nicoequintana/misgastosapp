@@ -3,6 +3,7 @@ import { AuthContext } from '../context/AuthContext';
 import * as db from '../lib/db';
 import { fechaHoyArgentina, formatCurrency } from '../utils/format';
 import { calcularDivisionIgualitaria } from '../lib/cuotasHelper';
+import { limpiarSufijoCuota } from '../lib/cuotasGroupHelper';
 
 export const OPCIONES_CUOTAS = Array.from({ length: 18 }, (_, i) => i + 1);
 
@@ -67,9 +68,8 @@ export const useGrupoGastoForm = ({ grupoId, gastoId, modo }) => {
                 // Poblar formulario con los datos del gasto. Si es una cuota, la
                 // descripción guardada trae el sufijo "(N/total)" (ej. "VIAJE (1/3)")
                 // — se limpia para no mostrárselo al usuario ni reenviarlo duplicado
-                // al guardar (mismo regex que obtenerCuotasGrupal en db.js).
-                const descripcionSinSufijo = (gastoExistente.descripcion || '').replace(/\s*\(\d+\/\d+\)$/, '');
-                setDescripcion(descripcionSinSufijo);
+                // al guardar.
+                setDescripcion(limpiarSufijoCuota(gastoExistente.descripcion));
                 setFecha(gastoExistente.fecha ? gastoExistente.fecha.split('T')[0] : fechaHoyArgentina());
                 setCategoriaId(gastoExistente.id_categoria ? String(gastoExistente.id_categoria) : '');
                 setPagadoPor(gastoExistente.pagado_por || '');

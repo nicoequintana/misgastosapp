@@ -11,6 +11,11 @@ const router = express.Router();
 // ─────────────────────────────────────────────
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Fecha de hoy en zona horaria Argentina (UTC-3), formato YYYY-MM-DD.
+// El literal 'America/Argentina/Buenos_Aires' estaba repetido 3 veces en este
+// archivo (R5 — mejoras.md).
+const fechaHoyArgentina = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+
 router.param('grupoId', (req, res, next, value) => {
     const n = parseInt(value, 10);
     if (!Number.isFinite(n) || n <= 0) {
@@ -861,7 +866,7 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
                 descripcion:    descripcion.trim().toUpperCase(),
                 monto:          montoNum,
                 pagado_por:     pagadoPor,
-                fecha:          `${fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })}T12:00:00-03:00`,
+                fecha:          `${fecha || fechaHoyArgentina()}T12:00:00-03:00`,
                 nota:           nota?.trim() || null,
                 id_categoria:   idCategoria || null,
                 id_metodo_pago: idMetodoPago,
@@ -1084,7 +1089,7 @@ router.patch('/:grupoId/gastos/:gastoId/anular-cuotas', requireAuth, async (req,
             .eq('grupo_id', grupoId);
 
         const cuotas = todasLasCuotas || [];
-        const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+        const hoy = fechaHoyArgentina();
         const tieneVencidas = cuotas.some(c => c.estado === 'activo' && (c.fecha || '').split('T')[0] <= hoy);
 
         // Si hay cuotas vencidas, requerir force explícito
@@ -1167,7 +1172,7 @@ router.post('/:grupoId/liquidaciones', requireAuth, async (req, res) => {
                 de_user_id:    deUserId,
                 para_user_id:  paraUserId,
                 monto:         montoNum,
-                fecha:         fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }),
+                fecha:         fecha || fechaHoyArgentina(),
                 nota:          nota?.trim() || null,
                 estado:        'confirmada',
                 registrado_por: user.id,
