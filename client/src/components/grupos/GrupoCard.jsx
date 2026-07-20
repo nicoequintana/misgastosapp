@@ -40,7 +40,7 @@ const GrupoCard = ({ grupo, saldoNeto, cantidadMiembros, onClick }) => {
 
     return (
         <div
-            className={`glass-card grupo-card ${grupo.archivado ? 'grupo-card--archivado' : ''}`}
+            className={`glass-card glass-card--interactive grupo-card ${grupo.archivado ? 'grupo-card--archivado' : ''}`}
             onClick={() => onClick && onClick(grupo.id)}
             role="button"
             tabIndex={0}
