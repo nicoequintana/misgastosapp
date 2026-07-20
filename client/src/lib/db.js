@@ -680,35 +680,6 @@ export const createPaymentMethod = async ({ nombre, icono = 'payments', acepta_c
 };
 
 /**
- * Actualiza un método de pago propio del usuario autenticado.
- * Las RLS impiden actualizar métodos globales o de otros usuarios.
- *
- * @param {number} id
- * @param {Object} cambios - { nombre?, icono?, acepta_cuotas? }
- */
-export const updatePaymentMethod = async (id, cambios) => {
-    const usuario = await obtenerUsuarioActivo();
-
-    const { data, error } = await supabase
-        .from('metodos_pago')
-        .update({
-            ...(cambios.nombre !== undefined ? { nombre: cambios.nombre.trim().toUpperCase() } : {}),
-            ...(cambios.icono !== undefined ? { icono: cambios.icono } : {}),
-            ...(cambios.acepta_cuotas !== undefined ? { acepta_cuotas: Boolean(cambios.acepta_cuotas) } : {}),
-        })
-        .eq('id', id)
-        .eq('user_id', usuario.id)
-        .select()
-        .single();
-
-    if (error) {
-        console.error('❌ Error en updatePaymentMethod:', error);
-        throw error;
-    }
-    return data;
-};
-
-/**
  * Elimina un método de pago propio del usuario autenticado.
  * Solo se pueden eliminar métodos propios (user_id = auth.uid()).
  *
@@ -1098,50 +1069,6 @@ export const getProjectedIncomeByMonth = async (year, month) => {
         totalReal,
         // Total combinado: real + lo que falta de la proyección (no duplica lo ya cobrado)
         totalCombinado: totalReal + Math.max(0, totalProyectado - totalReal),
-    };
-};
-
-/**
- * Compara ingresos y gastos variables entre el mes actual y el anterior.
- *
- * @param {number} year
- * @param {number} month - Mes actual (1-indexado)
- * @returns {{ ingresoActual, ingresoAnterior, variacionIngreso, variacionIngresoPct,
- *             gastosVarActual, gastosVarAnterior, variacionGastos, variacionGastosPct }}
- */
-export const getMonthlyComparison = async (year, month) => {
-    const mesAntNum  = month === 1 ? 12 : month - 1;
-    const anioAnt    = month === 1 ? year - 1 : year;
-
-    const [ingresoActual, ingresoAnterior, statsActual, statsAnterior] = await Promise.all([
-        getIncomeTotalByMonth(year, month),
-        getIncomeTotalByMonth(anioAnt, mesAntNum),
-        getStatsByMonth(year, month),
-        getStatsByMonth(anioAnt, mesAntNum),
-    ]);
-
-    const gastosVarActual   = statsActual.gastosVariables   ?? 0;
-    const gastosVarAnterior = statsAnterior.gastosVariables ?? 0;
-
-    const variacionIngreso    = ingresoActual - ingresoAnterior;
-    const variacionIngresoPct = ingresoAnterior > 0
-        ? ((variacionIngreso / ingresoAnterior) * 100)
-        : null;
-
-    const variacionGastos    = gastosVarActual - gastosVarAnterior;
-    const variacionGastosPct = gastosVarAnterior > 0
-        ? ((variacionGastos / gastosVarAnterior) * 100)
-        : null;
-
-    return {
-        ingresoActual,
-        ingresoAnterior,
-        variacionIngreso,
-        variacionIngresoPct,
-        gastosVarActual,
-        gastosVarAnterior,
-        variacionGastos,
-        variacionGastosPct,
     };
 };
 
@@ -1558,55 +1485,6 @@ export const crearGrupo = async ({ nombre, descripcion, moneda = 'ARS' }) => {
 };
 
 /**
- * Actualiza los datos editables de un grupo (nombre y/o descripción).
- * Solo el admin del grupo puede hacer esta operación (RLS lo valida).
- *
- * @param {number} grupoId - ID del grupo
- * @param {Object} cambios - Campos a actualizar: { nombre?, descripcion? }
- * @returns {Object} El grupo actualizado
- */
-export const actualizarGrupo = async (grupoId, cambios) => {
-    if (!grupoId) throw new Error('ID de grupo inválido');
-
-    const actualizacion = {};
-    if (cambios.nombre !== undefined) {
-        if (!cambios.nombre.trim()) throw new Error('El nombre no puede estar vacío');
-        actualizacion.nombre = cambios.nombre.trim();
-    }
-    if (cambios.descripcion !== undefined) {
-        actualizacion.descripcion = cambios.descripcion?.trim() || null;
-    }
-
-    const { data, error } = await supabase
-        .from('grupos_gastos')
-        .update(actualizacion)
-        .eq('id', grupoId)
-        .select()
-        .single();
-
-    if (error) throw new Error(error.message);
-    return data;
-};
-
-/**
- * Archiva un grupo (soft delete: archivado=true).
- * El grupo ya no aparece en la lista activa pero se preservan los datos.
- * Solo el admin puede archivar (RLS lo valida).
- *
- * @param {number} grupoId - ID del grupo
- */
-export const archivarGrupo = async (grupoId) => {
-    if (!grupoId) throw new Error('ID de grupo inválido');
-
-    const { error } = await supabase
-        .from('grupos_gastos')
-        .update({ archivado: true })
-        .eq('id', grupoId);
-
-    if (error) throw new Error(error.message);
-};
-
-/**
  * Obtiene todos los grupos donde el usuario autenticado es miembro activo.
  * Hace JOIN con grupo_miembros para respetar la política de membresía.
  *
@@ -1716,28 +1594,6 @@ export const obtenerMiembrosDelGrupo = async (grupoId) => {
 };
 
 /**
- * Cambia el rol de un miembro dentro del grupo.
- * Solo el admin puede hacer esta operación (RLS lo valida).
- *
- * @param {number} grupoId - ID del grupo
- * @param {string} userId - UUID del miembro a modificar
- * @param {string} rol - Nuevo rol: 'admin' | 'miembro'
- */
-export const cambiarRolMiembro = async (grupoId, userId, rol) => {
-    if (!grupoId || !userId) throw new Error('grupoId y userId son requeridos');
-    if (!['admin', 'miembro'].includes(rol)) throw new Error('Rol inválido. Use "admin" o "miembro"');
-
-    const { error } = await supabase
-        .from('grupo_miembros')
-        .update({ rol })
-        .eq('grupo_id', grupoId)
-        .eq('user_id', userId)
-        .eq('estado', 'activo');
-
-    if (error) throw new Error(error.message);
-};
-
-/**
  * Remueve un miembro del grupo (soft delete: estado='removido').
  * Solo el admin puede remover miembros (RLS lo valida).
  *
@@ -1755,17 +1611,6 @@ export const removerMiembro = async (grupoId, userId) => {
         .eq('estado', 'activo');
 
     if (error) throw new Error(error.message);
-};
-
-/**
- * El usuario autenticado sale del grupo voluntariamente (auto-baja).
- * Usa el mismo mecanismo que removerMiembro pero con auth.uid() como target.
- *
- * @param {number} grupoId - ID del grupo del que se sale
- */
-export const salirDelGrupo = async (grupoId) => {
-    const usuario = await obtenerUsuarioActivo();
-    await removerMiembro(grupoId, usuario.id);
 };
 
 // --- 2.3 Invitaciones (lectura/cancelación via Supabase; creación/aceptación via backend) ---
@@ -1798,38 +1643,6 @@ export const obtenerInvitacionesPendientes = async (grupoId) => {
         .select('id, grupo_id, email_invitado, estado, fecha_expiracion, fecha_creacion')
         .eq('grupo_id', grupoId)
         .eq('estado', 'pendiente')
-        .order('fecha_creacion', { ascending: false });
-
-    if (error) throw new Error(error.message);
-    return data ?? [];
-};
-
-/**
- * Obtiene las invitaciones dirigidas al usuario autenticado (match por email del JWT).
- * La RLS valida que el email del JWT coincida con email_invitado.
- *
- * @returns {Array} Invitaciones pendientes para el usuario actual
- */
-export const obtenerInvitacionesParaMi = async () => {
-    const usuario = await obtenerUsuarioActivo();
-    const ahora = new Date().toISOString();
-
-    // Igual que en las invitaciones del grupo: vencidas pasan a expirada antes de leer.
-    const { error: errorExpirar } = await supabase
-        .from('grupo_invitaciones')
-        .update({ estado: 'expirada', fecha_resolucion: ahora })
-        .eq('estado', 'pendiente')
-        .eq('email_invitado', (usuario.email || '').toLowerCase())
-        .lt('fecha_expiracion', ahora);
-
-    if (errorExpirar) throw new Error(errorExpirar.message);
-
-    // No filtramos por email aquí: la RLS lo hace comparando email_invitado con auth.jwt()->>'email'
-    const { data, error } = await supabase
-        .from('grupo_invitaciones')
-        .select('id, grupo_id, email_invitado, estado, fecha_expiracion, fecha_creacion, invitado_por')
-        .eq('estado', 'pendiente')
-        .eq('email_invitado', (usuario.email || '').toLowerCase())
         .order('fecha_creacion', { ascending: false });
 
     if (error) throw new Error(error.message);
