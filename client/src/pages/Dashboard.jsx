@@ -1149,10 +1149,10 @@ const Dashboard = () => {
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', gap: '6px', marginLeft: '10px' }}>
-                                                <button type="button" onClick={() => handleEditarIngreso(ing)} className="btn btn-secondary" style={{ width: 'auto', flexShrink: 0, padding: '4px 8px' }} title="Editar">
-                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>edit</span>
+                                                <button type="button" onClick={() => handleEditarIngreso(ing)} className="btn btn-secondary" style={{ width: 'auto', minWidth: '44px', minHeight: '44px', flexShrink: 0, padding: '4px 8px' }} title="Editar" aria-label="Editar ingreso">
+                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }} aria-hidden="true">edit</span>
                                                 </button>
-                                                <button type="button" onClick={() => setIncomeConfirmDelete(ing.id)} className="btn btn-danger-gradient" style={{ width: 'auto', flexShrink: 0, padding: '4px 8px' }} title="Eliminar">
+                                                <button type="button" onClick={() => setIncomeConfirmDelete(ing.id)} className="btn btn-danger-gradient" style={{ width: 'auto', minWidth: '44px', minHeight: '44px', flexShrink: 0, padding: '4px 8px' }} title="Eliminar" aria-label="Eliminar ingreso">
                                                     <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
                                                 </button>
                                             </div>
@@ -1184,11 +1184,11 @@ const Dashboard = () => {
                                         <span>{rec.descripcion}</span>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                             <span style={{ color: 'var(--success)' }}>${Number(rec.monto).toLocaleString('es-AR')}/mes</span>
-                                            <button type="button" onClick={() => handleEditarRecurrente(rec)} className="btn btn-secondary" style={{ width: 'auto', flexShrink: 0, padding: '4px 8px' }} title="Editar recurrente">
-                                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>edit</span>
+                                            <button type="button" onClick={() => handleEditarRecurrente(rec)} className="btn btn-secondary" style={{ width: 'auto', minWidth: '44px', minHeight: '44px', flexShrink: 0, padding: '4px 8px' }} title="Editar recurrente" aria-label="Editar recurrente">
+                                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }} aria-hidden="true">edit</span>
                                             </button>
-                                            <button type="button" onClick={() => setIncomeConfirmDelete(`rec-${rec.id}`)} className="btn btn-danger-gradient" style={{ width: 'auto', flexShrink: 0, padding: '4px 8px' }} title="Eliminar recurrente">
-                                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
+                                            <button type="button" onClick={() => setIncomeConfirmDelete(`rec-${rec.id}`)} className="btn btn-danger-gradient" style={{ width: 'auto', minWidth: '44px', minHeight: '44px', flexShrink: 0, padding: '4px 8px' }} title="Eliminar recurrente" aria-label="Eliminar recurrente">
+                                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }} aria-hidden="true">delete</span>
                                             </button>
                                         </div>
                                     </div>
