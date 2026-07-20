@@ -24,6 +24,15 @@ import {
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
 
+// Tope de cuotas para gastos personales (tarjeta de crédito o préstamo).
+// Distinto del tope de gastos grupales (MAX_CUOTAS_GRUPAL) — son límites de
+// negocio independientes, no el mismo valor desincronizado.
+const MAX_CUOTAS_PERSONAL = 120;
+
+// Tope de cuotas para gastos grupales — coincide con OPCIONES_CUOTAS en
+// useGrupoGastoForm.js y con el clamp del RPC create_grupo_gasto_installments.
+const MAX_CUOTAS_GRUPAL = 18;
+
 /**
  * Obtiene el usuario autenticado actual.
  * Lanza un error descriptivo si no hay sesión activa.
@@ -110,6 +119,19 @@ const agruparPorCategoria = (gastos, conPorcentaje = false) => {
     return mapa;
 };
 
+/**
+ * Calcula los totales agregados (total/fijos/variables) de una lista de gastos.
+ * Mismo cálculo que repetían getStats, getReporteByRango y getStatsByMonth (R10).
+ * @param {Array} gastos
+ * @returns {{ totalGastos: number, gastosFijos: number, gastosVariables: number }}
+ */
+export const calcularAgregadosGastos = (gastos) => {
+    const totalGastos = gastos.reduce((s, g) => s + parseFloat(g.monto || 0), 0);
+    const gastosFijos = gastos.filter(g => g.es_fijo).reduce((s, g) => s + parseFloat(g.monto || 0), 0);
+    const gastosVariables = totalGastos - gastosFijos;
+    return { totalGastos, gastosFijos, gastosVariables };
+};
+
 // ==================== GASTOS ====================
 
 /**
@@ -168,7 +190,7 @@ export const createExpense = async (gasto) => {
     const esTarjetaCredito = gasto.esTarjetaCredito === true;
     const esPrestamo = gasto.esPrestamo === true;
     const esCuotas = esTarjetaCredito || esPrestamo;
-    const cuotas = esCuotas ? Math.max(1, Math.min(120, parseInt(gasto.cuotas) || 1)) : 1;
+    const cuotas = esCuotas ? Math.max(1, Math.min(MAX_CUOTAS_PERSONAL, parseInt(gasto.cuotas) || 1)) : 1;
     // La descripción es opcional: si el usuario no escribe nada, usamos un texto genérico.
     const descripcionBase = (typeof gasto.descripcion === 'string' && gasto.descripcion.trim())
         ? gasto.descripcion.trim().toUpperCase()
@@ -1146,9 +1168,7 @@ export const getStats = async () => {
         getIncomeTotalByMonth(year, month),
     ]);
 
-    const totalGastos     = gastos.reduce((suma, g) => suma + parseFloat(g.monto || 0), 0);
-    const gastosFijos     = gastos.filter(g => g.es_fijo).reduce((suma, g) => suma + parseFloat(g.monto || 0), 0);
-    const gastosVariables = totalGastos - gastosFijos;
+    const { totalGastos, gastosFijos, gastosVariables } = calcularAgregadosGastos(gastos);
     const saldoDisponible = ingresoMensual - totalGastos;
 
     return {
@@ -1219,9 +1239,7 @@ export const getReporteByRango = async (desde, hasta) => {
         ).then(total => ({ monto: total })),
     ]);
 
-    const totalGastos     = gastos.reduce((s, g) => s + parseFloat(g.monto || 0), 0);
-    const gastosFijos     = gastos.filter(g => g.es_fijo).reduce((s, g) => s + parseFloat(g.monto || 0), 0);
-    const gastosVariables = totalGastos - gastosFijos;
+    const { totalGastos, gastosFijos, gastosVariables } = calcularAgregadosGastos(gastos);
 
     // Desglose por categoría con porcentaje sobre el total
     const porCategoria = agruparPorCategoria(gastos, true);
@@ -1286,11 +1304,8 @@ export const getStatsByMonth = async (year, month) => {
     if (error) throw error;
 
     const gastos = data ?? [];
-
-    const totalGastos = gastos.reduce((s, g) => s + parseFloat(g.monto || 0), 0);
     const gastosFijosLista = gastos.filter(g => g.es_fijo);
-    const gastosFijos = gastosFijosLista.reduce((s, g) => s + parseFloat(g.monto || 0), 0);
-    const gastosVariables = totalGastos - gastosFijos;
+    const { totalGastos, gastosFijos, gastosVariables } = calcularAgregadosGastos(gastos);
 
     return { totalGastos, gastosFijos, gastosVariables, gastosFijosLista, porCategoria: agruparPorCategoria(gastos) };
 };
@@ -1754,7 +1769,7 @@ export const crearGastoGrupalEnCuotas = async ({
     if (!descripcion || !descripcion.trim()) throw new Error('La descripción es requerida');
     validarMonto(monto);
     const montoNum = Number(monto);
-    const cantCuotas = Math.max(1, Math.min(18, parseInt(cuotas) || 1));
+    const cantCuotas = Math.max(1, Math.min(MAX_CUOTAS_GRUPAL, parseInt(cuotas) || 1));
     if (!pagadoPor) throw new Error('El pagador es requerido');
     if (!primeraCuota) throw new Error('Indicá en qué mes vence la primera cuota');
     if (!idMetodoPago) throw new Error('El método de pago es requerido');

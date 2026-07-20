@@ -66,6 +66,10 @@ const ESTADO_INICIAL_STATS = {
 const OPCIONES_CUOTAS_TARJETA = Array.from({ length: 18 }, (_, i) => i + 1);
 const OPCIONES_CUOTAS_PRESTAMO = Array.from({ length: 120 }, (_, i) => i + 1);
 
+// Duración del bloqueo temporal de los botones "Siguiente/Atrás" del wizard al
+// cambiar de paso, para evitar doble-click accidental durante la animación.
+const DURACION_BLOQUEO_PASO_MS = 400;
+
 const Dashboard = () => {
     const [stats, setStats] = useState(ESTADO_INICIAL_STATS);
     const [cargando, setCargando] = useState(true);
@@ -354,14 +358,14 @@ const Dashboard = () => {
     // este último ocupa la misma posición del footer tras avanzar al último paso.
     useEffect(() => {
         setBotonesPasoBloqueados(true);
-        const timer = setTimeout(() => setBotonesPasoBloqueados(false), 400);
+        const timer = setTimeout(() => setBotonesPasoBloqueados(false), DURACION_BLOQUEO_PASO_MS);
         return () => clearTimeout(timer);
     }, [pasoGasto]);
 
     // Mismo mecanismo que el de arriba, aplicado al wizard de ingresos.
     useEffect(() => {
         setBotonesPasoIngresoBloqueados(true);
-        const timer = setTimeout(() => setBotonesPasoIngresoBloqueados(false), 400);
+        const timer = setTimeout(() => setBotonesPasoIngresoBloqueados(false), DURACION_BLOQUEO_PASO_MS);
         return () => clearTimeout(timer);
     }, [pasoIngreso]);
 

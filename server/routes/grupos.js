@@ -55,14 +55,20 @@ const nombreDesdeAuthUser = (authUser) => {
     return null;
 };
 
+// Límite de la búsqueda paginada de usuarios: PAGINAS_MAX * USUARIOS_POR_PAGINA
+// = 2000 usuarios explorados como máximo. Pasado ese límite, buscarUsuarioPorEmail
+// retorna null como si el usuario no existiera (ver AUTH-03/API-10 en mejoras.md).
+const USUARIOS_POR_PAGINA = 200;
+const PAGINAS_MAX = 10;
+
 const buscarUsuarioPorEmail = async (supabaseAdmin, email) => {
     const emailBuscado = (email || '').toLowerCase().trim();
     if (!emailBuscado) return null;
 
     let page = 1;
-    const perPage = 200;
+    const perPage = USUARIOS_POR_PAGINA;
 
-    while (page <= 10) {
+    while (page <= PAGINAS_MAX) {
         const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
         if (error) throw error;
 
