@@ -298,7 +298,7 @@
   --app-bg: radial-gradient(ellipse at 75% 5%, #1a1060 0%, #0d0a2e 35%, #060418 65%, #020210 100%);
   --app-bg-solid: #07051a;
   --text-main: #e0f2fe;
-  --text-muted: rgba(224, 242, 254, 0.5);
+  --text-muted: rgba(224, 242, 254, 0.68);
   --text-secondary: rgba(186, 230, 253, 0.65);
   --text-primary: #38bdf8;
   --glass-bg: rgba(56, 189, 248, 0.07);
@@ -328,7 +328,7 @@
   --app-bg: radial-gradient(ellipse at 80% 10%, #083d24 0%, #031a12 40%, #010a07 100%);
   --app-bg-solid: #020e0a;
   --text-main: #d1fae5;
-  --text-muted: rgba(209, 250, 229, 0.5);
+  --text-muted: rgba(209, 250, 229, 0.68);
   --text-secondary: rgba(167, 243, 208, 0.65);
   --text-primary: #34d399;
   --glass-bg: rgba(52, 211, 153, 0.07);
@@ -358,7 +358,7 @@
   --app-bg: radial-gradient(ellipse at 80% 10%, #3d0f1a 0%, #1a0509 40%, #080203 100%);
   --app-bg-solid: #0e0306;
   --text-main: #ffe4e6;
-  --text-muted: rgba(255, 228, 230, 0.5);
+  --text-muted: rgba(255, 228, 230, 0.68);
   --text-secondary: rgba(254, 205, 211, 0.65);
   --text-primary: #fb7185;
   --glass-bg: rgba(251, 113, 133, 0.07);
@@ -388,7 +388,7 @@
   --app-bg: radial-gradient(ellipse at 80% 10%, #261060 0%, #110630 40%, #05010f 100%);
   --app-bg-solid: #090220;
   --text-main: #ede9fe;
-  --text-muted: rgba(237, 233, 254, 0.5);
+  --text-muted: rgba(237, 233, 254, 0.68);
   --text-secondary: rgba(221, 214, 254, 0.65);
   --text-primary: #a78bfa;
   --glass-bg: rgba(167, 139, 250, 0.07);
@@ -418,7 +418,7 @@
   --app-bg: radial-gradient(ellipse at 80% 10%, #3a2300 0%, #1a0f00 40%, #080400 100%);
   --app-bg-solid: #0e0800;
   --text-main: #fef3c7;
-  --text-muted: rgba(254, 243, 199, 0.5);
+  --text-muted: rgba(254, 243, 199, 0.68);
   --text-secondary: rgba(253, 230, 138, 0.65);
   --text-primary: #fbbf24;
   --glass-bg: rgba(251, 191, 36, 0.07);
@@ -448,7 +448,7 @@
   --app-bg: radial-gradient(ellipse at 70% 10%, #1e1e1e 0%, #111111 40%, #080808 100%);
   --app-bg-solid: #0a0a0a;
   --text-main: #f1f5f9;
-  --text-muted: rgba(241, 245, 249, 0.45);
+  --text-muted: rgba(241, 245, 249, 0.68);
   --text-secondary: rgba(226, 232, 240, 0.6);
   --text-primary: #94a3b8;
   --glass-bg: rgba(255, 255, 255, 0.05);
@@ -565,7 +565,7 @@
   --app-bg: radial-gradient(ellipse at 70% 10%, #003300 0%, #010e01 40%, #000200 100%);
   --app-bg-solid: #000500;
   --text-main: #ccffcc;
-  --text-muted: rgba(100, 255, 100, 0.5);
+  --text-muted: rgba(100, 255, 100, 0.68);
   --text-secondary: rgba(134, 255, 134, 0.65);
   --text-primary: #39ff14;
   --glass-bg: rgba(57, 255, 20, 0.06);
@@ -595,7 +595,7 @@
   --app-bg: radial-gradient(ellipse at 80% 90%, #3d1000 0%, #1a0400 40%, #060100 100%);
   --app-bg-solid: #0d0200;
   --text-main: #ffe8cc;
-  --text-muted: rgba(255, 180, 100, 0.5);
+  --text-muted: rgba(255, 180, 100, 0.68);
   --text-secondary: rgba(255, 200, 150, 0.65);
   --text-primary: #ff6600;
   --glass-bg: rgba(255, 102, 0, 0.07);
@@ -625,7 +625,7 @@
   --app-bg: radial-gradient(ellipse at 70% 5%, #111440 0%, #06071a 40%, #010210 100%);
   --app-bg-solid: #020310;
   --text-main: #e0e7ff;
-  --text-muted: rgba(165, 180, 252, 0.55);
+  --text-muted: rgba(165, 180, 252, 0.68);
   --text-secondary: rgba(199, 210, 254, 0.65);
   --text-primary: #818cf8;
   --glass-bg: rgba(129, 140, 248, 0.07);
@@ -649,7 +649,7 @@
   --app-bg: radial-gradient(ellipse at top right, #1a2a3a 0%, #111820 50%, #0c1219 100%);
   --app-bg-solid: #101922;
   --text-main: #ffffff;
-  --text-muted: rgba(255, 255, 255, 0.4);
+  --text-muted: rgba(255, 255, 255, 0.68);
   --text-secondary: rgba(255, 255, 255, 0.55);
   --text-primary: #38bdf8;
   --glass-bg: rgba(255, 255, 255, 0.05);
@@ -3078,10 +3078,12 @@ body::after {
   gap: var(--space-5);
 }
 
+/* .form-label-box era un duplicado casi idéntico de .form-label (solo variaba
+   el font-size en 1px) — se unifica en un solo sistema de labels (R5/UX-10). */
 .form-label-box {
   display: block;
   margin-bottom: var(--space-2);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -5978,6 +5980,25 @@ body::after {
   gap: var(--space-6);
 }
 
+.grupos-page__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.grupos-page__breadcrumb a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.grupos-page__breadcrumb a:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
 .grupos-page__header {
   display: flex;
   align-items: center;
@@ -8182,4 +8203,17 @@ body::after {
   color: var(--text-secondary);
   margin: calc(var(--space-8) * -1 + var(--space-2)) 0 var(--space-2);
   animation: result-modal-fade-up 0.35s ease-out 0.1s both;
+}
+
+/* Respeta prefers-reduced-motion (WCAG 2.3.3): reduce toda animación/transición
+   a casi instantánea en vez de eliminarla del todo, para no perder feedback de
+   estado (spinners de carga, indicadores "no leído") en usuarios que solo
+   quieren evitar el movimiento decorativo (orbs de Welcome, pulse de ingresos, etc). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
