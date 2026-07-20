@@ -2,6 +2,10 @@
  * Tests para la validación/normalización de fecha del RPC create_expense_installments
  * (server/db/migrations/20260720_rpc_create_expense_installments.sql).
  *
+ * create_grupo_gasto_installments (migrations/20260721_*.sql) usa el mismo
+ * contrato de p_fecha_primera_cuota (TEXT, formato YYYY-MM, normalizado con
+ * to_date(...) dentro de la función) — estos tests cubren ambos RPCs.
+ *
  * El RPC vive en PL/pgSQL, no en JS — no se puede importar y ejecutar aquí. Estos
  * tests replican en JS el contrato de validación de p_fecha_primera_cuota para
  * documentar y trabar el bug real encontrado en producción: el parámetro se

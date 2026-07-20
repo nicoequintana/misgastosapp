@@ -1343,105 +1343,43 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
 
         const descripcionBase = descripcion.trim().toUpperCase();
 
-        // Calcular cuotas: la primera vence en el mes elegido por el usuario, cada cuota desplaza 1 mes.
-        // Se parsea el string directamente para evitar ambigüedades de timezone en el servidor.
-        const montoPorCuota = Math.floor((montoNum / cantCuotas) * 100) / 100;
-        const diferencia = Math.round((montoNum - montoPorCuota * cantCuotas) * 100) / 100;
-        const [anioInicio, mesInicio] = primeraCuota.slice(0, 7).split('-').map(Number);
-
-        const cuotasCalculadas = Array.from({ length: cantCuotas }, (_, i) => {
-            const mesTotal  = mesInicio - 1 + i; // 0-indexed acumulado
-            const anio      = anioInicio + Math.floor(mesTotal / 12);
-            const mes       = (mesTotal % 12) + 1;
-            const fechaStr  = `${anio}-${String(mes).padStart(2, '0')}-01`;
-            return {
-                numero:      i + 1,
-                monto:       i === 0 ? Math.round((montoPorCuota + diferencia) * 100) / 100 : montoPorCuota,
-                fecha:       `${fechaStr}T12:00:00-03:00`,
-                descripcion: `${descripcionBase} (${i + 1}/${cantCuotas})`,
-            };
+        // Todas las cuotas y sus participantes se insertan en una sola transacción
+        // de Postgres (RPC create_grupo_gasto_installments — ver
+        // server/db/migrations/20260721_*.sql). Antes esto eran 3 pasos separados
+        // (insert cuota 1 -> insert cuotas 2..N -> insert participantes) con
+        // rollback manual vía UPDATE estado='anulado': si el proceso perdía
+        // conexión a mitad de camino, quedaban cuotas grupales huérfanas o con
+        // participantes parciales. El RPC garantiza todo-o-nada.
+        const { data: todosLosGastos, error: errRpc } = await supabaseAdmin.rpc('create_grupo_gasto_installments', {
+            p_grupo_id: Number(grupoId),
+            p_descripcion: descripcionBase,
+            p_monto_total: montoNum,
+            p_cuotas: cantCuotas,
+            p_fecha_primera_cuota: primeraCuota,
+            p_pagado_por: pagadoPor,
+            p_creado_por: user.id,
+            p_participantes: participantesUnicos,
+            p_id_categoria: idCategoria || null,
+            p_id_metodo_pago: idMetodoPago,
+            p_nota: nota?.trim() || null,
         });
 
-        // Insertar primera cuota para obtener el id que será el padre de todas
-        const { data: primera, error: errPrimera } = await supabaseAdmin
-            .from('grupo_gastos')
-            .insert([{
-                grupo_id:       Number(grupoId),
-                descripcion:    cuotasCalculadas[0].descripcion,
-                monto:          cuotasCalculadas[0].monto,
-                pagado_por:     pagadoPor,
-                fecha:          cuotasCalculadas[0].fecha,
-                nota:           nota?.trim() || null,
-                id_categoria:   idCategoria || null,
-                creado_por:     user.id,
-                cuotas:         cantCuotas,
-                numero_cuota:   1,
-                id_gasto_padre: null, // se actualiza a continuación
-                id_metodo_pago: idMetodoPago,
-            }])
-            .select()
-            .single();
-
-        if (errPrimera) {
-            console.error('❌ Error al insertar primera cuota grupal:', errPrimera.message);
+        if (errRpc) {
+            console.error('❌ Error en create_grupo_gasto_installments:', errRpc.message);
+            return res.status(500).json({ ok: false, error: 'Error al crear el gasto en cuotas' });
+        }
+        if (!todosLosGastos?.length) {
             return res.status(500).json({ ok: false, error: 'Error al crear el gasto en cuotas' });
         }
 
-        // Vincular la primera cuota a sí misma como padre
-        await supabaseAdmin.from('grupo_gastos')
-            .update({ id_gasto_padre: primera.id })
-            .eq('id', primera.id);
-
-        // Insertar cuotas 2..N apuntando a la primera como padre
-        let gastosRestantes = [];
-        if (cantCuotas > 1) {
-            const filasRestantes = cuotasCalculadas.slice(1).map(c => ({
-                grupo_id:       Number(grupoId),
-                descripcion:    c.descripcion,
-                monto:          c.monto,
-                pagado_por:     pagadoPor,
-                fecha:          c.fecha,
-                nota:           nota?.trim() || null,
-                id_categoria:   idCategoria || null,
-                creado_por:     user.id,
-                cuotas:         cantCuotas,
-                numero_cuota:   c.numero,
-                id_gasto_padre: primera.id,
-                id_metodo_pago: idMetodoPago,
-            }));
-
-            const { data: resto, error: errResto } = await supabaseAdmin
-                .from('grupo_gastos').insert(filasRestantes).select();
-
-            if (errResto) {
-                // Rollback: anular la primera cuota huérfana
-                await supabaseAdmin.from('grupo_gastos')
-                    .update({ estado: 'anulado', anulado_en: new Date().toISOString(), anulado_por: user.id })
-                    .eq('id', primera.id);
-                console.error('❌ Error al insertar cuotas restantes:', errResto.message);
-                return res.status(500).json({ ok: false, error: 'Error al crear las cuotas' });
-            }
-            gastosRestantes = resto || [];
-        }
-
-        const todosLosGastos = [{ ...primera, id_gasto_padre: primera.id }, ...gastosRestantes];
-
-        // Registrar participantes para cada cuota
-        // El monto asignado a cada participante se calcula sobre el monto de esa cuota específica
-        const filasParticipantes = todosLosGastos.flatMap(g =>
-            calcularParticipantes(g.id, g.monto, pagadoPor, participantesUnicos)
-        );
-
+        const primera = todosLosGastos[0];
+        const idsGastos = todosLosGastos.map(g => g.id);
         const { data: participantes, error: errPart } = await supabaseAdmin
-            .from('grupo_gasto_participantes').insert(filasParticipantes).select();
+            .from('grupo_gasto_participantes').select().in('gasto_id', idsGastos);
 
         if (errPart) {
-            // Rollback: anular todas las cuotas creadas
-            await supabaseAdmin.from('grupo_gastos')
-                .update({ estado: 'anulado', anulado_en: new Date().toISOString(), anulado_por: user.id })
-                .eq('id_gasto_padre', primera.id);
-            console.error('❌ Error al insertar participantes de cuotas:', errPart.message);
-            return res.status(500).json({ ok: false, error: 'Error al registrar participantes' });
+            console.error('❌ Error al leer participantes de cuotas recién creadas:', errPart.message);
+            return res.status(500).json({ ok: false, error: 'Error al leer participantes del gasto' });
         }
 
         // Notificar miembros del grupo (sin bloquear respuesta)
@@ -1460,7 +1398,7 @@ router.post('/:grupoId/gastos-cuotas', requireAuth, async (req, res) => {
 
         return res.status(201).json({
             ok:           true,
-            gasto:        { ...primera, id_gasto_padre: primera.id },
+            gasto:        primera,
             gastos:       todosLosGastos,
             participantes,
         });
