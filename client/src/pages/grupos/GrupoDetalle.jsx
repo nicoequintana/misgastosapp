@@ -9,7 +9,7 @@ import InvitarMiembroModal from '../../components/grupos/InvitarMiembroModal';
 import ConfirmModal from '../../components/ConfirmModal';
 import { useAuth } from '../../context/AuthContext';
 import * as db from '../../lib/db';
-import { formatDate } from '../../utils/format';
+import { formatDate, formatCurrency } from '../../utils/format';
 
 // Definición de los tabs disponibles en el detalle del grupo
 const TABS = [
@@ -205,7 +205,7 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
             const saldoNeto = Number(saldoMiembro?.saldo_neto || 0);
             if (Math.abs(saldoNeto) > 0.009) {
                 setErrorEliminarMiembro(
-                    `${miembroAEliminar.alias || miembroAEliminar.nombre || 'El miembro'} tiene un saldo pendiente de $${saldoNeto.toFixed(2)}. Liquidá la deuda antes de eliminarlo.`
+                    `${miembroAEliminar.alias || miembroAEliminar.nombre || 'El miembro'} tiene un saldo pendiente de $${formatCurrency(saldoNeto)}. Liquidá la deuda antes de eliminarlo.`
                 );
                 setMiembroAEliminar(null);
                 return;

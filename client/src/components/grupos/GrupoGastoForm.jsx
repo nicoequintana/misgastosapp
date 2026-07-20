@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import CurrencyInput from '../CurrencyInput';
 import ChipSelector from '../ChipSelector';
 import MiembrosSelector from '../grupos/MiembrosSelector';
@@ -112,6 +113,13 @@ const GrupoGastoForm = ({
 
     return (
         <div className="grupos-page">
+            {/* Breadcrumb: da contexto de dónde está el usuario dentro del módulo de grupos */}
+            <nav className="grupos-page__breadcrumb" aria-label="Ubicación">
+                <Link to="/grupos">Grupos</Link>
+                <span aria-hidden="true"> / </span>
+                <span>{titulo}</span>
+            </nav>
+
             {/* Encabezado */}
             <div className="grupos-page__header">
                 <button className="btn btn-ghost" onClick={onCancelar}>
