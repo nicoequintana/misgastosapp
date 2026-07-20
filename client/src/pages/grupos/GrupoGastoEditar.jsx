@@ -15,7 +15,7 @@ const GrupoGastoEditar = () => {
     const navigate = useNavigate();
 
     const form = useGrupoGastoForm({ grupoId, gastoId, modo: 'editar' });
-    const { esTarjeta, primeraCuota } = form;
+    const { esTarjeta, primeraCuota, cuotas } = form;
 
     const volverAlDetalle = () => navigate(`/grupos/${grupoId}`, { state: { tab: 'gastos' } });
 
@@ -24,6 +24,7 @@ const GrupoGastoEditar = () => {
             grupoId,
             descripcion: form.descripcion,
             monto: form.monto,
+            cuotas: esTarjeta ? cuotas : undefined,
             pagadoPor: form.pagadoPor,
             fecha: form.fecha,
             primeraCuota: esTarjeta ? primeraCuota : undefined,

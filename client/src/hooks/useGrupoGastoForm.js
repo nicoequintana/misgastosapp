@@ -64,9 +64,12 @@ export const useGrupoGastoForm = ({ grupoId, gastoId, modo }) => {
             setMetodosPago(datosMetodos || []);
 
             if (modo === 'editar' && gastoExistente) {
-                // Poblar formulario con los datos del gasto
-                setDescripcion(gastoExistente.descripcion || '');
-                setMonto(Number(gastoExistente.monto) || 0);
+                // Poblar formulario con los datos del gasto. Si es una cuota, la
+                // descripción guardada trae el sufijo "(N/total)" (ej. "VIAJE (1/3)")
+                // — se limpia para no mostrárselo al usuario ni reenviarlo duplicado
+                // al guardar (mismo regex que obtenerCuotasGrupal en db.js).
+                const descripcionSinSufijo = (gastoExistente.descripcion || '').replace(/\s*\(\d+\/\d+\)$/, '');
+                setDescripcion(descripcionSinSufijo);
                 setFecha(gastoExistente.fecha ? gastoExistente.fecha.split('T')[0] : fechaHoyArgentina());
                 setCategoriaId(gastoExistente.id_categoria ? String(gastoExistente.id_categoria) : '');
                 setPagadoPor(gastoExistente.pagado_por || '');
@@ -81,10 +84,21 @@ export const useGrupoGastoForm = ({ grupoId, gastoId, modo }) => {
                 );
                 setEsTarjeta(metodoExistente?.acepta_cuotas === true);
 
-                // Si es compra en cuotas, cargar el mes de la primera cuota (YYYY-MM)
+                // Si es compra en cuotas: gastoExistente.monto es el monto de ESTA cuota
+                // puntual (cada fila de grupo_gastos guarda su propia porción), no el
+                // total de la compra. Para editar, el usuario debe ver/cambiar el total
+                // original y la cantidad real de cuotas — se obtienen sumando todas las
+                // cuotas hermanas (mismo id_gasto_padre).
                 const esCuotasGasto = (gastoExistente.cuotas || 1) > 1;
                 if (esCuotasGasto && gastoExistente.fecha) {
+                    const idPadre = gastoExistente.id_gasto_padre || gastoExistente.id;
+                    const cuotasHermanas = await db.obtenerCuotasDeCompra(idPadre);
+                    const totalOriginal = cuotasHermanas.reduce((s, c) => s + Number(c.monto), 0);
+                    setMonto(Math.round(totalOriginal * 100) / 100);
+                    setCuotas(gastoExistente.cuotas);
                     setPrimeraCuota(gastoExistente.fecha.slice(0, 7));
+                } else {
+                    setMonto(Number(gastoExistente.monto) || 0);
                 }
             } else {
                 // Por defecto, el pagador es el usuario actual

@@ -1844,6 +1844,29 @@ export const obtenerCuotasGrupal = async (grupoId) => {
 };
 
 /**
+ * Obtiene todas las cuotas activas de una compra grupal (todas las filas que
+ * comparten el mismo id_gasto_padre). Usado para editar: el monto de cada fila
+ * es la porción de esa cuota puntual, así que el total de la compra se calcula
+ * sumando todas.
+ *
+ * @param {number} idGastoPadre - ID de la primera cuota (autoreferenciada como padre)
+ * @returns {Array} Cuotas de la compra ordenadas por numero_cuota
+ */
+export const obtenerCuotasDeCompra = async (idGastoPadre) => {
+    if (!idGastoPadre) throw new Error('ID de gasto inválido');
+
+    const { data, error } = await supabase
+        .from('grupo_gastos')
+        .select('id, monto, numero_cuota')
+        .eq('id_gasto_padre', idGastoPadre)
+        .eq('estado', 'activo')
+        .order('numero_cuota', { ascending: true });
+
+    if (error) throw new Error(error.message);
+    return data ?? [];
+};
+
+/**
  * Obtiene los gastos activos de un grupo con paginación.
  *
  * @param {number} grupoId - ID del grupo
@@ -1957,10 +1980,11 @@ export const anularCuotasGrupales = async (gastoId, grupoId, force = false) => {
  * Solo el creador o admin puede editar (RLS lo valida).
  *
  * @param {string} gastoId - ID del gasto a editar
- * @param {Object} campos - Campos a actualizar: descripcion, monto, pagadoPor, fecha, idCategoria, nota, participantesUserIds
+ * @param {Object} campos - Campos a actualizar: descripcion, monto (total de la
+ *   compra si tiene cuotas), cuotas, pagadoPor, fecha, idCategoria, nota, participantesUserIds
  * @returns {Object} El gasto actualizado con los nuevos participantes
  */
-export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, monto, pagadoPor, fecha, primeraCuota, idCategoria, idMetodoPago, nota, participantesUserIds }) => {
+export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, monto, cuotas, pagadoPor, fecha, primeraCuota, idCategoria, idMetodoPago, nota, participantesUserIds }) => {
     if (!gastoId) throw new Error('ID de gasto inválido');
     if (!grupoId) throw new Error('ID de grupo inválido');
     if (!participantesUserIds?.length) throw new Error('Se requiere al menos un participante');
@@ -1973,7 +1997,7 @@ export const actualizarGastoGrupal = async (gastoId, { grupoId, descripcion, mon
     const res = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}/gastos/${gastoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ descripcion, monto: montoNum, pagadoPor, fecha, primeraCuota, idCategoria, idMetodoPago, nota, participantesUserIds }),
+        body: JSON.stringify({ descripcion, monto: montoNum, cuotas, pagadoPor, fecha, primeraCuota, idCategoria, idMetodoPago, nota, participantesUserIds }),
     });
 
     const json = await res.json();

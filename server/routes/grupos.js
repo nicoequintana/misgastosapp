@@ -915,7 +915,7 @@ router.post('/:grupoId/gastos', requireAuth, async (req, res) => {
 router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
     const { grupoId, gastoId } = req.params;
     const { supabaseAdmin, user } = req;
-    const { descripcion, monto, pagadoPor, fecha, primeraCuota, nota, idCategoria, idMetodoPago, participantesUserIds } = req.body;
+    const { descripcion, monto, cuotas, pagadoPor, fecha, primeraCuota, nota, idCategoria, idMetodoPago, participantesUserIds } = req.body;
 
     if (!Array.isArray(participantesUserIds) || participantesUserIds.length < 1) {
         return res.status(400).json({ ok: false, error: 'Se requiere al menos un participante' });
@@ -940,82 +940,40 @@ router.put('/:grupoId/gastos/:gastoId', requireAuth, async (req, res) => {
         });
         if (errValidacion) return res.status(errValidacion.status).json({ ok: false, error: errValidacion.mensaje });
 
-        const { data: gasto, error: errUpdate } = await supabaseAdmin
-            .from('grupo_gastos')
-            .update({
-                descripcion:    descripcion.trim().toUpperCase(),
-                monto:          montoNum,
-                pagado_por:     pagadoPor,
-                fecha:          `${fecha || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })}T12:00:00-03:00`,
-                nota:           nota?.trim() || null,
-                id_categoria:   idCategoria || null,
-                id_metodo_pago: idMetodoPago,
+        // Update del gasto + recálculo de fechas de cuotas hermanas + reemplazo de
+        // participantes, todo en una sola transacción de Postgres (RPC
+        // update_grupo_gasto_installments — ver server/db/migrations/20260722_*.sql).
+        // Antes eran 5 pasos no-transaccionales encadenados: si alguno fallaba a
+        // mitad de camino, las cuotas quedaban con fechas desincronizadas entre sí,
+        // o el gasto quedaba sin participantes.
+        const { data: gasto, error: errRpc } = await supabaseAdmin
+            .rpc('update_grupo_gasto_installments', {
+                p_gasto_id: Number(gastoId),
+                p_descripcion: descripcion.trim().toUpperCase(),
+                p_monto: montoNum,
+                p_pagado_por: pagadoPor,
+                p_fecha: fecha || null,
+                p_participantes: participantesUnicos,
+                p_id_categoria: idCategoria || null,
+                p_id_metodo_pago: idMetodoPago,
+                p_nota: nota?.trim() || null,
+                p_primera_cuota: primeraCuota || null,
+                p_cuotas: cuotas ? Math.max(1, Math.min(18, parseInt(cuotas, 10))) : null,
             })
-            .eq('id', gastoId)
-            .eq('estado', 'activo')
-            .select()
-            .maybeSingle();
+            .single();
 
-        if (errUpdate) {
-            console.error('❌ Error al actualizar gasto (PUT /gastos):', errUpdate.message);
+        if (errRpc) {
+            console.error('❌ Error en update_grupo_gasto_installments:', errRpc.message);
             return res.status(500).json({ ok: false, error: 'Error al actualizar el gasto' });
         }
         if (!gasto) return res.status(404).json({ ok: false, error: 'El gasto no existe o ya fue anulado' });
 
-        // Si la compra tiene cuotas (primeraCuota informada), recalcular las fechas de todas.
-        // La cuota 1 queda en el mes elegido por el usuario; cada cuota N desplaza (N-1) meses.
-        if (gasto.cuotas > 1 && primeraCuota) {
-            // Parseo directo del string para evitar ambigüedades de timezone en el servidor.
-            const [anioCuota1, mesCuota1Num] = primeraCuota.slice(0, 7).split('-').map(Number);
-            const mesCuota1 = mesCuota1Num - 1; // 0-indexed para los cálculos de offset
-
-            // Actualizar la cuota 1 (la editada) con la fecha del mes elegido
-            const fechaCuota1 = `${primeraCuota.slice(0, 7)}-01T12:00:00-03:00`;
-            await supabaseAdmin
-                .from('grupo_gastos')
-                .update({ fecha: fechaCuota1 })
-                .eq('id', gastoId)
-                .eq('estado', 'activo');
-
-            // Actualizar cuotas hijas (2..N)
-            const { data: cuotasHijas } = await supabaseAdmin
-                .from('grupo_gastos')
-                .select('id, numero_cuota')
-                .eq('id_gasto_padre', gastoId)
-                .eq('estado', 'activo');
-
-            if (cuotasHijas && cuotasHijas.length > 0) {
-                const actualizaciones = cuotasHijas.map(c => {
-                    const mesOffset = c.numero_cuota - 1;
-                    const anio = anioCuota1 + Math.floor((mesCuota1 + mesOffset) / 12);
-                    const mes  = (mesCuota1 + mesOffset) % 12;
-                    const fechaCuota = `${anio}-${String(mes + 1).padStart(2, '0')}-01T12:00:00-03:00`;
-                    return supabaseAdmin
-                        .from('grupo_gastos')
-                        .update({ fecha: fechaCuota })
-                        .eq('id', c.id)
-                        .eq('estado', 'activo');
-                });
-                await Promise.all(actualizaciones);
-            }
-        }
-
-        const { error: errDel } = await supabaseAdmin
-            .from('grupo_gasto_participantes').delete().eq('gasto_id', gastoId);
-        if (errDel) {
-            console.error('❌ Error al limpiar participantes (PUT /gastos):', errDel.message);
-            return res.status(500).json({ ok: false, error: 'Error al limpiar participantes' });
-        }
-
-        const filas = calcularParticipantes(gasto.id, montoNum, pagadoPor, participantesUnicos);
         const { data: participantes, error: errPart } = await supabaseAdmin
-            .from('grupo_gasto_participantes').insert(filas).select();
+            .from('grupo_gasto_participantes').select().eq('gasto_id', gasto.id);
 
         if (errPart) {
-            await supabaseAdmin.from('grupo_gastos')
-                .update({ estado: 'anulado' }).eq('id', gastoId);
-            console.error('❌ Error al insertar participantes (PUT /gastos):', errPart.message);
-            return res.status(500).json({ ok: false, error: 'Error al registrar participantes' });
+            console.error('❌ Error al leer participantes tras editar:', errPart.message);
+            return res.status(500).json({ ok: false, error: 'Error al leer participantes del gasto' });
         }
 
         const [{ data: grupo }, { data: authData }] = await Promise.all([
