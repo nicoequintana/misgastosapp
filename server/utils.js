@@ -31,7 +31,36 @@ const generateFingerprint = (data) => {
     return crypto.createHash('sha256').update(raw).digest('hex');
 };
 
+/**
+ * Compara dos API keys en tiempo constante para evitar timing attacks.
+ * `apiKey !== expectedKey` con strings normales compara byte a byte y aborta
+ * en el primer mismatch, filtrando por timing cuántos bytes iniciales coinciden
+ * (permite fuerza bruta progresiva). crypto.timingSafeEqual siempre compara
+ * los buffers completos sin importar dónde difieren.
+ *
+ * @param {string} apiKey - Valor recibido del header x-api-key
+ * @param {string} expectedKey - Valor esperado (desde env)
+ * @returns {boolean} true si coinciden exactamente
+ */
+const compararApiKey = (apiKey, expectedKey) => {
+    if (typeof apiKey !== 'string' || typeof expectedKey !== 'string') return false;
+
+    const bufApiKey = Buffer.from(apiKey, 'utf8');
+    const bufExpected = Buffer.from(expectedKey, 'utf8');
+
+    // timingSafeEqual exige buffers de igual longitud — si difieren, ya sabemos
+    // que no matchean, pero igual comparamos contra un buffer dummy del mismo
+    // tamaño que apiKey para no filtrar la longitud de expectedKey por early-return.
+    if (bufApiKey.length !== bufExpected.length) {
+        crypto.timingSafeEqual(bufApiKey, bufApiKey);
+        return false;
+    }
+
+    return crypto.timingSafeEqual(bufApiKey, bufExpected);
+};
+
 module.exports = {
     normalizeAmount,
-    generateFingerprint
+    generateFingerprint,
+    compararApiKey
 };

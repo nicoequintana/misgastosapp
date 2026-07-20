@@ -1,4 +1,4 @@
-const { normalizeAmount, generateFingerprint } = require('../utils');
+const { normalizeAmount, generateFingerprint, compararApiKey } = require('../utils');
 
 // ── normalizeAmount ──────────────────────────────────────────────────────────
 
@@ -141,5 +141,37 @@ describe('generateFingerprint', () => {
         const fp1 = generateFingerprint({ ...base, monto: 1500 });
         const fp2 = generateFingerprint({ ...base, monto: 1500.00 });
         expect(fp1).toBe(fp2);
+    });
+});
+
+// ── compararApiKey (fix S-02: timing attack en validateApiKey) ────────────────
+
+describe('compararApiKey', () => {
+    it('retorna true cuando las keys son idénticas', () => {
+        expect(compararApiKey('clave-secreta-123', 'clave-secreta-123')).toBe(true);
+    });
+
+    it('retorna false cuando las keys difieren', () => {
+        expect(compararApiKey('clave-incorrecta', 'clave-secreta-123')).toBe(false);
+    });
+
+    it('retorna false cuando difieren solo en longitud (sin lanzar error)', () => {
+        expect(compararApiKey('corta', 'clave-secreta-mucho-mas-larga')).toBe(false);
+    });
+
+    it('retorna false para string vacío contra key no vacía', () => {
+        expect(compararApiKey('', 'clave-secreta-123')).toBe(false);
+    });
+
+    it('retorna false si apiKey es undefined (header ausente)', () => {
+        expect(compararApiKey(undefined, 'clave-secreta-123')).toBe(false);
+    });
+
+    it('retorna false si expectedKey no es string', () => {
+        expect(compararApiKey('algo', undefined)).toBe(false);
+    });
+
+    it('es sensible a mayúsculas/minúsculas', () => {
+        expect(compararApiKey('Clave-Secreta-123', 'clave-secreta-123')).toBe(false);
     });
 });

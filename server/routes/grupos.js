@@ -154,9 +154,12 @@ const superaRateLimit = async (grupoId) => {
         .gte('created_at', hace1h);
 
     if (error) {
-        // En caso de error de DB, permitir el request (fail open) — el INSERT posterior fallará si hay problema real
-        console.warn('⚠️ Rate limit check fallido, se permite el request:', error.message);
-        return false;
+        // Fail closed (fix S-03): si la query de conteo falla no podemos saber si el
+        // límite ya fue superado, así que bloqueamos el request en lugar de permitirlo.
+        // Antes esto fallaba abierto y un error puntual de DB anulaba el único control
+        // anti-spam de invitaciones (email-bombing).
+        console.error('❌ Rate limit check fallido, se bloquea el request por seguridad:', error.message);
+        return true;
     }
 
     return (count ?? 0) >= RATE_LIMIT_MAX;
@@ -1183,15 +1186,21 @@ router.post('/:grupoId/liquidaciones', requireAuth, async (req, res) => {
     if (!deUserId || !paraUserId) return res.status(400).json({ ok: false, error: 'deUserId y paraUserId son requeridos' });
     if (deUserId === paraUserId) return res.status(400).json({ ok: false, error: 'El pagador y el receptor no pueden ser la misma persona' });
     if (deUserId !== req.user.id) return res.status(403).json({ ok: false, error: 'Solo podés registrar pagos que vos realizaste' });
+    // Fix S-01: paraUserId antes no se validaba como UUID ni como miembro del grupo,
+    // permitiendo fabricar liquidaciones falsas contra cualquier ID arbitrario y
+    // falsear el saldo propio en vw_grupo_saldos. Se exige el mismo formato que el resto de IDs de usuario.
+    if (!UUID_REGEX.test(paraUserId)) return res.status(400).json({ ok: false, error: 'paraUserId contiene un ID inválido' });
     const montoNum = Number(monto);
     if (!Number.isFinite(montoNum) || montoNum <= 0) return res.status(400).json({ ok: false, error: 'El monto debe ser mayor a cero' });
 
     try {
-        // Verificar membresía activa
-        const { data: membresia } = await supabaseAdmin
-            .from('grupo_miembros').select('id')
-            .eq('grupo_id', grupoId).eq('user_id', user.id).eq('estado', 'activo').maybeSingle();
-        if (!membresia) return res.status(403).json({ ok: false, error: 'No sos miembro activo de este grupo' });
+        // Verificar membresía activa del caller Y del receptor (paraUserId) en una sola consulta.
+        const { data: miembrosActivos } = await supabaseAdmin
+            .from('grupo_miembros').select('user_id')
+            .eq('grupo_id', grupoId).eq('estado', 'activo').in('user_id', [user.id, paraUserId]);
+        const idsActivos = new Set((miembrosActivos || []).map(m => m.user_id));
+        if (!idsActivos.has(user.id)) return res.status(403).json({ ok: false, error: 'No sos miembro activo de este grupo' });
+        if (!idsActivos.has(paraUserId)) return res.status(400).json({ ok: false, error: 'El receptor no es miembro activo del grupo' });
 
         const { data: liquidacion, error: errLiq } = await supabaseAdmin
             .from('grupo_liquidaciones')

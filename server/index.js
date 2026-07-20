@@ -5,7 +5,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const crypto = require('crypto');
-const { normalizeAmount, generateFingerprint } = require('./utils');
+const { normalizeAmount, generateFingerprint, compararApiKey } = require('./utils');
 const { supabaseAdmin } = require('./services/supabaseAdmin');
 const notificacionesRouter = require('./routes/notificaciones');
 const gruposRouter = require('./routes/grupos');
@@ -42,7 +42,9 @@ const validateApiKey = (req, res, next) => {
         return res.status(500).json({ ok: false, error: 'Servidor: API Key no configurada' });
     }
 
-    if (apiKey !== expectedKey) {
+    // Comparación en tiempo constante — evita timing attack para adivinar N8N_API_KEY
+    // byte a byte (fix S-02).
+    if (!compararApiKey(apiKey, expectedKey)) {
         return res.status(401).json({ ok: false, error: 'No autorizado' });
     }
 

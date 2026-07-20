@@ -4,7 +4,23 @@
  * - superaRateLimit (inline reimplementado para testear la lógica)
  * - nombreDesdeAuthUser
  * - EMAIL_REGEX
+ * - validarParaUserIdLiquidacion (fix S-01: paraUserId sin validar)
  */
+
+const UUID_REGEX_TEST = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// validarParaUserIdLiquidacion — misma lógica que en grupos.js (POST /liquidaciones).
+// Recibe la lista de user_id de miembros activos del grupo (ya resuelta) para no
+// acoplar el test a Supabase — el fetch real se cubre por separado en grupos.js.
+function validarParaUserIdLiquidacion(paraUserId, miembrosActivosIds) {
+    if (!UUID_REGEX_TEST.test(paraUserId)) {
+        return { error: { status: 400, mensaje: 'paraUserId contiene un ID inválido' } };
+    }
+    if (!miembrosActivosIds.includes(paraUserId)) {
+        return { error: { status: 400, mensaje: 'El receptor no es miembro activo del grupo' } };
+    }
+    return { ok: true };
+}
 
 // calcularParticipantes — mismo algoritmo que en grupos.js
 function calcularParticipantes(gastoId, montoNum, pagadoPor, participantesUnicos) {
@@ -89,6 +105,72 @@ describe('nombreDesdeAuthUser', () => {
     it('retorna null si no hay metadata ni email', () => {
         const user = { user_metadata: {} };
         expect(nombreDesdeAuthUser(user)).toBeNull();
+    });
+});
+
+// superaRateLimit — misma lógica que en grupos.js, parametrizada por un fetcher
+// inyectado para no depender de Supabase real. Simula { count, error } como
+// devuelve supabaseAdmin.from(...).select(..., { count: 'exact', head: true }).
+const RATE_LIMIT_MAX_TEST = 10;
+async function superaRateLimit(fetchConteo) {
+    const { count, error } = await fetchConteo();
+
+    if (error) {
+        // Fail closed (fix S-03): ante error de DB, bloquear el request.
+        return true;
+    }
+
+    return (count ?? 0) >= RATE_LIMIT_MAX_TEST;
+}
+
+describe('superaRateLimit (fix S-03: fail-closed ante error de DB)', () => {
+    it('permite el request si el conteo está por debajo del límite', async () => {
+        const resultado = await superaRateLimit(async () => ({ count: 3, error: null }));
+        expect(resultado).toBe(false);
+    });
+
+    it('bloquea el request si el conteo alcanzó el límite', async () => {
+        const resultado = await superaRateLimit(async () => ({ count: 10, error: null }));
+        expect(resultado).toBe(true);
+    });
+
+    it('bloquea el request si el conteo supera el límite', async () => {
+        const resultado = await superaRateLimit(async () => ({ count: 15, error: null }));
+        expect(resultado).toBe(true);
+    });
+
+    it('FAIL CLOSED: bloquea el request si la query de conteo falla', async () => {
+        const resultado = await superaRateLimit(async () => ({ count: null, error: new Error('timeout de DB') }));
+        expect(resultado).toBe(true);
+    });
+
+    it('permite el request si count es null pero no hay error (grupo sin invitaciones aún)', async () => {
+        const resultado = await superaRateLimit(async () => ({ count: null, error: null }));
+        expect(resultado).toBe(false);
+    });
+});
+
+describe('validarParaUserIdLiquidacion (fix S-01)', () => {
+    const miembrosActivos = ['a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22'];
+
+    it('rechaza paraUserId que no es un UUID válido', () => {
+        const resultado = validarParaUserIdLiquidacion('no-es-un-uuid', miembrosActivos);
+        expect(resultado.error).toBeDefined();
+        expect(resultado.error.status).toBe(400);
+        expect(resultado.error.mensaje).toMatch(/inválid/i);
+    });
+
+    it('rechaza paraUserId que es un UUID válido pero no es miembro activo del grupo', () => {
+        const uuidAjeno = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+        const resultado = validarParaUserIdLiquidacion(uuidAjeno, miembrosActivos);
+        expect(resultado.error).toBeDefined();
+        expect(resultado.error.mensaje).toMatch(/miembro activo/i);
+    });
+
+    it('acepta paraUserId cuando es un UUID válido y miembro activo del grupo', () => {
+        const resultado = validarParaUserIdLiquidacion(miembrosActivos[1], miembrosActivos);
+        expect(resultado.ok).toBe(true);
+        expect(resultado.error).toBeUndefined();
     });
 });
 
