@@ -19,15 +19,18 @@ const PALETA_COLORES = [
  * @param {string|number|null} valorSeleccionado - id de la opción activa
  * @param {(id: string|number) => void} onChange
  * @param {number} [limiteVisible=6]
+ * @param {string} [labelId] - id del <label> asociado, para vincular el grupo
+ *   de chips con role="group"/aria-labelledby (no hay un único control
+ *   enfocable como para usar htmlFor).
  */
-const ChipSelector = ({ opciones, valorSeleccionado, onChange, limiteVisible = 6 }) => {
+const ChipSelector = ({ opciones, valorSeleccionado, onChange, limiteVisible = 6, labelId }) => {
     const [expandido, setExpandido] = useState(false);
 
     const hayMas = opciones.length > limiteVisible;
     const visibles = expandido || !hayMas ? opciones : opciones.slice(0, limiteVisible);
 
     return (
-        <div className="chip-selector">
+        <div className="chip-selector" role="group" aria-labelledby={labelId}>
             {visibles.map((op, i) => (
                 <button
                     key={op.id}

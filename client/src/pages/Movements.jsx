@@ -43,10 +43,12 @@ const Movements = () => {
     // Estado para movimientos futuros (cuotas de tarjeta de crédito)
     const [gastosFuturos, setGastosFuturos] = useState([]);
     const [cargandoFuturos, setCargandoFuturos] = useState(true);
+    const [errorFuturos, setErrorFuturos] = useState(false);
 
     // Estado para movimientos futuros de préstamos
     const [prestamosFuturos, setPrestamosFuturos] = useState([]);
     const [cargandoPrestamosFuturos, setCargandoPrestamosFuturos] = useState(true);
+    const [errorPrestamosFuturos, setErrorPrestamosFuturos] = useState(false);
 
     // Modales compartidos para editar/eliminar grupos (tarjeta y préstamos)
     const [grupoEditando, setGrupoEditando] = useState(null);
@@ -75,10 +77,12 @@ const Movements = () => {
     const fetchFuturos = useCallback(async () => {
         try {
             setCargandoFuturos(true);
+            setErrorFuturos(false);
             const data = await getGastosFuturos();
             setGastosFuturos(data);
         } catch (err) {
             console.error('❌ Error al obtener movimientos futuros:', err);
+            setErrorFuturos(true);
         } finally {
             setCargandoFuturos(false);
         }
@@ -87,10 +91,12 @@ const Movements = () => {
     const fetchPrestamosFuturos = useCallback(async () => {
         try {
             setCargandoPrestamosFuturos(true);
+            setErrorPrestamosFuturos(false);
             const data = await getPrestamosGastosFuturos();
             setPrestamosFuturos(data);
         } catch (err) {
             console.error('❌ Error al obtener préstamos futuros:', err);
+            setErrorPrestamosFuturos(true);
         } finally {
             setCargandoPrestamosFuturos(false);
         }
@@ -458,6 +464,15 @@ const Movements = () => {
             </GlassCard>
 
             {/* Card: Movimientos Futuros (cuotas de tarjeta de crédito) */}
+            {errorFuturos && (
+                <div className="form-error" role="alert">
+                    <span className="material-symbols-outlined" aria-hidden="true">error_outline</span>
+                    No se pudieron cargar los movimientos futuros.
+                    <button type="button" className="btn btn-secondary" onClick={fetchFuturos}>
+                        Reintentar
+                    </button>
+                </div>
+            )}
             {(cargandoFuturos || gastosFuturos.length > 0) && (
                 <GrupoFuturosCard
                     grupos={gastosFuturos}
@@ -473,6 +488,15 @@ const Movements = () => {
             )}
 
             {/* Card: Préstamos Futuros */}
+            {errorPrestamosFuturos && (
+                <div className="form-error" role="alert">
+                    <span className="material-symbols-outlined" aria-hidden="true">error_outline</span>
+                    No se pudieron cargar los préstamos futuros.
+                    <button type="button" className="btn btn-secondary" onClick={fetchPrestamosFuturos}>
+                        Reintentar
+                    </button>
+                </div>
+            )}
             {(cargandoPrestamosFuturos || prestamosFuturos.length > 0) && (
                 <GrupoFuturosCard
                     grupos={prestamosFuturos}
@@ -497,8 +521,9 @@ const Movements = () => {
                 {gastoEditando && (
                     <form onSubmit={handleGuardarEdicion} className="form-container">
                         <div className="form-group">
-                            <label className="form-label-box">Descripción</label>
+                            <label className="form-label-box" htmlFor="edit-gasto-descripcion">Descripción</label>
                             <input
+                                id="edit-gasto-descripcion"
                                 type="text"
                                 value={gastoEditando.descripcion}
                                 onChange={(e) => setGastoEditando(prev => ({ ...prev, descripcion: e.target.value }))}
@@ -508,16 +533,18 @@ const Movements = () => {
                             />
                         </div>
                         <div className="form-group">
-                            <label className="form-label-box">Monto</label>
+                            <label className="form-label-box" htmlFor="edit-gasto-monto">Monto</label>
                             <CurrencyInput
+                                id="edit-gasto-monto"
                                 value={gastoEditando.monto}
                                 onChange={(val) => setGastoEditando(prev => ({ ...prev, monto: val }))}
                                 disabled={guardando}
                             />
                         </div>
                         <div className="form-group">
-                            <label className="form-label-box">Categoría</label>
+                            <label className="form-label-box" id="edit-gasto-categoria-label">Categoría</label>
                             <ChipSelector
+                                labelId="edit-gasto-categoria-label"
                                 opciones={categories}
                                 valorSeleccionado={gastoEditando.id_categoria ? Number(gastoEditando.id_categoria) : null}
                                 onChange={(id) => setGastoEditando(prev => ({ ...prev, id_categoria: id }))}
@@ -525,8 +552,9 @@ const Movements = () => {
                             />
                         </div>
                         <div className="form-group">
-                            <label className="form-label-box">Método de Pago</label>
+                            <label className="form-label-box" id="edit-gasto-metodopago-label">Método de Pago</label>
                             <ChipSelector
+                                labelId="edit-gasto-metodopago-label"
                                 opciones={paymentMethods}
                                 valorSeleccionado={gastoEditando.id_metodo_pago ? Number(gastoEditando.id_metodo_pago) : null}
                                 onChange={(id) => setGastoEditando(prev => ({ ...prev, id_metodo_pago: id }))}
@@ -534,8 +562,9 @@ const Movements = () => {
                             />
                         </div>
                         <div className="form-group">
-                            <label className="form-label-box">Fecha</label>
+                            <label className="form-label-box" htmlFor="edit-gasto-fecha">Fecha</label>
                             <input
+                                id="edit-gasto-fecha"
                                 type="date"
                                 value={gastoEditando.fecha ? gastoEditando.fecha.split('T')[0] : ''}
                                 onChange={(e) => setGastoEditando(prev => ({ ...prev, fecha: e.target.value }))}
@@ -545,8 +574,9 @@ const Movements = () => {
                             />
                         </div>
                         <div className="form-group">
-                            <label className="form-label-box">Tipo de gasto</label>
+                            <label className="form-label-box" id="edit-gasto-tipo-label">Tipo de gasto</label>
                             <ChipSelector
+                                labelId="edit-gasto-tipo-label"
                                 opciones={[
                                     { id: 'variable', nombre: 'Variable', icono: 'trending_down' },
                                     { id: 'fijo', nombre: 'Fijo', icono: 'lock' },
@@ -557,7 +587,7 @@ const Movements = () => {
                             />
                         </div>
                         {errorEdicion && (
-                            <p className="edit-form-error">{errorEdicion}</p>
+                            <p className="edit-form-error" role="alert">{errorEdicion}</p>
                         )}
                         <div className="form-row mt-4">
                             <button type="button" onClick={handleCerrarEdicion} disabled={guardando} className="btn btn-secondary" style={{ flex: 1 }}>Cancelar</button>
@@ -589,8 +619,9 @@ const Movements = () => {
                 {grupoEditando && (
                     <form onSubmit={handleGuardarGrupo} className="form-container">
                         <div className="form-group">
-                            <label className="form-label-box">Descripción</label>
+                            <label className="form-label-box" htmlFor="edit-grupo-descripcion">Descripción</label>
                             <input
+                                id="edit-grupo-descripcion"
                                 type="text"
                                 value={grupoEditando.descripcion}
                                 onChange={e => setGrupoEditando(prev => ({ ...prev, descripcion: e.target.value }))}
@@ -601,8 +632,9 @@ const Movements = () => {
                             />
                         </div>
                         <div className="form-group">
-                            <label className="form-label-box">Categoría</label>
+                            <label className="form-label-box" htmlFor="edit-grupo-categoria">Categoría</label>
                             <select
+                                id="edit-grupo-categoria"
                                 value={grupoEditando.idCategoria || ''}
                                 onChange={e => setGrupoEditando(prev => ({ ...prev, idCategoria: e.target.value }))}
                                 disabled={guardandoGrupo}
@@ -615,8 +647,9 @@ const Movements = () => {
                             </select>
                         </div>
                         <div className="form-group">
-                            <label className="form-label-box">Fecha de la próxima cuota</label>
+                            <label className="form-label-box" htmlFor="edit-grupo-fecha">Fecha de la próxima cuota</label>
                             <input
+                                id="edit-grupo-fecha"
                                 type="date"
                                 value={grupoEditando.fechaInicio}
                                 onChange={e => setGrupoEditando(prev => ({ ...prev, fechaInicio: e.target.value }))}
@@ -628,7 +661,7 @@ const Movements = () => {
                                 Las fechas de las {grupoEditando.cuotasFuturas.length} cuotas siguientes se recalculan automáticamente mes a mes.
                             </small>
                         </div>
-                        {errorGrupo && <p className="edit-form-error">{errorGrupo}</p>}
+                        {errorGrupo && <p className="edit-form-error" role="alert">{errorGrupo}</p>}
                         <div className="form-row mt-4">
                             <button type="button" onClick={handleCerrarEditarGrupo} disabled={guardandoGrupo} className="btn btn-secondary" style={{ flex: 1 }}>
                                 Cancelar

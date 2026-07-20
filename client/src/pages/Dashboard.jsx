@@ -365,18 +365,6 @@ const Dashboard = () => {
         return () => clearTimeout(timer);
     }, [pasoIngreso]);
 
-    // Mejorar UX de teclado: permite confirmar acciones con Enter en botones
-    useEffect(() => {
-        const manejarTeclas = (e) => {
-            if (e.key === 'Enter' && document.activeElement.tagName === 'BUTTON') {
-                e.preventDefault();
-                document.activeElement.click();
-            }
-        };
-        document.addEventListener('keydown', manejarTeclas);
-        return () => document.removeEventListener('keydown', manejarTeclas);
-    }, []);
-
     // ==================== HANDLERS ====================
 
     /**
@@ -918,8 +906,9 @@ const Dashboard = () => {
                         {pasoGasto === 1 && (
                             <>
                             <div className="form-group">
-                                <label className="form-label-box">Monto</label>
+                                <label className="form-label-box" htmlFor="expense-monto">Monto</label>
                                 <CurrencyInput
+                                    id="expense-monto"
                                     value={expenseForm.monto}
                                     onChange={(val) => setExpenseForm(prev => ({ ...prev, monto: val }))}
                                     className="input currency-input--grande"
@@ -927,8 +916,9 @@ const Dashboard = () => {
                                 />
                             </div>
                             <div className="form-group">
-                                <label className="form-label-box">Descripción (opcional)</label>
+                                <label className="form-label-box" htmlFor="expense-descripcion">Descripción (opcional)</label>
                                 <input
+                                    id="expense-descripcion"
                                     type="text"
                                     value={expenseForm.descripcion}
                                     onChange={(e) => setExpenseForm(prev => ({ ...prev, descripcion: e.target.value }))}
@@ -938,8 +928,8 @@ const Dashboard = () => {
                             </>
                         )}
                         {pasoGasto === 2 && errorOpciones && (
-                            <div className="form-error">
-                                <span className="material-symbols-outlined">error_outline</span>
+                            <div className="form-error" role="alert">
+                                <span className="material-symbols-outlined" aria-hidden="true">error_outline</span>
                                 {errorOpciones}
                                 <button type="button" className="btn btn-secondary" onClick={fetchOpciones}>
                                     Reintentar
@@ -949,8 +939,9 @@ const Dashboard = () => {
                         {pasoGasto === 2 && !errorOpciones && (
                             <>
                             <div className="form-group">
-                                <label className="form-label-box">Categoría</label>
+                                <label className="form-label-box" id="expense-categoria-label">Categoría</label>
                                 <ChipSelector
+                                    labelId="expense-categoria-label"
                                     opciones={categories}
                                     valorSeleccionado={expenseForm.id_categoria ? Number(expenseForm.id_categoria) : null}
                                     onChange={(id) => handleCambioCategoria(id)}
@@ -958,8 +949,9 @@ const Dashboard = () => {
                                 />
                             </div>
                             <div className="form-group">
-                                <label className="form-label-box">Método de Pago</label>
+                                <label className="form-label-box" id="expense-metodopago-label">Método de Pago</label>
                                 <ChipSelector
+                                    labelId="expense-metodopago-label"
                                     opciones={paymentMethods}
                                     valorSeleccionado={expenseForm.id_metodo_pago ? Number(expenseForm.id_metodo_pago) : null}
                                     onChange={(id) => handleCambioMetodoPago(id)}
@@ -969,8 +961,9 @@ const Dashboard = () => {
                             {expenseForm.esTarjetaCredito && (
                                 <>
                                 <div className="form-group">
-                                    <label className="form-label-box">Cuotas</label>
+                                    <label className="form-label-box" htmlFor="expense-cuotas-tarjeta">Cuotas</label>
                                     <select
+                                        id="expense-cuotas-tarjeta"
                                         value={expenseForm.cuotas}
                                         onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
                                         className="form-select"
@@ -983,8 +976,9 @@ const Dashboard = () => {
                                     </select>
                                 </div>
                                 <div className="form-group">
-                                    <label className="form-label-box">Mes de la primera cuota <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                    <label className="form-label-box" htmlFor="expense-primeracuota-tarjeta">Mes de la primera cuota <span style={{ color: 'var(--danger)' }}>*</span></label>
                                     <input
+                                        id="expense-primeracuota-tarjeta"
                                         type="month"
                                         className="form-select"
                                         value={expenseForm.primeraCuota}
@@ -1000,8 +994,9 @@ const Dashboard = () => {
                             {expenseForm.esPrestamo && (
                                 <>
                                 <div className="form-group">
-                                    <label className="form-label-box">Cuotas</label>
+                                    <label className="form-label-box" htmlFor="expense-cuotas-prestamo">Cuotas</label>
                                     <select
+                                        id="expense-cuotas-prestamo"
                                         value={expenseForm.cuotas}
                                         onChange={(e) => setExpenseForm(prev => ({ ...prev, cuotas: parseInt(e.target.value) }))}
                                         className="form-select"
@@ -1014,8 +1009,9 @@ const Dashboard = () => {
                                     </select>
                                 </div>
                                 <div className="form-group">
-                                    <label className="form-label-box">Mes del primer pago <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                    <label className="form-label-box" htmlFor="expense-primeracuota-prestamo">Mes del primer pago <span style={{ color: 'var(--danger)' }}>*</span></label>
                                     <input
+                                        id="expense-primeracuota-prestamo"
                                         type="month"
                                         className="form-select"
                                         value={expenseForm.primeraCuota}
@@ -1032,8 +1028,9 @@ const Dashboard = () => {
                         )}
                         {pasoGasto === 3 && aplicaPasoFijoVariable && (
                             <div className="form-group">
-                                <label className="form-label-box">Tipo de gasto</label>
+                                <label className="form-label-box" id="expense-tipogasto-label">Tipo de gasto</label>
                                 <ChipSelector
+                                    labelId="expense-tipogasto-label"
                                     opciones={[
                                         { id: 'variable', nombre: 'Variable', icono: 'trending_down' },
                                         { id: 'fijo', nombre: 'Fijo', icono: 'lock' },
@@ -1138,14 +1135,14 @@ const Dashboard = () => {
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     {ingresosMes.map(ing => (
-                                        <div key={ing.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                        <div key={ing.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--input-bg)', borderRadius: '10px', border: '1px solid var(--input-border)' }}>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--success)' }}>
                                                     ${Number(ing.monto).toLocaleString('es-AR')}
                                                 </div>
                                                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                                                     {ing.descripcion || 'Sin descripción'}{ing.categorias_ingresos?.nombre ? ` · ${ing.categorias_ingresos.nombre}` : ''}
-                                                    {ing.recurrente_id && <span style={{ marginLeft: '6px', fontSize: '11px', background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: '4px' }}>recurrente</span>}
+                                                    {ing.recurrente_id && <span style={{ marginLeft: '6px', fontSize: '11px', background: 'var(--input-border)', padding: '1px 5px', borderRadius: '4px' }}>recurrente</span>}
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', gap: '6px', marginLeft: '10px' }}>
@@ -1159,7 +1156,7 @@ const Dashboard = () => {
                                         </div>
                                     ))}
                                 </div>
-                                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--separator-color)', display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
                                     <span style={{ color: 'var(--text-secondary)' }}>Total del mes</span>
                                     <span style={{ fontWeight: 700, color: 'var(--success)' }}>
                                         ${ingresosMes.reduce((s, i) => s + Number(i.monto), 0).toLocaleString('es-AR')}
@@ -1175,7 +1172,7 @@ const Dashboard = () => {
 
                         {/* Lista de recurrentes activos — informativo */}
                         {recurrentesActivos.length > 0 && (
-                            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--separator-color)' }}>
                                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                     Recurrentes configurados
                                 </div>
@@ -1202,8 +1199,9 @@ const Dashboard = () => {
                         {pasoIngreso === 1 && (
                             <>
                             <div className="form-group">
-                                <label className="form-label-box">Monto</label>
+                                <label className="form-label-box" htmlFor="income-monto">Monto</label>
                                 <CurrencyInput
+                                    id="income-monto"
                                     key={`income-${incomeEditando ?? 'new'}`}
                                     value={incomeForm.monto}
                                     onChange={(val) => setIncomeForm(prev => ({ ...prev, monto: val }))}
@@ -1213,8 +1211,9 @@ const Dashboard = () => {
                                 />
                             </div>
                             <div className="form-group">
-                                <label className="form-label-box">Descripción (opcional)</label>
+                                <label className="form-label-box" htmlFor="income-descripcion">Descripción (opcional)</label>
                                 <input
+                                    id="income-descripcion"
                                     type="text"
                                     value={incomeForm.descripcion}
                                     onChange={(e) => setIncomeForm(prev => ({ ...prev, descripcion: e.target.value }))}
@@ -1227,8 +1226,9 @@ const Dashboard = () => {
                         {pasoIngreso === 2 && (
                             <>
                             <div className="form-group">
-                                <label className="form-label-box">Categoría (opcional)</label>
+                                <label className="form-label-box" id="income-categoria-label">Categoría (opcional)</label>
                                 <ChipSelector
+                                    labelId="income-categoria-label"
                                     opciones={[
                                         { id: '', nombre: 'Sin categoría', icono: 'block' },
                                         ...categoriaIngresos,
@@ -1241,8 +1241,9 @@ const Dashboard = () => {
                             {/* Solo mostrar selector recurrente al crear, no al editar */}
                             {!incomeEditando && (
                                 <div className="form-group">
-                                    <label className="form-label-box">Tipo de ingreso</label>
+                                    <label className="form-label-box" id="income-tiporecurrente-label">Tipo de ingreso</label>
                                     <ChipSelector
+                                        labelId="income-tiporecurrente-label"
                                         opciones={[
                                             { id: 'puntual', nombre: 'Puntual', icono: 'event' },
                                             { id: 'recurrente', nombre: 'Recurrente', icono: 'repeat' },

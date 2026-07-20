@@ -104,11 +104,13 @@ const GrupoNuevo = () => {
                                 maxLength={MAX_NOMBRE}
                                 disabled={enviando}
                                 autoFocus
+                                aria-describedby={errNombre ? 'grupo-nombre-error' : undefined}
+                                aria-invalid={!!errNombre}
                             />
                             {/* Contador de caracteres y error */}
                             <div className="form-input__footer">
                                 {errNombre && (
-                                    <span className="form-error">{errNombre}</span>
+                                    <span className="form-error" id="grupo-nombre-error" role="alert">{errNombre}</span>
                                 )}
                                 <span className="form-char-count">
                                     {nombre.length}/{MAX_NOMBRE}
