@@ -1,6 +1,5 @@
 import { supabase } from './supabase';
 import { fechaHoyArgentina } from '../utils/format';
-import { calcularCuotas } from './cuotasHelper';
 import {
     agruparPorPadre,
     filtrarTarjetaCredito,
@@ -204,72 +203,30 @@ export const createExpense = async (gasto) => {
 
     // Gasto en cuotas (tarjeta de crédito o préstamo): el usuario define en qué mes vence la primera cuota.
     if (!gasto.primeraCuota) throw new Error('Indicá en qué mes vence la primera cuota');
-    const cuotasCalculadas = calcularCuotas(
-        montoNumero,
-        cuotas,
-        gasto.primeraCuota,
-        descripcionBase
-    );
 
-    const registros = cuotasCalculadas.map(c => ({
-        user_id:        usuario.id,
-        descripcion:    c.descripcion,
-        monto:          c.monto,
-        id_categoria:   gasto.id_categoria || null,
-        id_metodo_pago: gasto.id_metodo_pago || null,
-        fecha:          c.fecha,
-        es_fijo:        true,
-        cuotas,
-        numero_cuota:   c.numero,
-        id_gasto_padre: null, // se actualiza después del insert del primer registro
-    }));
+    // Todas las cuotas se insertan en una sola transacción de Postgres (RPC
+    // create_expense_installments — ver server/db/migrations/20260720_*.sql).
+    // Antes esto eran 3 llamadas separadas (insert cuota 1 → update padre →
+    // insert restantes) con rollback manual vía DELETE: si el proceso perdía
+    // conexión a mitad de camino, el rollback nunca corría y quedaban cuotas
+    // huérfanas. El RPC garantiza todo-o-nada (fix C-01).
+    const { data: cuotasCreadas, error: errRpc } = await supabase.rpc('create_expense_installments', {
+        p_descripcion: descripcionBase,
+        p_monto_total: montoNumero,
+        p_cuotas: cuotas,
+        p_fecha_primera_cuota: gasto.primeraCuota,
+        p_id_categoria: gasto.id_categoria || null,
+        p_id_metodo_pago: gasto.id_metodo_pago || null,
+    });
 
-    // Insertamos la primera cuota sola para obtener su ID como padre
-    const { data: primero, error: errPrimero } = await supabase
-        .from('gastos')
-        .insert([registros[0]])
-        .select()
-        .single();
-
-    if (errPrimero) {
-        console.error('❌ Error al insertar primera cuota:', errPrimero);
-        throw errPrimero;
+    if (errRpc) {
+        console.error('❌ Error en create_expense_installments:', errRpc);
+        throw errRpc;
     }
-    if (!primero) throw new Error('No se pudo guardar el gasto. Verificá tu conexión o permisos.');
+    if (!cuotasCreadas?.length) throw new Error('No se pudo guardar el gasto. Verificá tu conexión o permisos.');
 
-    // Siempre vinculamos la primera cuota a sí misma como padre para que
-    // getTarjetasEnCuotas pueda encontrarla (filtra por id_gasto_padre != null).
-    const { error: errVincular } = await supabase
-        .from('gastos')
-        .update({ id_gasto_padre: primero.id })
-        .eq('id', primero.id);
-
-    if (errVincular) {
-        // Rollback: eliminar la cuota 1 insertada para no dejar huérfanos.
-        await supabase.from('gastos').delete().eq('id', primero.id);
-        console.error('❌ Error al vincular cuota padre:', errVincular);
-        throw errVincular;
-    }
-
-    if (cuotas === 1) return { ...primero, id_gasto_padre: primero.id };
-
-    // Las cuotas 2..N apuntan al primer registro como padre
-    const restantes = registros.slice(1).map(r => ({ ...r, id_gasto_padre: primero.id }));
-
-    const { data: dataRestantes, error: errRestantes } = await supabase
-        .from('gastos')
-        .insert(restantes)
-        .select();
-
-    if (errRestantes || !dataRestantes?.length) {
-        // Rollback: eliminar padre e hijos parcialmente insertados por id_gasto_padre.
-        await supabase.from('gastos').delete().eq('id_gasto_padre', primero.id);
-        const motivo = errRestantes || new Error('No se pudo guardar el gasto. Verificá tu conexión o permisos.');
-        console.error('❌ Error al insertar cuotas restantes:', motivo);
-        throw motivo;
-    }
-
-    return primero;
+    // La función retorna todas las cuotas ordenadas por numero_cuota — la primera es el padre.
+    return cuotasCreadas[0];
 };
 
 /**
