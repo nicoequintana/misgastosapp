@@ -4,6 +4,7 @@ import { useTheme, THEMES } from '../context/ThemeContext';
 import GlassCard from '../components/GlassCard';
 import IconPicker from '../components/IconPicker';
 import ChipSelector from '../components/ChipSelector';
+import ConfirmModal from '../components/ConfirmModal';
 import { useNotificaciones } from '../context/NotificacionesContext';
 import * as db from '../lib/db';
 import { useGestionCatalogo } from '../hooks/useGestionCatalogo';
@@ -264,36 +265,15 @@ const Configuracion = () => {
                                         <span className="material-symbols-outlined cats-config-item-icon">label</span>
                                         <span className="cats-config-item-name">{cat.nombre}</span>
 
-                                        {/* Confirmar antes de eliminar */}
-                                        {catCategorias.confirmEliminarId === cat.id ? (
-                                            <div className="cats-config-item-confirm">
-                                                <span className="cats-config-item-confirm-text">¿Eliminar?</span>
-                                                <button
-                                                    type="button"
-                                                    className="cats-config-item-confirm-yes"
-                                                    onClick={() => catCategorias.eliminar(cat.id)}
-                                                    disabled={catCategorias.eliminandoId === cat.id}
-                                                >
-                                                    {catCategorias.eliminandoId === cat.id ? '...' : 'Sí'}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="cats-config-item-confirm-no"
-                                                    onClick={() => catCategorias.setConfirmEliminarId(null)}
-                                                >
-                                                    No
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <button
-                                                type="button"
-                                                className="cats-config-item-delete"
-                                                onClick={() => catCategorias.setConfirmEliminarId(cat.id)}
-                                                title="Eliminar categoría"
-                                            >
-                                                <span className="material-symbols-outlined">delete</span>
-                                            </button>
-                                        )}
+                                        <button
+                                            type="button"
+                                            className="cats-config-item-delete"
+                                            onClick={() => catCategorias.setConfirmEliminarId(cat.id)}
+                                            title="Eliminar categoría"
+                                            aria-label={`Eliminar categoría ${cat.nombre}`}
+                                        >
+                                            <span className="material-symbols-outlined" aria-hidden="true">delete</span>
+                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -384,35 +364,15 @@ const Configuracion = () => {
                                         <span className="material-symbols-outlined cats-config-item-icon">{pm.icono}</span>
                                         <span className="cats-config-item-name">{pm.nombre}</span>
 
-                                        {catMetodosPago.confirmEliminarId === pm.id ? (
-                                            <div className="cats-config-item-confirm">
-                                                <span className="cats-config-item-confirm-text">¿Eliminar?</span>
-                                                <button
-                                                    type="button"
-                                                    className="cats-config-item-confirm-yes"
-                                                    onClick={() => catMetodosPago.eliminar(pm.id)}
-                                                    disabled={catMetodosPago.eliminandoId === pm.id}
-                                                >
-                                                    {catMetodosPago.eliminandoId === pm.id ? '...' : 'Sí'}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="cats-config-item-confirm-no"
-                                                    onClick={() => catMetodosPago.setConfirmEliminarId(null)}
-                                                >
-                                                    No
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <button
-                                                type="button"
-                                                className="cats-config-item-delete"
-                                                onClick={() => catMetodosPago.setConfirmEliminarId(pm.id)}
-                                                title="Eliminar método de pago"
-                                            >
-                                                <span className="material-symbols-outlined">delete</span>
-                                            </button>
-                                        )}
+                                        <button
+                                            type="button"
+                                            className="cats-config-item-delete"
+                                            onClick={() => catMetodosPago.setConfirmEliminarId(pm.id)}
+                                            title="Eliminar método de pago"
+                                            aria-label={`Eliminar método de pago ${pm.nombre}`}
+                                        >
+                                            <span className="material-symbols-outlined" aria-hidden="true">delete</span>
+                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -771,6 +731,22 @@ const Configuracion = () => {
                 </GlassCard>
             )}
 
+            <ConfirmModal
+                isOpen={catCategorias.confirmEliminarId !== null}
+                onClose={() => catCategorias.setConfirmEliminarId(null)}
+                onConfirm={() => catCategorias.eliminar(catCategorias.confirmEliminarId)}
+                title="Eliminar categoría"
+                message={`¿Eliminás la categoría "${catCategorias.items.find(c => c.id === catCategorias.confirmEliminarId)?.nombre || ''}"? Esta acción no se puede deshacer.`}
+                loading={catCategorias.eliminandoId === catCategorias.confirmEliminarId}
+            />
+            <ConfirmModal
+                isOpen={catMetodosPago.confirmEliminarId !== null}
+                onClose={() => catMetodosPago.setConfirmEliminarId(null)}
+                onConfirm={() => catMetodosPago.eliminar(catMetodosPago.confirmEliminarId)}
+                title="Eliminar método de pago"
+                message={`¿Eliminás el método de pago "${catMetodosPago.items.find(pm => pm.id === catMetodosPago.confirmEliminarId)?.nombre || ''}"? Esta acción no se puede deshacer.`}
+                loading={catMetodosPago.eliminandoId === catMetodosPago.confirmEliminarId}
+            />
         </div>
     );
 };
