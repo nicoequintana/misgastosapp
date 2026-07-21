@@ -62,11 +62,19 @@ Todo verificado: 234 tests client + 153 tests server, lint limpio, build OK.
 
 14 tests nuevos en `client/src/context/AuthContext.test.jsx` (estado inicial, `onAuthStateChange` con `INITIAL_SESSION`/`SIGNED_IN`/`SIGNED_OUT`, `signOut` y `signInWithGoogle` con éxito/error, cleanup del listener al desmontar, redirección por invitación pendiente con token UUID válido/inválido/ausente). Cobertura sube de ~7% a **100% statements/lines/functions** (95.45% branches — única rama sin cubrir es un `console.log` de dev). Se confirmó que `signOut` ya usa `scope: 'global'` como exige CLAUDE.md — no había desvío. 272/272 tests, lint y build OK. Con esto, los 3 huecos grandes de cobertura documentados en la auditoría original (`createExpense`, grupos/liquidaciones, `AuthContext`) quedaron atendidos.
 
-### ⏳ Pendiente — R1/R2/R6/R7 (refactors grandes sin bug de por medio)
+### ✅ R1 — split de `db.js` por dominio
+
+`db.js` (2337 líneas) pasa a ser un barrel re-export de 28 líneas. Lógica movida a `client/src/lib/db/{expenses,categories,incomes,recurringIncomes,profile,stats,notifications,groups/*}.js`. Ningún consumidor externo tocado (imports de `../lib/db` siguen funcionando igual). Split incremental, tests corridos después de cada dominio movido. 272/272 tests, lint y build OK.
+
+**Bug encontrado y arreglado de paso**: `eliminarGrupo()` (`db/groups/gastos.js`) hacía `fetch('/api/grupos/...')` sin `BACKEND_URL`, a diferencia de las otras 6 llamadas del mismo archivo — en producción con front/back en distinto origin, el borrado de grupo fallaba. Ya existía en el `db.js` original antes del refactor (no lo introdujo el split). Corregido en commit aparte.
+
+**Duplicación preexistente detectada, no tocada** (fuera de scope de este refactor mecánico): `getTarjetasEnCuotas` y `getPrestamosEnCuotas` (`db/expenses.js`) hacen el mismo query a Supabase, solo difieren en el filtro post-fetch.
+
+### ⏳ Pendiente — R2/R6/R7 (refactors grandes sin bug de por medio)
 
 No encarados por tamaño/riesgo:
 
-- **R1/R2** — split de `db.js` (2107 líneas) y `grupos.js` por dominio.
+- **R2** — split de `server/routes/grupos.js` (1464 líneas) por dominio.
 - **R6** — extraer wizards de gasto/ingreso de `Dashboard.jsx` a componentes (incluye UX-14, unificar feedback de éxito con `ResultModal`).
 - **R7** — extraer los 7 motores de alerta de `NotificacionesContext.jsx` (~430 líneas) a módulos puros en `lib/alertas/`.
 
