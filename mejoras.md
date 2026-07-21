@@ -76,11 +76,18 @@ Todo verificado: 234 tests client + 153 tests server, lint limpio, build OK.
 
 **Detalle técnico manejado correctamente**: en Express, `router.param()` no se propaga desde un router padre a sub-routers montados con `router.use()` — cada sub-router que usa `:grupoId`/`:gastoId`/`:liqId` en sus rutas repite su propio `router.param()` con la validación idéntica al original (verificado línea por línea). 153/153 tests server, prueba de humo con servidor real levantado y `GET /health` → `{"status":"ok"}`.
 
-### ⏳ Pendiente — R6/R7 (refactors grandes sin bug de por medio)
+### ✅ R6 — extraer wizards de Dashboard.jsx (incluye UX-14)
 
-No encarados por tamaño/riesgo:
+`Dashboard.jsx` (1324 líneas) baja a 474. Wizard de gasto extraído a `components/dashboard/GastoWizard.jsx` (441 líneas) y modal de ingresos (lista + wizard + `ConfirmModal` de eliminar) a `components/dashboard/IngresoModal.jsx` (526 líneas). Cada uno mantiene su propio estado local (form/paso/fase); Dashboard.jsx solo pasa catálogos ya cargados y reacciona a callbacks de guardado exitoso.
 
-- **R6** — extraer wizards de gasto/ingreso de `Dashboard.jsx` a componentes (incluye UX-14, unificar feedback de éxito con `ResultModal`).
+**UX-14 aplicado**: ambas fases de "resultado" ahora usan `ResultModal` con una prop nueva `bare` (default `false`, sin impacto en `Movements.jsx`/`Configuracion.jsx`) que renderiza solo el contenido sin su propio `<Modal>` — necesario porque el resultado se muestra como fase dentro de un modal-wizard ya abierto, y anidar dos `<Modal>` hubiera duplicado el overlay.
+
+Toda la lógica de negocio (validaciones, manejo de tarjeta/préstamo, el mecanismo anti-flash del fade-out de 300ms) se preservó idéntica, verificada línea por línea contra el original. 2 archivos de test nuevos (`GastoWizard.test.jsx`, `IngresoModal.test.jsx`). 281/281 tests, lint y build OK. Probado manualmente en navegador por Nicolás: wizard de gasto e Ingresos funcionan correctamente.
+
+### ⏳ Pendiente — R7 (refactor grande sin bug de por medio)
+
+No encarado por tamaño/riesgo:
+
 - **R7** — extraer los 7 motores de alerta de `NotificacionesContext.jsx` (~430 líneas) a módulos puros en `lib/alertas/`.
 
 Recomendado abordarlos en una sesión dedicada aparte, función por función, con tests de regresión antes de cada movimiento — mover código sin un bug real detrás tiene bajo margen de error tolerado.
