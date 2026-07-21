@@ -58,6 +58,10 @@ Todo verificado: 234 tests client + 153 tests server, lint limpio, build OK.
 
 **Dato de arquitectura descubierto** (no bug): `registrarLiquidacion` y `crearGastoGrupalEnCuotas` NO usan Supabase directo — delegan al backend vía `fetch` a `server/routes/grupos.js`, que es donde vive la validación y el fix de S-01. `obtenerSaldosDelGrupo` sí usa Supabase directo pero solo lee la vista `vw_grupo_saldos` (el cálculo de saldos vive en SQL, no en el cliente). No se verificó si esos endpoints del backend usan transacción SQL real — pendiente si se quiere auditar en profundidad.
 
+### ✅ Cobertura de tests — `AuthContext.jsx`
+
+14 tests nuevos en `client/src/context/AuthContext.test.jsx` (estado inicial, `onAuthStateChange` con `INITIAL_SESSION`/`SIGNED_IN`/`SIGNED_OUT`, `signOut` y `signInWithGoogle` con éxito/error, cleanup del listener al desmontar, redirección por invitación pendiente con token UUID válido/inválido/ausente). Cobertura sube de ~7% a **100% statements/lines/functions** (95.45% branches — única rama sin cubrir es un `console.log` de dev). Se confirmó que `signOut` ya usa `scope: 'global'` como exige CLAUDE.md — no había desvío. 272/272 tests, lint y build OK. Con esto, los 3 huecos grandes de cobertura documentados en la auditoría original (`createExpense`, grupos/liquidaciones, `AuthContext`) quedaron atendidos.
+
 ### ⏳ Pendiente — R1/R2/R6/R7 (refactors grandes sin bug de por medio)
 
 No encarados por tamaño/riesgo:
