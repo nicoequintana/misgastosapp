@@ -78,7 +78,7 @@ const Registro = () => {
                             onChange={(e) => setNombre(e.target.value)}
                             required
                             disabled={enviando}
-                            className="input welcome-input"
+                            className="welcome-input"
                             autoComplete="given-name"
                             autoFocus
                         />
@@ -89,7 +89,7 @@ const Registro = () => {
                             onChange={(e) => setApellido(e.target.value)}
                             required
                             disabled={enviando}
-                            className="input welcome-input"
+                            className="welcome-input"
                             autoComplete="family-name"
                         />
                         <input
@@ -99,7 +99,7 @@ const Registro = () => {
                             onChange={(e) => setTelefono(e.target.value)}
                             required
                             disabled={enviando}
-                            className="input welcome-input"
+                            className="welcome-input"
                             autoComplete="tel"
                         />
                         <input
@@ -109,7 +109,7 @@ const Registro = () => {
                             onChange={(e) => setFechaNacimiento(e.target.value)}
                             required
                             disabled={enviando}
-                            className="input welcome-input"
+                            className="welcome-input"
                             autoComplete="bday"
                             max={new Date().toISOString().split('T')[0]}
                         />
@@ -120,7 +120,7 @@ const Registro = () => {
                             onChange={(e) => setEmail(e.target.value)}
                             required
                             disabled={enviando}
-                            className="input welcome-input"
+                            className="welcome-input"
                             autoComplete="email"
                         />
                         <input
@@ -130,7 +130,7 @@ const Registro = () => {
                             onChange={(e) => setPassword(e.target.value)}
                             required
                             disabled={enviando}
-                            className="input welcome-input"
+                            className="welcome-input"
                             autoComplete="new-password"
                         />
                         <input
@@ -140,7 +140,7 @@ const Registro = () => {
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             required
                             disabled={enviando}
-                            className="input welcome-input"
+                            className="welcome-input"
                             autoComplete="new-password"
                         />
 
