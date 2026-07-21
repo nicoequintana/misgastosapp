@@ -26,13 +26,41 @@ UX-01 (focus-trap/ESC/ARIA en Modal), UX-02 (hover-lift solo en cards interactiv
   - `PUT /gastos/:gastoId` (editar gasto grupal en cuotas) tenía el mismo bug de atomicidad **más** un bug de producto: el formulario mostraba/editaba el monto de UNA cuota puntual (no el total) y no permitía cambiar la cantidad de cuotas; además duplicaba el sufijo `(N/total)` en la descripción en cada edición → resuelto con RPC `update_grupo_gasto_installments` v2 + fix de frontend. Probado con doble edición en la app real.
 - R5 (regex/constantes duplicadas) — consolidado: `limpiarSufijoCuota()` en `cuotasGroupHelper.js` (reemplaza 4 copias del regex de sufijo) y `fechaHoyArgentina()` en `grupos.js` (reemplaza 3 copias del literal de timezone).
 
-### ⏳ Pendiente — R1/R2 (split de `db.js` y `grupos.js`)
+### ✅ Sprint 4 — Pulido
 
-No encarado en esta sesión por tamaño/riesgo (mover ~2000 líneas de código sin bug de por medio, alto riesgo de romper algo sutil). Recomendado para una sesión dedicada aparte, función por función, con tests de regresión antes de cada movimiento.
+- **UX-04/05** — `htmlFor`/`id` en 22 pares label-input de Dashboard/Movements; `role="group"`+`aria-labelledby` en `ChipSelector` (prop `labelId` nueva); `role="alert"` en mensajes de error que no lo tenían.
+- **UX-06** — tecla Space agregada junto a Enter en `NotificacionesPanel`/`GrupoCard` (antes solo Enter).
+- **UX-07** — `@media (prefers-reduced-motion: reduce)` global.
+- **UX-08** — `--text-muted` de los 9 temas oscuros translúcidos sube de 0.4-0.55 a 0.68 de opacidad.
+- **UX-09** — `Configuracion.jsx` usa `ConfirmModal` en vez de confirm inline para eliminar categorías/métodos de pago.
+- **UX-10** — `.form-label-box` unificada con `.form-label`; estilos inline `rgba(255,255,255,...)` de la lista de ingresos reemplazados por tokens de tema (`--input-bg`/`--input-border`/`--separator-color`).
+- **UX-12** — no aplicaba: `.search-container` es CSS huérfano sin JSX asociado (la feature ya no existe).
+- **UX-13** — salteado a pedido explícito: el scroll horizontal de esa tabla se sacó antes por decisión previa de Nicolás.
+- **UX-14** — diferido a R6 (mismo código del wizard de Dashboard).
+- **UX-15** — estados de error visibles + botón "Reintentar" en las cargas secundarias de `Movements.jsx` (futuros/préstamos futuros), que antes fallaban en silencio.
+- **UX-16** — `GrupoCard`/`GrupoDetalle` usan `formatCurrency` en vez de `.toFixed(2)` sin separador de miles.
+- **UX-17** — diferido a otra sesión (validación on-blur es cambio de UX no trivial en 3 formularios).
+- **UX-18** — eliminado el listener global de `Enter` en `Dashboard.jsx` (redundante: los `<button>` HTML ya disparan `click` con Enter nativamente).
+- **UX-19** — breadcrumb "Grupos / {título}" agregado en `GrupoGastoForm.jsx` (crear/editar gasto grupal).
+- **R8** — 7 sub-componentes de `Reportes.jsx` movidos a `components/reportes/` (717→400 líneas).
+- **R9** — magic numbers con nombre: `MAX_CUOTAS_PERSONAL`/`MAX_CUOTAS_GRUPAL`, `DURACION_BLOQUEO_PASO_MS`, `USUARIOS_POR_PAGINA`/`PAGINAS_MAX`.
+- **R10** — `calcularAgregadosGastos()` reemplaza el cálculo total/fijos/variables triplicado en `getStats`/`getReporteByRango`/`getStatsByMonth`; exportada y testeada (5 tests nuevos).
+
+Todo verificado: 234 tests client + 153 tests server, lint limpio, build OK.
+
+### ⏳ Pendiente — R1/R2/R6/R7 (refactors grandes sin bug de por medio)
+
+No encarados por tamaño/riesgo:
+
+- **R1/R2** — split de `db.js` (2107 líneas) y `grupos.js` por dominio.
+- **R6** — extraer wizards de gasto/ingreso de `Dashboard.jsx` a componentes (incluye UX-14, unificar feedback de éxito con `ResultModal`).
+- **R7** — extraer los 7 motores de alerta de `NotificacionesContext.jsx` (~430 líneas) a módulos puros en `lib/alertas/`.
+
+Recomendado abordarlos en una sesión dedicada aparte, función por función, con tests de regresión antes de cada movimiento — mover código sin un bug real detrás tiene bajo margen de error tolerado.
 
 ### Sin encarar
 
-Resto de hallazgos P2/P3 de UX (A3–A8, B4–B6, C1–C4, D1–D6) y R6–R10 del refactor original.
+**UX-17** (validación on-blur, diferido) y el resto de hallazgos P2/P3 menores que no llegaron a evaluarse en detalle.
 
 ---
 
