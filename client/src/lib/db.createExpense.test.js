@@ -1,5 +1,6 @@
 /**
- * Tests para createExpense — fix C-01 (atomicidad vía RPC).
+ * Tests para createExpense — fix C-01 (atomicidad vía RPC) y fix C-02
+ * (id_categoria/id_metodo_pago = 0 no debe colapsar a null).
  *
  * Antes, el camino de cuotas hacía 3 llamadas separadas a Supabase con
  * rollback manual por DELETE. Ahora delega todo a una única llamada RPC
@@ -7,6 +8,10 @@
  * Estos tests verifican que createExpense arma correctamente el payload del
  * RPC y maneja sus respuestas — no testean el RPC en sí (eso vive en SQL,
  * server/db/migrations/20260720_rpc_create_expense_installments.sql).
+ *
+ * C-02: ambos caminos (con y sin cuotas) usaban `gasto.id_categoria || null`,
+ * que colapsa el ID 0 (falsy) a null. Se corrigió a `?? null` en los dos
+ * lugares — ver client/src/lib/db.js.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -50,6 +55,44 @@ describe('createExpense', () => {
             expect(mockInsert).toHaveBeenCalledWith([
                 expect.objectContaining({ descripcion: 'SUPERMERCADO', monto: 500, cuotas: 1, id_gasto_padre: null }),
             ]);
+        });
+
+        it('usa "SIN DESCRIPCIÓN" cuando no se provee descripción (regla de negocio CLAUDE.md #11)', async () => {
+            mockSingle.mockResolvedValue({ data: { id: 1, descripcion: 'SIN DESCRIPCIÓN' }, error: null });
+
+            const { createExpense } = await import('./db.js');
+            await createExpense({ monto: 500, id_categoria: 3, id_metodo_pago: 1 });
+
+            expect(mockInsert).toHaveBeenCalledWith([
+                expect.objectContaining({ descripcion: 'SIN DESCRIPCIÓN' }),
+            ]);
+        });
+
+        it('no colapsa id_categoria = 0 a null (fix C-02: usar ?? en vez de ||)', async () => {
+            mockSingle.mockResolvedValue({ data: { id: 1 }, error: null });
+
+            const { createExpense } = await import('./db.js');
+            await createExpense({ monto: 500, descripcion: 'test', id_categoria: 0, id_metodo_pago: 1 });
+
+            expect(mockInsert).toHaveBeenCalledWith([
+                expect.objectContaining({ id_categoria: 0 }),
+            ]);
+        });
+
+        it('lanza error si Supabase devuelve data null sin error (RLS rechaza el insert)', async () => {
+            mockSingle.mockResolvedValue({ data: null, error: null });
+
+            const { createExpense } = await import('./db.js');
+            await expect(createExpense({ monto: 500, descripcion: 'test' }))
+                .rejects.toThrow(/No se pudo guardar/);
+        });
+
+        it('propaga el error si Supabase falla en el insert', async () => {
+            mockSingle.mockResolvedValue({ data: null, error: new Error('duplicate key') });
+
+            const { createExpense } = await import('./db.js');
+            await expect(createExpense({ monto: 500, descripcion: 'test' }))
+                .rejects.toThrow('duplicate key');
         });
     });
 
@@ -133,6 +176,15 @@ describe('createExpense', () => {
             await createExpense({ ...gastoBase, esTarjetaCredito: false, esPrestamo: true, cuotas: 12 });
 
             expect(mockRpc).toHaveBeenCalledWith('create_expense_installments', expect.objectContaining({ p_cuotas: 12 }));
+        });
+
+        it('no colapsa id_categoria = 0 a null en el payload del RPC (ya usa ?? — cubre C-02 en el camino de cuotas)', async () => {
+            mockRpc.mockResolvedValue({ data: [{ id: 30, numero_cuota: 1 }], error: null });
+
+            const { createExpense } = await import('./db.js');
+            await createExpense({ ...gastoBase, id_categoria: 0 });
+
+            expect(mockRpc).toHaveBeenCalledWith('create_expense_installments', expect.objectContaining({ p_id_categoria: 0 }));
         });
     });
 });

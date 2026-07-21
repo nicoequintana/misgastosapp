@@ -48,6 +48,10 @@ UX-01 (focus-trap/ESC/ARIA en Modal), UX-02 (hover-lift solo en cards interactiv
 
 Todo verificado: 234 tests client + 153 tests server, lint limpio, build OK.
 
+### ✅ Cobertura de tests — `createExpense` (db.js)
+
+5 tests nuevos en `client/src/lib/db.createExpense.test.js` ("SIN DESCRIPCIÓN" por defecto, `id_categoria`/`id_metodo_pago = 0` no colapsa a null en ambos caminos con/sin cuotas, manejo de `data null` sin error, propagación de error de Supabase). Cobertura de `db.js` sube de 8.79% a 16.26%. De paso se encontró y arregló C-02 (ver sección 1), que seguía vivo en el código pese a estar documentado como P3. 239/239 tests, lint y build OK.
+
 ### ⏳ Pendiente — R1/R2/R6/R7 (refactors grandes sin bug de por medio)
 
 No encarados por tamaño/riesgo:
@@ -113,9 +117,9 @@ Recomendado abordarlos en una sesión dedicada aparte, función por función, co
 El flujo de cuotas hace **3 operaciones separadas**: insert cuota 1 → update `id_gasto_padre` → insert cuotas 2..N. El "rollback" es manual vía `delete`. Si el proceso muere o pierde conexión entre operaciones, el `delete` nunca corre → **quedan cuotas huérfanas en la DB**. Además el propio `delete` de rollback puede fallar (misma conexión caída) sin reintento.
 → **Fix:** mover a una función RPC de Postgres (`create_expense_installments`) que ejecute todo en una transacción server-side. Es la única forma de garantizar la **A** de ACID que exige `CLAUDE.md`.
 
-**C-02 · [P3] `id_categoria || null` colapsa el ID `0` a null**
-`client/src/lib/db.js:185, 218-219`
-`gasto.id_categoria || null` → si el ID fuera `0`, se guarda `null`. Poco probable (los IDs de Supabase arrancan en 1) pero es un bug latente. → **Fix:** usar `?? null` en lugar de `|| null`.
+**✅ C-02 · [P3] RESUELTO — `id_categoria || null` colapsaba el ID `0` a null**
+`client/src/lib/db.js:207-208, 242-243`
+`gasto.id_categoria || null` → si el ID fuera `0`, se guardaba `null`. Corregido a `?? null` en ambos caminos (con y sin cuotas, incluyendo el payload del RPC). Cubierto por tests nuevos en `db.createExpense.test.js`.
 
 **C-03 · [P2] `calcularCuotas` sin guard para `fechaPrimeraCuota` inválida**
 `client/src/lib/cuotasHelper.js:29`

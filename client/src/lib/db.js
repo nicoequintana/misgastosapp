@@ -204,8 +204,9 @@ export const createExpense = async (gasto) => {
                 user_id: usuario.id,
                 descripcion: descripcionBase,
                 monto: montoNumero,
-                id_categoria: gasto.id_categoria || null,
-                id_metodo_pago: gasto.id_metodo_pago || null,
+                // ?? en vez de || — evita colapsar id_categoria/id_metodo_pago = 0 a null (fix C-02).
+                id_categoria: gasto.id_categoria ?? null,
+                id_metodo_pago: gasto.id_metodo_pago ?? null,
                 fecha: gasto.fecha || fechaHoyArgentina(),
                 es_fijo: Boolean(gasto.es_fijo),
                 cuotas: 1,
@@ -238,8 +239,9 @@ export const createExpense = async (gasto) => {
         p_monto_total: montoNumero,
         p_cuotas: cuotas,
         p_fecha_primera_cuota: gasto.primeraCuota,
-        p_id_categoria: gasto.id_categoria || null,
-        p_id_metodo_pago: gasto.id_metodo_pago || null,
+        // ?? en vez de || — evita colapsar id_categoria/id_metodo_pago = 0 a null (fix C-02).
+        p_id_categoria: gasto.id_categoria ?? null,
+        p_id_metodo_pago: gasto.id_metodo_pago ?? null,
     });
 
     if (errRpc) {
