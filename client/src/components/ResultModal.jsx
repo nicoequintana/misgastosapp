@@ -17,9 +17,10 @@ const CONFIG_TIPO = {
  * @param {() => void} onClose
  * @param {'success'|'warning'|'error'} tipo
  * @param {string} titulo
+ * @param {string} [mensaje] - Subtexto opcional debajo del título (ej. detalle de la acción).
  * @param {string} [textoBoton] - Si no se especifica, usa el default de cada tipo.
  */
-const ResultModal = ({ isOpen, onClose, tipo = 'success', titulo, textoBoton }) => {
+const ResultModal = ({ isOpen, onClose, tipo = 'success', titulo, mensaje, textoBoton }) => {
     const config = CONFIG_TIPO[tipo] || CONFIG_TIPO.success;
 
     return (
@@ -32,6 +33,7 @@ const ResultModal = ({ isOpen, onClose, tipo = 'success', titulo, textoBoton }) 
                     {config.icono}
                 </span>
                 <h3 className="result-modal__titulo">{titulo}</h3>
+                {mensaje && <p className="result-modal__subtexto">{mensaje}</p>}
                 <button
                     type="button"
                     className={`btn result-modal__boton result-modal__boton--${tipo}`}

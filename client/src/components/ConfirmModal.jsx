@@ -8,12 +8,16 @@ import Modal from './Modal';
  * @param {function} onConfirm - Función para ejecutar la acción confirmada (ej: eliminar).
  * @param {string} title - Título del modal.
  * @param {string} message - Mensaje descriptivo de la acción a confirmar.
+ * @param {string} [error] - Si la confirmación falló, mensaje de error a mostrar
+ *   dentro del modal (que permanece abierto) en vez de perderse en otra parte
+ *   de la pantalla.
  */
-const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, loading = false }) => {
+const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, error, loading = false }) => {
     return (
         <Modal isOpen={isOpen} onClose={onClose} disableClose={loading} title={title}>
             <div className="modal-body-centered">
                 <p className="modal-message">{message}</p>
+                {error && <p className="form-error" role="alert">{error}</p>}
                 <div className="modal-actions">
                     <button onClick={onClose} disabled={loading} className="btn btn-secondary">
                         Cancelar

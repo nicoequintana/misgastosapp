@@ -21,6 +21,9 @@ export const useGestionCatalogo = ({ fetchItems, crearItem, eliminarItem, getNom
     const [error, setError] = useState('');
     const [eliminandoId, setEliminandoId] = useState(null);
     const [confirmEliminarId, setConfirmEliminarId] = useState(null);
+    // Popup de resultado tras eliminar — mismo patrón que el ResultModal de
+    // gastos/ingresos en Dashboard.jsx y Movements.jsx.
+    const [resultado, setResultado] = useState(null);
 
     const fetchear = useCallback(async () => {
         setCargando(true);
@@ -67,9 +70,21 @@ export const useGestionCatalogo = ({ fetchItems, crearItem, eliminarItem, getNom
 
     const eliminar = async (id) => {
         setEliminandoId(id);
+        setError('');
+        const itemEliminado = items.find(it => it.id === id);
         try {
             await eliminarItem(id);
             setItems(prev => prev.filter(it => it.id !== id));
+            // Solo cerramos el modal de confirmación si la eliminación fue exitosa.
+            // Si falla (ej. FK constraint), lo dejamos abierto para mostrar el
+            // error ahí mismo — antes se cerraba siempre, y el mensaje quedaba
+            // en otra parte de la pantalla donde el usuario no lo veía.
+            setConfirmEliminarId(null);
+            setResultado({
+                tipo: 'success',
+                titulo: '¡Eliminado!',
+                mensaje: itemEliminado ? `Se eliminó ${nombreEntidad} "${getNombre(itemEliminado)}".` : undefined,
+            });
         } catch (err) {
             // Si hay gastos asociados, FK constraint lo bloquea
             const mensaje = err.code === '23503'
@@ -78,13 +93,13 @@ export const useGestionCatalogo = ({ fetchItems, crearItem, eliminarItem, getNom
             setError(mensaje);
         } finally {
             setEliminandoId(null);
-            setConfirmEliminarId(null);
         }
     };
 
     return {
         items, cargando, guardando, error, setError,
         eliminandoId, confirmEliminarId, setConfirmEliminarId,
+        resultado, setResultado,
         validarDuplicado, crear, eliminar,
     };
 };

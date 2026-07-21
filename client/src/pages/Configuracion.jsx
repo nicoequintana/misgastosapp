@@ -5,6 +5,7 @@ import GlassCard from '../components/GlassCard';
 import IconPicker from '../components/IconPicker';
 import ChipSelector from '../components/ChipSelector';
 import ConfirmModal from '../components/ConfirmModal';
+import ResultModal from '../components/ResultModal';
 import { useNotificaciones } from '../context/NotificacionesContext';
 import * as db from '../lib/db';
 import { useGestionCatalogo } from '../hooks/useGestionCatalogo';
@@ -733,19 +734,37 @@ const Configuracion = () => {
 
             <ConfirmModal
                 isOpen={catCategorias.confirmEliminarId !== null}
-                onClose={() => catCategorias.setConfirmEliminarId(null)}
+                onClose={() => { catCategorias.setConfirmEliminarId(null); catCategorias.setError(''); }}
                 onConfirm={() => catCategorias.eliminar(catCategorias.confirmEliminarId)}
                 title="Eliminar categoría"
                 message={`¿Eliminás la categoría "${catCategorias.items.find(c => c.id === catCategorias.confirmEliminarId)?.nombre || ''}"? Esta acción no se puede deshacer.`}
+                error={catCategorias.error}
                 loading={catCategorias.eliminandoId === catCategorias.confirmEliminarId}
             />
             <ConfirmModal
                 isOpen={catMetodosPago.confirmEliminarId !== null}
-                onClose={() => catMetodosPago.setConfirmEliminarId(null)}
+                onClose={() => { catMetodosPago.setConfirmEliminarId(null); catMetodosPago.setError(''); }}
                 onConfirm={() => catMetodosPago.eliminar(catMetodosPago.confirmEliminarId)}
                 title="Eliminar método de pago"
                 message={`¿Eliminás el método de pago "${catMetodosPago.items.find(pm => pm.id === catMetodosPago.confirmEliminarId)?.nombre || ''}"? Esta acción no se puede deshacer.`}
+                error={catMetodosPago.error}
                 loading={catMetodosPago.eliminandoId === catMetodosPago.confirmEliminarId}
+            />
+
+            {/* Popup de resultado tras eliminar — mismo patrón que Dashboard/Movements */}
+            <ResultModal
+                isOpen={!!catCategorias.resultado}
+                onClose={() => catCategorias.setResultado(null)}
+                tipo={catCategorias.resultado?.tipo}
+                titulo={catCategorias.resultado?.titulo}
+                mensaje={catCategorias.resultado?.mensaje}
+            />
+            <ResultModal
+                isOpen={!!catMetodosPago.resultado}
+                onClose={() => catMetodosPago.setResultado(null)}
+                tipo={catMetodosPago.resultado?.tipo}
+                titulo={catMetodosPago.resultado?.titulo}
+                mensaje={catMetodosPago.resultado?.mensaje}
             />
         </div>
     );
