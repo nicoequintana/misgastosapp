@@ -119,6 +119,43 @@ describe('GastoWizard', () => {
         expect(screen.queryByText(/Indicá en qué mes vence la primera cuota/i)).not.toBeInTheDocument();
     });
 
+    it('no duplica el id del mensaje de error de primeraCuota cuando categoría-préstamo y método-tarjeta coinciden', async () => {
+        // Categoría de préstamo y método con cuotas no son mutuamente excluyentes en el modelo
+        // de datos (es_prestamo / acepta_cuotas son flags independientes) — si el usuario elige
+        // ambos a la vez, esTarjetaCredito y esPrestamo quedan true simultáneamente y los dos
+        // bloques condicionales (uno por cada flag) se renderizan juntos. Antes del fix,
+        // ambos usaban el mismo id="expense-primeracuota-error" → DOM inválido.
+        const CATEGORIA_PRESTAMO = [
+            { id: 2, nombre: 'PRESTAMOS', icono: 'account_balance', es_prestamo: true },
+        ];
+        const METODO_TARJETA = [
+            { id: 20, nombre: 'VISA', icono: 'credit_card', acepta_cuotas: true },
+        ];
+        renderWizard({ categories: CATEGORIA_PRESTAMO, paymentMethods: METODO_TARJETA });
+
+        fireEvent.change(screen.getByLabelText(/Monto/i), { target: { value: '1000' } });
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+
+        await screen.findByText('PRESTAMOS');
+        fireEvent.click(screen.getByText('PRESTAMOS'));
+        fireEvent.click(screen.getByText('VISA'));
+
+        // Ambos bloques (tarjeta y préstamo) están presentes a la vez: dos inputs de primera cuota.
+        const inputsPrimeraCuota = await screen.findAllByLabelText(/primer/i);
+        expect(inputsPrimeraCuota).toHaveLength(2);
+
+        fireEvent.blur(inputsPrimeraCuota[0]);
+        fireEvent.blur(inputsPrimeraCuota[1]);
+
+        const mensajesError = await screen.findAllByText(/Indicá en qué mes/i);
+        expect(mensajesError).toHaveLength(2);
+
+        // Los ids de los <p> de error deben ser distintos — un id duplicado en el DOM
+        // invalida el HTML y rompe aria-describedby para lectores de pantalla.
+        const idsError = mensajesError.map((el) => el.id);
+        expect(new Set(idsError).size).toBe(2);
+    });
+
     it('muestra fase de resultado con error (vía ResultModal) cuando falla el guardado', async () => {
         db.createExpense.mockRejectedValue(new Error('Error de red'));
         renderWizard();

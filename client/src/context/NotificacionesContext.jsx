@@ -375,8 +375,10 @@ export const NotificacionesProvider = ({ children }) => {
             await agregarNotificacion(notif);
         }
 
-        // El Dashboard consume este retorno como dato (gastoDiarioDisponible, gastoProyectado,
-        // diasRestantes), no solo como disparador de alertas — preservar el contrato.
+        // Retorno preservado por compatibilidad con el contrato original (gastoDiarioDisponible,
+        // gastoProyectado, diasRestantes) — hoy el Dashboard no lo usa (llama esta función en
+        // fire-and-forget y recalcula gastoDiarioDisponible con su propio useMemo), pero un
+        // futuro consumidor podría depender de él sin tener que tocar esta función.
         return datos ?? undefined;
     }, [user, config, agregarNotificacion, puedeDispararAlerta]);
 

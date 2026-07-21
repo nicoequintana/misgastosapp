@@ -384,14 +384,14 @@ const GastoWizard = ({
                                         }
                                     }}
                                     onBlur={handleBlurPrimeraCuotaGasto}
-                                    aria-describedby={erroresCampoGasto.primeraCuota ? 'expense-primeracuota-error' : undefined}
+                                    aria-describedby={erroresCampoGasto.primeraCuota ? 'expense-primeracuota-error-tarjeta' : undefined}
                                     required
                                 />
                                 <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
                                     El 1° del mes elegido es la fecha de vencimiento de la primera cuota.
                                 </small>
                                 {erroresCampoGasto.primeraCuota && (
-                                    <p id="expense-primeracuota-error" className="edit-form-error" role="alert">{erroresCampoGasto.primeraCuota}</p>
+                                    <p id="expense-primeracuota-error-tarjeta" className="edit-form-error" role="alert">{erroresCampoGasto.primeraCuota}</p>
                                 )}
                             </div>
                             </>
@@ -427,14 +427,14 @@ const GastoWizard = ({
                                         }
                                     }}
                                     onBlur={handleBlurPrimeraCuotaGasto}
-                                    aria-describedby={erroresCampoGasto.primeraCuota ? 'expense-primeracuota-error' : undefined}
+                                    aria-describedby={erroresCampoGasto.primeraCuota ? 'expense-primeracuota-error-prestamo' : undefined}
                                     required
                                 />
                                 <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
                                     El 1° del mes elegido es la fecha del primer pago del préstamo.
                                 </small>
                                 {erroresCampoGasto.primeraCuota && (
-                                    <p id="expense-primeracuota-error" className="edit-form-error" role="alert">{erroresCampoGasto.primeraCuota}</p>
+                                    <p id="expense-primeracuota-error-prestamo" className="edit-form-error" role="alert">{erroresCampoGasto.primeraCuota}</p>
                                 )}
                             </div>
                             </>
