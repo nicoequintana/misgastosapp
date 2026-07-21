@@ -352,7 +352,7 @@ export const eliminarGrupo = async (grupoId) => {
 
     const token = await obtenerTokenActivo();
 
-    const res = await fetch(`/api/grupos/${grupoId}`, {
+    const res = await fetch(`${BACKEND_URL}/api/grupos/${grupoId}`, {
         method: 'DELETE',
         headers: {
             'Content-Type': 'application/json',
