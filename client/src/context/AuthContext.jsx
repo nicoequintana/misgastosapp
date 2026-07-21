@@ -68,6 +68,53 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const signUpWithEmail = async ({ nombre, apellido, telefono, fechaNacimiento, email, password }) => {
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                emailRedirectTo: `${window.location.origin}/`,
+            },
+        });
+        if (error) {
+            console.error('❌ Error al registrarse:', error.message);
+            throw error;
+        }
+
+        // Con confirmación de email pendiente, signUp() devuelve session=null pero
+        // user con id — un array de identities vacío indica que el email ya existía
+        // (Supabase no lanza error explícito en ese caso para no filtrar qué emails
+        // están registrados).
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+            throw new Error('User already registered');
+        }
+
+        if (data.user) {
+            // RLS (auth.uid() = id) permite este insert porque el usuario recién
+            // creado ya tiene un JWT válido, aunque su email no esté confirmado.
+            const { error: perfilError } = await supabase.from('usuarios').upsert({
+                id: data.user.id,
+                nombre,
+                apellido,
+                telefono,
+                fecha_nacimiento: fechaNacimiento,
+            });
+            if (perfilError) {
+                // No revertimos el signUp — el perfil se puede completar después
+                // desde Configuración.
+                console.error('⚠️ Error al guardar perfil extendido:', perfilError.message);
+            }
+        }
+    };
+
+    const signInWithPassword = async ({ email, password }) => {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+            console.error('❌ Error al iniciar sesión con contraseña:', error.message);
+            throw error;
+        }
+    };
+
     const signOut = async () => {
         // scope: 'global' invalida todos los tokens del usuario en todos los dispositivos.
         // Usar cuando se sospecha exposición de tokens (URL filtrada, sesión comprometida).
@@ -81,8 +128,8 @@ export const AuthProvider = ({ children }) => {
     };
 
     const value = useMemo(
-        () => ({ session, user, signOut, signInWithGoogle, loading }),
-        [session, user, loading] // signOut y signInWithGoogle son referencias estables
+        () => ({ session, user, signOut, signInWithGoogle, signUpWithEmail, signInWithPassword, loading }),
+        [session, user, loading] // el resto son referencias estables
     );
 
     return (
