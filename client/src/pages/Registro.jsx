@@ -57,16 +57,27 @@ const Registro = () => {
     };
 
     return (
-        <div className="welcome-page-body">
-            <nav className="welcome-navbar">
-                <div className="welcome-navbar-brand">
-                    <span className="material-symbols-outlined welcome-navbar-icon">payments</span>
-                    <span className="welcome-navbar-title">Tus Gastos</span>
+        <div className="wlc-root">
+            <div className="wlc-bg" aria-hidden="true">
+                <div className="wlc-orb wlc-orb--1" />
+                <div className="wlc-orb wlc-orb--2" />
+                <div className="wlc-orb wlc-orb--3" />
+                <div className="wlc-orb wlc-orb--4" />
+                <div className="wlc-grid-overlay" />
+            </div>
+
+            <nav className="wlc-nav">
+                <div className="wlc-brand">
+                    <div className="wlc-brand-icon">
+                        <span className="material-symbols-outlined">payments</span>
+                    </div>
+                    <span className="wlc-brand-name">Tus Gastos</span>
                 </div>
             </nav>
 
-            <main className="welcome-main">
-                <div className="welcome-card-login welcome-card-registro">
+            <main className="wlc-main">
+                <div className="wlc-card-wrap">
+                <div className="wlc-card welcome-card-registro">
 
                     <h2 className="welcome-registro-titulo">Crear cuenta</h2>
 
@@ -159,6 +170,7 @@ const Registro = () => {
                         ¿Ya tenés cuenta?{' '}
                         <Link to="/welcome" className="welcome-link">Iniciar sesión</Link>
                     </p>
+                </div>
                 </div>
             </main>
         </div>
