@@ -92,9 +92,15 @@ Cada función pura recibe `(stats, config, puedeDisparar)` y devuelve un array d
 
 47 tests nuevos en 8 archivos, ninguno mockea Supabase ni localStorage — el throttle se inyecta como función mock, cumpliendo el objetivo original de R7 (funciones puras testeables). Firmas públicas de `useNotificaciones()` sin cambios. 328/328 tests, lint y build OK.
 
-### ⏳ Sin encarar
+### ✅ UX-17 — validación on-blur en 3 formularios
 
-- **UX-17** — validación on-blur en 3 formularios.
+`GastoWizard.jsx` (monto, primeraCuota), `IngresoModal.jsx` (monto) y `GrupoGastoForm.jsx`/`useGrupoGastoForm.js` (descripción, monto, fecha, pagadoPor, primeraCuota) agregan validación on-blur por campo, complementaria a la validación de submit/paso ya existente (no la reemplaza). Mensajes reutilizados de la lógica existente para consistencia. El error de un campo se limpia en `onChange`, no hace falta perder foco de nuevo. Campos sin foco tradicional (`ChipSelector`, multi-select de participantes) quedan solo con la validación de submit, por no tener evento de blur real.
+
+`CurrencyInput.jsx` gana soporte de `onBlur`/`ariaDescribedBy` (aditivo, sin impacto en otros consumidores que no los pasan). 10 tests nuevos. 338/338 tests, lint y build OK.
+
+### Roadmap de mejoras.md — completo
+
+Todos los sprints (1-4), los 3 bloques de cobertura de tests, y los 4 refactors grandes (R1, R2, R6, R7) más UX-17 quedaron resueltos. Hallazgos P2/P3 menores no evaluados en detalle en la auditoría original quedan fuera de este documento salvo que se decida retomarlos puntualmente.
 
 Recomendado abordarlos en una sesión dedicada aparte, función por función, con tests de regresión antes de cada movimiento — mover código sin un bug real detrás tiene bajo margen de error tolerado.
 
