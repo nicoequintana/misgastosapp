@@ -52,6 +52,12 @@ Todo verificado: 234 tests client + 153 tests server, lint limpio, build OK.
 
 5 tests nuevos en `client/src/lib/db.createExpense.test.js` ("SIN DESCRIPCIÓN" por defecto, `id_categoria`/`id_metodo_pago = 0` no colapsa a null en ambos caminos con/sin cuotas, manejo de `data null` sin error, propagación de error de Supabase). Cobertura de `db.js` sube de 8.79% a 16.26%. De paso se encontró y arregló C-02 (ver sección 1), que seguía vivo en el código pese a estar documentado como P3. 239/239 tests, lint y build OK.
 
+### ✅ Cobertura de tests — grupos/liquidaciones (db.js)
+
+19 tests nuevos en `client/src/lib/db.grupos.test.js` para `registrarLiquidacion`, `obtenerSaldosDelGrupo` y `crearGastoGrupalEnCuotas`, incluyendo la invariante de que el ledger siempre suma cero entre miembros. Cobertura de `db.js` sube de 16.26% a 19.70% (statements). 258/258 tests, lint y build OK.
+
+**Dato de arquitectura descubierto** (no bug): `registrarLiquidacion` y `crearGastoGrupalEnCuotas` NO usan Supabase directo — delegan al backend vía `fetch` a `server/routes/grupos.js`, que es donde vive la validación y el fix de S-01. `obtenerSaldosDelGrupo` sí usa Supabase directo pero solo lee la vista `vw_grupo_saldos` (el cálculo de saldos vive en SQL, no en el cliente). No se verificó si esos endpoints del backend usan transacción SQL real — pendiente si se quiere auditar en profundidad.
+
 ### ⏳ Pendiente — R1/R2/R6/R7 (refactors grandes sin bug de por medio)
 
 No encarados por tamaño/riesgo:
