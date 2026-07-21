@@ -70,11 +70,16 @@ Todo verificado: 234 tests client + 153 tests server, lint limpio, build OK.
 
 **Duplicación preexistente detectada, no tocada** (fuera de scope de este refactor mecánico): `getTarjetasEnCuotas` y `getPrestamosEnCuotas` (`db/expenses.js`) hacen el mismo query a Supabase, solo difieren en el filtro post-fetch.
 
-### ⏳ Pendiente — R2/R6/R7 (refactors grandes sin bug de por medio)
+### ✅ R2 — split de `server/routes/grupos.js` por dominio
+
+`grupos.js` (1464 líneas, 13 endpoints) pasa a ser un barrel de 4 líneas. Lógica movida a `server/routes/grupos/{_helpers,invitaciones,grupo,gastos,liquidaciones}.js` + `index.js` que combina los sub-routers. `server/index.js` no requirió ningún cambio.
+
+**Detalle técnico manejado correctamente**: en Express, `router.param()` no se propaga desde un router padre a sub-routers montados con `router.use()` — cada sub-router que usa `:grupoId`/`:gastoId`/`:liqId` en sus rutas repite su propio `router.param()` con la validación idéntica al original (verificado línea por línea). 153/153 tests server, prueba de humo con servidor real levantado y `GET /health` → `{"status":"ok"}`.
+
+### ⏳ Pendiente — R6/R7 (refactors grandes sin bug de por medio)
 
 No encarados por tamaño/riesgo:
 
-- **R2** — split de `server/routes/grupos.js` (1464 líneas) por dominio.
 - **R6** — extraer wizards de gasto/ingreso de `Dashboard.jsx` a componentes (incluye UX-14, unificar feedback de éxito con `ResultModal`).
 - **R7** — extraer los 7 motores de alerta de `NotificacionesContext.jsx` (~430 líneas) a módulos puros en `lib/alertas/`.
 
