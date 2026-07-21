@@ -56,6 +56,10 @@ const IngresoModal = ({ isOpen, onClose, categoriaIngresos, onIngresoGuardado })
     // posición del footer tras avanzar al último paso.
     const [botonesPasoIngresoBloqueados, setBotonesPasoIngresoBloqueados] = useState(false);
     const [errorIngresoForm, setErrorIngresoForm] = useState(null);
+    // Errores de validación por campo, mostrados al perder foco (on-blur). Complementa a
+    // errorIngresoForm (que se muestra al intentar avanzar de paso o al fallar el guardado):
+    // este es más granular y da feedback apenas el usuario sale del campo con un valor inválido.
+    const [erroresCampoIngreso, setErroresCampoIngreso] = useState({});
 
     // Recurrentes activos para el listado — informativo
     const recurrentesActivos = recurrentes.filter(r => r.activo);
@@ -93,6 +97,7 @@ const IngresoModal = ({ isOpen, onClose, categoriaIngresos, onIngresoGuardado })
         setVistaIngreso('lista');
         setPasoIngreso(1);
         setErrorIngresoForm(null);
+        setErroresCampoIngreso({});
         fetchIngresosMes();
         fetchRecurrentes();
     }, [isOpen, fetchIngresosMes, fetchRecurrentes]);
@@ -139,6 +144,13 @@ const IngresoModal = ({ isOpen, onClose, categoriaIngresos, onIngresoGuardado })
     const handleAtrasPasoIngreso = () => {
         setErrorIngresoForm(null);
         setPasoIngreso(prev => prev - 1);
+    };
+
+    /** Valida el campo monto al perder foco (on-blur). Mismo mensaje que validarPasoIngreso. */
+    const handleBlurMontoIngreso = () => {
+        if (!incomeForm.monto || Number(incomeForm.monto) <= 0) {
+            setErroresCampoIngreso(prev => ({ ...prev, monto: 'El monto debe ser mayor a cero.' }));
+        }
     };
 
     /** Vuelve a la vista de lista tras ver el resultado, sin cerrar el modal de Ingresos. */
@@ -421,11 +433,21 @@ const IngresoModal = ({ isOpen, onClose, categoriaIngresos, onIngresoGuardado })
                                 id="income-monto"
                                 key={`income-${incomeEditando ?? 'new'}`}
                                 value={incomeForm.monto}
-                                onChange={(val) => setIncomeForm(prev => ({ ...prev, monto: val }))}
+                                onChange={(val) => {
+                                    setIncomeForm(prev => ({ ...prev, monto: val }));
+                                    if (erroresCampoIngreso.monto) {
+                                        setErroresCampoIngreso(prev => ({ ...prev, monto: null }));
+                                    }
+                                }}
+                                onBlur={handleBlurMontoIngreso}
+                                ariaDescribedBy={erroresCampoIngreso.monto ? 'income-monto-error' : undefined}
                                 className="input currency-input--grande"
                                 autoFocus
                                 required
                             />
+                            {erroresCampoIngreso.monto && (
+                                <p id="income-monto-error" className="edit-form-error" role="alert">{erroresCampoIngreso.monto}</p>
+                            )}
                         </div>
                         <div className="form-group">
                             <label className="form-label-box" htmlFor="income-descripcion">Descripción (opcional)</label>

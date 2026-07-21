@@ -95,6 +95,76 @@ describe('GrupoGastoNuevo', () => {
         expect(db.crearGastoGrupal).not.toHaveBeenCalled();
     });
 
+    it('muestra error inline al perder foco de descripción vacía (on-blur)', async () => {
+        renderPagina();
+        await waitFor(() => expect(screen.getByText('COMIDA')).toBeInTheDocument());
+
+        const inputDescripcion = screen.getByLabelText(/Descripción/i);
+        fireEvent.blur(inputDescripcion);
+
+        expect(await screen.findByText(/La descripción es obligatoria/i)).toBeInTheDocument();
+
+        fireEvent.change(inputDescripcion, { target: { value: 'Cena' } });
+        expect(screen.queryByText(/La descripción es obligatoria/i)).not.toBeInTheDocument();
+    });
+
+    it('muestra error inline al perder foco del monto en cero (on-blur)', async () => {
+        renderPagina();
+        await waitFor(() => expect(screen.getByText('COMIDA')).toBeInTheDocument());
+
+        const inputMonto = screen.getByLabelText(/Monto/i);
+        fireEvent.blur(inputMonto);
+
+        expect(await screen.findByText(/El monto debe ser mayor a cero/i)).toBeInTheDocument();
+
+        fireEvent.change(inputMonto, { target: { value: '1000' } });
+        expect(screen.queryByText(/El monto debe ser mayor a cero/i)).not.toBeInTheDocument();
+    });
+
+    it('muestra error inline al perder foco de fecha vacía (on-blur)', async () => {
+        renderPagina();
+        await waitFor(() => expect(screen.getByText('COMIDA')).toBeInTheDocument());
+
+        const inputFecha = screen.getByLabelText(/Fecha/i);
+        fireEvent.change(inputFecha, { target: { value: '' } });
+        fireEvent.blur(inputFecha);
+
+        expect(await screen.findByText(/La fecha es obligatoria/i)).toBeInTheDocument();
+
+        fireEvent.change(inputFecha, { target: { value: '2026-07-21' } });
+        expect(screen.queryByText(/La fecha es obligatoria/i)).not.toBeInTheDocument();
+    });
+
+    it('muestra error inline al perder foco de "Pagó" sin seleccionar (on-blur)', async () => {
+        renderPagina();
+        await waitFor(() => expect(screen.getByText('COMIDA')).toBeInTheDocument());
+
+        // El pagador arranca precargado con el usuario actual (default del hook) — se
+        // vacía primero para poder probar el caso "sin seleccionar" antes de perder foco.
+        const selectPagadoPor = screen.getByLabelText(/Pagó/i);
+        fireEvent.change(selectPagadoPor, { target: { value: '' } });
+        fireEvent.blur(selectPagadoPor);
+
+        expect(await screen.findByText('Seleccioná quién pagó.')).toBeInTheDocument();
+
+        fireEvent.change(selectPagadoPor, { target: { value: 'u1' } });
+        expect(screen.queryByText('Seleccioná quién pagó.')).not.toBeInTheDocument();
+    });
+
+    it('muestra error inline al perder foco de primera cuota sin completar (on-blur, método con cuotas)', async () => {
+        renderPagina();
+        await waitFor(() => expect(screen.getByText('VISA')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('VISA'));
+
+        const inputPrimeraCuota = await screen.findByLabelText(/primera cuota/i);
+        fireEvent.blur(inputPrimeraCuota);
+
+        expect(await screen.findByText(/Indicá en qué mes vence la primera cuota/i)).toBeInTheDocument();
+
+        fireEvent.change(inputPrimeraCuota, { target: { value: '2026-08' } });
+        expect(screen.queryByText(/Indicá en qué mes vence la primera cuota/i)).not.toBeInTheDocument();
+    });
+
     it('muestra fase de resultado con error y vuelve al formulario al continuar', async () => {
         db.crearGastoGrupal.mockRejectedValue(new Error('Error de red'));
         renderPagina();

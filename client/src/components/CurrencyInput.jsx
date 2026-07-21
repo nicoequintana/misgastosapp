@@ -10,8 +10,9 @@ import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
  * @param {string} placeholder - Texto de ayuda cuando el input está vacío.
  * @param {string} className - Clases CSS adicionales.
  * @param {boolean} required - Si el campo es obligatorio.
+ * @param {function} [onBlur] - Callback al perder foco (para validación on-blur del formulario padre).
  */
-const CurrencyInput = ({ id, value, onChange, placeholder, className = 'input', required, disabled, autoFocus }) => {
+const CurrencyInput = ({ id, value, onChange, placeholder, className = 'input', required, disabled, autoFocus, onBlur, ariaDescribedBy }) => {
     const [displayValue, setDisplayValue] = useState('');
     const inputRef = useRef(null);
     const cursorRef = useRef(null);
@@ -129,6 +130,8 @@ const CurrencyInput = ({ id, value, onChange, placeholder, className = 'input', 
             placeholder={placeholder}
             value={displayValue}
             onChange={handleChange}
+            onBlur={onBlur}
+            aria-describedby={ariaDescribedBy}
             required={required}
             disabled={disabled}
             autoFocus={autoFocus}

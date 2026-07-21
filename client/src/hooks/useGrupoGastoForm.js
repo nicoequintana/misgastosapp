@@ -36,6 +36,11 @@ export const useGrupoGastoForm = ({ grupoId, gastoId, modo }) => {
     const [cuotas, setCuotas] = useState(1);
     const [primeraCuota, setPrimeraCuota] = useState('');
 
+    // Errores de validación por campo, mostrados al perder foco (on-blur). Complementa a
+    // errorGuardado (que se muestra al intentar submitear o si falla el guardado): este es
+    // más granular y da feedback apenas el usuario sale del campo con un valor inválido.
+    const [erroresCampo, setErroresCampo] = useState({});
+
     // Estado de envío
     const [errorGuardado, setErrorGuardado] = useState(null);
     // Fase visual del formulario: 'form' (edición), 'guardando' (spinner mientras
@@ -211,6 +216,30 @@ export const useGrupoGastoForm = ({ grupoId, gastoId, modo }) => {
         setResultado(null);
     };
 
+    /** Marca o limpia el error on-blur de un campo puntual. */
+    const setErrorCampo = (campo, mensaje) => {
+        setErroresCampo(prev => ({ ...prev, [campo]: mensaje }));
+    };
+
+    // Handlers on-blur por campo: validan solo ESE campo al perder foco (mismos mensajes
+    // que validar(), para consistencia). El error se limpia en el respectivo setter on-change
+    // (ver componente), no acá — así el usuario no queda "atrapado" mientras corrige.
+    const handleBlurDescripcion = () => {
+        if (!descripcion.trim()) setErrorCampo('descripcion', 'La descripción es obligatoria.');
+    };
+    const handleBlurMonto = () => {
+        if (!monto || monto <= 0) setErrorCampo('monto', 'El monto debe ser mayor a cero.');
+    };
+    const handleBlurFecha = () => {
+        if (!fecha) setErrorCampo('fecha', 'La fecha es obligatoria.');
+    };
+    const handleBlurPagadoPor = () => {
+        if (!pagadoPor) setErrorCampo('pagadoPor', 'Seleccioná quién pagó.');
+    };
+    const handleBlurPrimeraCuota = () => {
+        if (esTarjeta && !primeraCuota) setErrorCampo('primeraCuota', 'Indicá en qué mes vence la primera cuota.');
+    };
+
     return {
         // datos
         miembros, categorias, metodosPago, cargando, errorCarga,
@@ -226,6 +255,9 @@ export const useGrupoGastoForm = ({ grupoId, gastoId, modo }) => {
         esTarjeta,
         cuotas, setCuotas,
         primeraCuota, setPrimeraCuota,
+        // validación on-blur por campo
+        erroresCampo, setErrorCampo,
+        handleBlurDescripcion, handleBlurMonto, handleBlurFecha, handleBlurPagadoPor, handleBlurPrimeraCuota,
         // envío
         errorGuardado, fase, resultado, handleSubmit, volverAFormulario,
         // derivados

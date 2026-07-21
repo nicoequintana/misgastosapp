@@ -81,6 +81,44 @@ describe('GastoWizard', () => {
         expect(await screen.findByText(/El monto debe ser mayor a cero/i)).toBeInTheDocument();
     }, 10000);
 
+    it('muestra error inline al perder foco del monto en cero (on-blur)', async () => {
+        renderWizard();
+        const inputMonto = screen.getByLabelText(/Monto/i);
+        fireEvent.blur(inputMonto);
+        expect(await screen.findByText(/El monto debe ser mayor a cero/i)).toBeInTheDocument();
+    });
+
+    it('limpia el error inline del monto en cuanto el usuario cambia el valor', async () => {
+        renderWizard();
+        const inputMonto = screen.getByLabelText(/Monto/i);
+        fireEvent.blur(inputMonto);
+        expect(await screen.findByText(/El monto debe ser mayor a cero/i)).toBeInTheDocument();
+
+        fireEvent.change(inputMonto, { target: { value: '1000' } });
+        expect(screen.queryByText(/El monto debe ser mayor a cero/i)).not.toBeInTheDocument();
+    });
+
+    it('muestra error inline al perder foco de primeraCuota sin completar (tarjeta)', async () => {
+        const METODOS_TARJETA = [
+            { id: 20, nombre: 'VISA', icono: 'credit_card', acepta_cuotas: true },
+        ];
+        renderWizard({ paymentMethods: METODOS_TARJETA });
+
+        fireEvent.change(screen.getByLabelText(/Monto/i), { target: { value: '1000' } });
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+
+        await screen.findByText('COMIDA');
+        fireEvent.click(screen.getByText('COMIDA'));
+        fireEvent.click(screen.getByText('VISA'));
+
+        const inputPrimeraCuota = await screen.findByLabelText(/primera cuota/i);
+        fireEvent.blur(inputPrimeraCuota);
+        expect(await screen.findByText(/Indicá en qué mes vence la primera cuota/i)).toBeInTheDocument();
+
+        fireEvent.change(inputPrimeraCuota, { target: { value: '2026-08' } });
+        expect(screen.queryByText(/Indicá en qué mes vence la primera cuota/i)).not.toBeInTheDocument();
+    });
+
     it('muestra fase de resultado con error (vía ResultModal) cuando falla el guardado', async () => {
         db.createExpense.mockRejectedValue(new Error('Error de red'));
         renderWizard();

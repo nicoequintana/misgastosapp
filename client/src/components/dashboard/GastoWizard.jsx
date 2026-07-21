@@ -61,6 +61,10 @@ const GastoWizard = ({
     // Estado del formulario de nuevo gasto
     const [expenseForm, setExpenseForm] = useState(ESTADO_INICIAL_GASTO);
     const [errorForm, setErrorForm] = useState(null);
+    // Errores de validación por campo, mostrados al perder foco (on-blur). Complementa a
+    // errorForm (que se muestra al intentar avanzar de paso o al fallar el guardado): este
+    // es más granular y da feedback apenas el usuario sale del campo con un valor inválido.
+    const [erroresCampoGasto, setErroresCampoGasto] = useState({});
     // Paso actual del wizard de carga (1: monto/descripción, 2: categoría/método/cuotas, 3: fijo/variable)
     const [pasoGasto, setPasoGasto] = useState(1);
     // Se activa brevemente al cambiar de paso, para deshabilitar los botones de navegación
@@ -84,6 +88,7 @@ const GastoWizard = ({
             ? { ...ESTADO_INICIAL_GASTO, es_fijo: esFijoPreseleccionado, tipoPreseleccionado: true }
             : ESTADO_INICIAL_GASTO);
         setErrorForm(null);
+        setErroresCampoGasto({});
         setPasoGasto(1);
         setFaseGasto('form');
         setResultadoGasto(null);
@@ -134,6 +139,20 @@ const GastoWizard = ({
     const handleAtrasPaso = () => {
         setErrorForm(null);
         setPasoGasto(prev => prev - 1);
+    };
+
+    /** Valida el campo monto al perder foco (on-blur). Mismo mensaje que validarPasoGasto. */
+    const handleBlurMontoGasto = () => {
+        if (!expenseForm.monto || Number(expenseForm.monto) <= 0) {
+            setErroresCampoGasto(prev => ({ ...prev, monto: 'El monto debe ser mayor a cero.' }));
+        }
+    };
+
+    /** Valida el campo primeraCuota al perder foco (on-blur). Mismo mensaje que validarPasoGasto. */
+    const handleBlurPrimeraCuotaGasto = () => {
+        if ((expenseForm.esTarjetaCredito || expenseForm.esPrestamo) && !expenseForm.primeraCuota) {
+            setErroresCampoGasto(prev => ({ ...prev, primeraCuota: 'Indicá en qué mes vence la primera cuota.' }));
+        }
     };
 
     // Detecta si el método de pago seleccionado acepta cuotas (flag explícito en metodos_pago.acepta_cuotas)
@@ -276,10 +295,20 @@ const GastoWizard = ({
                             <CurrencyInput
                                 id="expense-monto"
                                 value={expenseForm.monto}
-                                onChange={(val) => setExpenseForm(prev => ({ ...prev, monto: val }))}
+                                onChange={(val) => {
+                                    setExpenseForm(prev => ({ ...prev, monto: val }));
+                                    if (erroresCampoGasto.monto) {
+                                        setErroresCampoGasto(prev => ({ ...prev, monto: null }));
+                                    }
+                                }}
+                                onBlur={handleBlurMontoGasto}
+                                ariaDescribedBy={erroresCampoGasto.monto ? 'expense-monto-error' : undefined}
                                 className="input currency-input--grande"
                                 autoFocus
                             />
+                            {erroresCampoGasto.monto && (
+                                <p id="expense-monto-error" className="edit-form-error" role="alert">{erroresCampoGasto.monto}</p>
+                            )}
                         </div>
                         <div className="form-group">
                             <label className="form-label-box" htmlFor="expense-descripcion">Descripción (opcional)</label>
@@ -348,12 +377,22 @@ const GastoWizard = ({
                                     type="month"
                                     className="form-select"
                                     value={expenseForm.primeraCuota}
-                                    onChange={(e) => setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }))}
+                                    onChange={(e) => {
+                                        setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }));
+                                        if (erroresCampoGasto.primeraCuota) {
+                                            setErroresCampoGasto(prev => ({ ...prev, primeraCuota: null }));
+                                        }
+                                    }}
+                                    onBlur={handleBlurPrimeraCuotaGasto}
+                                    aria-describedby={erroresCampoGasto.primeraCuota ? 'expense-primeracuota-error' : undefined}
                                     required
                                 />
                                 <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
                                     El 1° del mes elegido es la fecha de vencimiento de la primera cuota.
                                 </small>
+                                {erroresCampoGasto.primeraCuota && (
+                                    <p id="expense-primeracuota-error" className="edit-form-error" role="alert">{erroresCampoGasto.primeraCuota}</p>
+                                )}
                             </div>
                             </>
                         )}
@@ -381,12 +420,22 @@ const GastoWizard = ({
                                     type="month"
                                     className="form-select"
                                     value={expenseForm.primeraCuota}
-                                    onChange={(e) => setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }))}
+                                    onChange={(e) => {
+                                        setExpenseForm(prev => ({ ...prev, primeraCuota: e.target.value }));
+                                        if (erroresCampoGasto.primeraCuota) {
+                                            setErroresCampoGasto(prev => ({ ...prev, primeraCuota: null }));
+                                        }
+                                    }}
+                                    onBlur={handleBlurPrimeraCuotaGasto}
+                                    aria-describedby={erroresCampoGasto.primeraCuota ? 'expense-primeracuota-error' : undefined}
                                     required
                                 />
                                 <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
                                     El 1° del mes elegido es la fecha del primer pago del préstamo.
                                 </small>
+                                {erroresCampoGasto.primeraCuota && (
+                                    <p id="expense-primeracuota-error" className="edit-form-error" role="alert">{erroresCampoGasto.primeraCuota}</p>
+                                )}
                             </div>
                             </>
                         )}

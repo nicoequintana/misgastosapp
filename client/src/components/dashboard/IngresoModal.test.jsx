@@ -81,6 +81,28 @@ describe('IngresoModal', () => {
         expect(await screen.findByText(/El monto debe ser mayor a cero/i)).toBeInTheDocument();
     }, 10000);
 
+    it('muestra error inline al perder foco del monto en cero (on-blur)', async () => {
+        renderModal();
+        fireEvent.click(await screen.findByRole('button', { name: /Nuevo ingreso/i }));
+
+        const inputMonto = screen.getByLabelText(/Monto/i);
+        fireEvent.blur(inputMonto);
+
+        expect(await screen.findByText(/El monto debe ser mayor a cero/i)).toBeInTheDocument();
+    });
+
+    it('limpia el error inline del monto en cuanto el usuario cambia el valor', async () => {
+        renderModal();
+        fireEvent.click(await screen.findByRole('button', { name: /Nuevo ingreso/i }));
+
+        const inputMonto = screen.getByLabelText(/Monto/i);
+        fireEvent.blur(inputMonto);
+        expect(await screen.findByText(/El monto debe ser mayor a cero/i)).toBeInTheDocument();
+
+        fireEvent.change(inputMonto, { target: { value: '5000' } });
+        expect(screen.queryByText(/El monto debe ser mayor a cero/i)).not.toBeInTheDocument();
+    });
+
     it('muestra fase de resultado con error (vía ResultModal) cuando falla el guardado', async () => {
         db.createIncome.mockRejectedValue(new Error('Error de red'));
         renderModal();

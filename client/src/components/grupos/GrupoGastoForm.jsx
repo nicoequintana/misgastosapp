@@ -35,7 +35,15 @@ const GrupoGastoForm = ({
         errorGuardado, fase, resultado,
         divisionPreview, formatearMonto,
         user,
+        erroresCampo, setErrorCampo,
+        handleBlurDescripcion, handleBlurMonto, handleBlurFecha, handleBlurPagadoPor, handleBlurPrimeraCuota,
     } = form;
+
+    // Limpia el error on-blur de un campo apenas el usuario cambia su valor — no hace
+    // falta esperar a que vuelva a perder foco (evita que el usuario se sienta "atrapado").
+    const limpiarErrorCampo = (campo) => {
+        if (erroresCampo[campo]) setErrorCampo(campo, null);
+    };
 
     // ── Estado de carga ──
     if (cargando) {
@@ -150,11 +158,16 @@ const GrupoGastoForm = ({
                         className="input"
                         placeholder="Ej: Cena del viernes"
                         value={descripcion}
-                        onChange={(e) => setDescripcion(e.target.value)}
+                        onChange={(e) => { setDescripcion(e.target.value); limpiarErrorCampo('descripcion'); }}
+                        onBlur={handleBlurDescripcion}
+                        aria-describedby={erroresCampo.descripcion ? 'descripcion-error' : undefined}
                         maxLength={200}
                         required
                         autoFocus
                     />
+                    {erroresCampo.descripcion && (
+                        <p id="descripcion-error" className="edit-form-error" role="alert">{erroresCampo.descripcion}</p>
+                    )}
                 </div>
 
                 {/* Campo: Monto */}
@@ -165,11 +178,16 @@ const GrupoGastoForm = ({
                     <CurrencyInput
                         id="monto"
                         value={monto}
-                        onChange={setMonto}
+                        onChange={(val) => { setMonto(val); limpiarErrorCampo('monto'); }}
+                        onBlur={handleBlurMonto}
+                        ariaDescribedBy={erroresCampo.monto ? 'monto-error' : undefined}
                         placeholder="0,00"
                         className="input"
                         required
                     />
+                    {erroresCampo.monto && (
+                        <p id="monto-error" className="edit-form-error" role="alert">{erroresCampo.monto}</p>
+                    )}
                 </div>
 
                 {/* Campo: Fecha */}
@@ -182,9 +200,14 @@ const GrupoGastoForm = ({
                         type="date"
                         className="input"
                         value={fecha}
-                        onChange={(e) => setFecha(e.target.value)}
+                        onChange={(e) => { setFecha(e.target.value); limpiarErrorCampo('fecha'); }}
+                        onBlur={handleBlurFecha}
+                        aria-describedby={erroresCampo.fecha ? 'fecha-error' : undefined}
                         required
                     />
+                    {erroresCampo.fecha && (
+                        <p id="fecha-error" className="edit-form-error" role="alert">{erroresCampo.fecha}</p>
+                    )}
                 </div>
 
                 {/* Campo: Categoría opcional */}
@@ -246,12 +269,17 @@ const GrupoGastoForm = ({
                             type="month"
                             className="input"
                             value={primeraCuota}
-                            onChange={(e) => setPrimeraCuota(e.target.value)}
+                            onChange={(e) => { setPrimeraCuota(e.target.value); limpiarErrorCampo('primeraCuota'); }}
+                            onBlur={handleBlurPrimeraCuota}
+                            aria-describedby={erroresCampo.primeraCuota ? 'primera-cuota-error' : undefined}
                             required
                         />
                         <small className="form-hint">
                             El 1° del mes elegido se usa como fecha de vencimiento de la primera cuota.
                         </small>
+                        {erroresCampo.primeraCuota && (
+                            <p id="primera-cuota-error" className="edit-form-error" role="alert">{erroresCampo.primeraCuota}</p>
+                        )}
                     </div>
                     </>
                 )}
@@ -265,7 +293,9 @@ const GrupoGastoForm = ({
                         id="pagado-por"
                         className="input"
                         value={pagadoPor}
-                        onChange={(e) => setPagadoPor(e.target.value)}
+                        onChange={(e) => { setPagadoPor(e.target.value); limpiarErrorCampo('pagadoPor'); }}
+                        onBlur={handleBlurPagadoPor}
+                        aria-describedby={erroresCampo.pagadoPor ? 'pagado-por-error' : undefined}
                         required
                     >
                         <option value="">Seleccioná quién pagó...</option>
@@ -276,6 +306,9 @@ const GrupoGastoForm = ({
                             </option>
                         ))}
                     </select>
+                    {erroresCampo.pagadoPor && (
+                        <p id="pagado-por-error" className="edit-form-error" role="alert">{erroresCampo.pagadoPor}</p>
+                    )}
                 </div>
 
                 {/* Campo: Participantes */}
