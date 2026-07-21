@@ -19,29 +19,40 @@ const CONFIG_TIPO = {
  * @param {string} titulo
  * @param {string} [mensaje] - Subtexto opcional debajo del título (ej. detalle de la acción).
  * @param {string} [textoBoton] - Si no se especifica, usa el default de cada tipo.
+ * @param {boolean} [bare] - Si es true, renderiza solo el contenido (sin su propio <Modal>).
+ *   Se usa cuando el resultado se muestra como una fase más adentro de un modal-wizard ya
+ *   abierto (ej. GastoWizard/IngresoModal), para no anidar dos <Modal> (dos overlays/portals).
  */
-const ResultModal = ({ isOpen, onClose, tipo = 'success', titulo, mensaje, textoBoton }) => {
+const ResultModal = ({ isOpen, onClose, tipo = 'success', titulo, mensaje, textoBoton, bare = false }) => {
     const config = CONFIG_TIPO[tipo] || CONFIG_TIPO.success;
+
+    if (bare && !isOpen) return null;
+
+    const contenido = (
+        <div className="result-modal">
+            <span
+                className="material-symbols-outlined result-modal__icono"
+                style={{ color: config.color, borderColor: config.color }}
+            >
+                {config.icono}
+            </span>
+            <h3 className="result-modal__titulo">{titulo}</h3>
+            {mensaje && <p className="result-modal__subtexto">{mensaje}</p>}
+            <button
+                type="button"
+                className={`btn result-modal__boton result-modal__boton--${tipo}`}
+                onClick={onClose}
+            >
+                {textoBoton || config.botonDefault}
+            </button>
+        </div>
+    );
+
+    if (bare) return contenido;
 
     return (
         <Modal isOpen={isOpen} onClose={onClose}>
-            <div className="result-modal">
-                <span
-                    className="material-symbols-outlined result-modal__icono"
-                    style={{ color: config.color, borderColor: config.color }}
-                >
-                    {config.icono}
-                </span>
-                <h3 className="result-modal__titulo">{titulo}</h3>
-                {mensaje && <p className="result-modal__subtexto">{mensaje}</p>}
-                <button
-                    type="button"
-                    className={`btn result-modal__boton result-modal__boton--${tipo}`}
-                    onClick={onClose}
-                >
-                    {textoBoton || config.botonDefault}
-                </button>
-            </div>
+            {contenido}
         </Modal>
     );
 };
