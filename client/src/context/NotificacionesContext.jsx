@@ -11,6 +11,16 @@ import {
 } from '../lib/db';
 import { useAuth } from './AuthContext';
 import { fechaHoyArgentina } from '../utils/format';
+import {
+    evaluarAlertasFinancieras,
+    evaluarAlertaGastoAlto,
+    evaluarAlertasGastosFijos,
+    evaluarAlertaConcentracionCategoria,
+    calcularProyecciones,
+    generarResumenDiario as generarResumenDiarioPuro,
+    generarResumenSemanal as generarResumenSemanalPuro,
+    generarResumenMensual as generarResumenMensualPuro,
+} from '../lib/alertas';
 
 // Clave de localStorage para el throttle de alertas financieras (evita spam).
 // Nota: el throttle es por dispositivo/navegador. En modo incógnito o desde otro dispositivo
@@ -270,60 +280,9 @@ export const NotificacionesProvider = ({ children }) => {
      */
     const verificarAlertasFinancieras = useCallback(async (stats) => {
         if (!user || !stats) return;
-
-        const { saldoDisponible, ingresoMensual, totalGastos } = stats;
-
-        // Alerta: ingreso mensual no configurado
-        if (ingresoMensual === 0 && puedeDispararAlerta('ingreso_no_configurado')) {
-            await agregarNotificacion({
-                titulo:  'Ingreso mensual no configurado',
-                mensaje: 'No registraste tu ingreso mensual. Configuralo para ver tu saldo disponible correctamente.',
-                tipo:    'warning',
-                origen:  'sistema',
-            });
-            return; // Si no hay ingreso, las otras alertas no tienen sentido
-        }
-
-        // Alerta: saldo disponible por debajo del umbral
-        if (
-            config.notificar_saldo_bajo &&
-            ingresoMensual > 0 &&
-            saldoDisponible < config.umbral_saldo_bajo &&
-            puedeDispararAlerta('saldo_bajo')
-        ) {
-            await agregarNotificacion({
-                titulo:  'Saldo disponible bajo',
-                mensaje: `Tu saldo disponible es $${saldoDisponible.toLocaleString('es-AR')}, por debajo del umbral de $${Number(config.umbral_saldo_bajo).toLocaleString('es-AR')}.`,
-                tipo:    'error',
-                origen:  'alertas_financieras',
-                metadata: {
-                    saldo_disponible:  saldoDisponible,
-                    umbral_configurado: config.umbral_saldo_bajo,
-                },
-            });
-        }
-
-        // Alerta: porcentaje del ingreso superado
-        if (
-            config.notificar_porcentaje_ingreso &&
-            ingresoMensual > 0 &&
-            puedeDispararAlerta('porcentaje_ingreso')
-        ) {
-            const porcentajeUsado = (totalGastos / ingresoMensual) * 100;
-            if (porcentajeUsado >= config.porcentaje_maximo_ingreso) {
-                await agregarNotificacion({
-                    titulo:  'Límite de gastos alcanzado',
-                    mensaje: `Usaste el ${porcentajeUsado.toFixed(1)}% de tu ingreso mensual (límite: ${config.porcentaje_maximo_ingreso}%).`,
-                    tipo:    'warning',
-                    origen:  'alertas_financieras',
-                    metadata: {
-                        porcentaje_usado:   Math.round(porcentajeUsado),
-                        porcentaje_maximo:  config.porcentaje_maximo_ingreso,
-                        ingreso_mensual:    ingresoMensual,
-                        total_gastos:       totalGastos,
-                    },
-                });
-            }
+        const notificaciones = evaluarAlertasFinancieras(stats, config, puedeDispararAlerta);
+        for (const notif of notificaciones) {
+            await agregarNotificacion(notif);
         }
     }, [user, config, agregarNotificacion, puedeDispararAlerta]);
 
@@ -334,19 +293,10 @@ export const NotificacionesProvider = ({ children }) => {
      * @param {Object} gasto - { descripcion, monto }
      */
     const verificarAlertaGastoAlto = useCallback(async (gasto) => {
-        if (!user || !config.notificar_gasto_alto) return;
-        if (Number(gasto.monto) >= Number(config.monto_gasto_alto)) {
-            await agregarNotificacion({
-                titulo:  'Gasto alto detectado',
-                mensaje: `El gasto "${gasto.descripcion}" por $${Number(gasto.monto).toLocaleString('es-AR')} supera el umbral de $${Number(config.monto_gasto_alto).toLocaleString('es-AR')}.`,
-                tipo:    'warning',
-                origen:  'alertas_financieras',
-                metadata: {
-                    descripcion:        gasto.descripcion,
-                    monto:              gasto.monto,
-                    umbral_configurado: config.monto_gasto_alto,
-                },
-            });
+        if (!user) return;
+        const notificaciones = evaluarAlertaGastoAlto(gasto, config);
+        for (const notif of notificaciones) {
+            await agregarNotificacion(notif);
         }
     }, [user, config, agregarNotificacion]);
 
@@ -385,77 +335,9 @@ export const NotificacionesProvider = ({ children }) => {
             // Si falla la consulta del mes anterior, no bloqueamos las alertas locales
         }
 
-        // Alerta: gastos fijos superan % del ingreso
-        if (
-            config.notificar_gastos_fijos_exceso &&
-            puedeDispararAlerta('gastos_fijos_exceso')
-        ) {
-            const porcentajeFijos = (stats.gastosFijos / stats.ingresoMensual) * 100;
-            if (porcentajeFijos >= Number(config.umbral_fijos_ingreso)) {
-                await agregarNotificacion({
-                    titulo:  'Gastos fijos elevados',
-                    mensaje: `Tus gastos fijos representan el ${porcentajeFijos.toFixed(1)}% de tu ingreso mensual (límite configurado: ${config.umbral_fijos_ingreso}%).`,
-                    tipo:    'warning',
-                    origen:  'alertas_financieras',
-                    metadata: {
-                        porcentaje_fijos:  Math.round(porcentajeFijos),
-                        umbral_configurado: config.umbral_fijos_ingreso,
-                        gastos_fijos:      stats.gastosFijos,
-                        ingreso_mensual:   stats.ingresoMensual,
-                    },
-                });
-            }
-        }
-
-        // Alerta: gastos fijos del mes anterior no registrados este mes
-        if (
-            config.notificar_gastos_fijos_pendientes &&
-            statsMesAnterior &&
-            puedeDispararAlerta('gastos_fijos_pendientes')
-        ) {
-            const fijosAnterior = statsMesAnterior.gastosFijosLista.length;
-            const fijosActual = (stats.gastos || []).filter(g => g.es_fijo).length;
-
-            if (fijosAnterior > 0 && fijosActual < fijosAnterior) {
-                const faltantes = fijosAnterior - fijosActual;
-                await agregarNotificacion({
-                    titulo:  'Gastos fijos pendientes',
-                    mensaje: `El mes anterior registraste ${fijosAnterior} gastos fijos y este mes solo llevás ${fijosActual}. Puede que te falten ${faltantes} por registrar.`,
-                    tipo:    'info',
-                    origen:  'alertas_financieras',
-                    metadata: {
-                        fijos_mes_anterior: fijosAnterior,
-                        fijos_mes_actual:   fijosActual,
-                        faltantes,
-                    },
-                });
-            }
-        }
-
-        // Alerta: gastos variables crecen más de lo habitual
-        if (
-            config.notificar_variables_crecimiento &&
-            statsMesAnterior &&
-            statsMesAnterior.gastosVariables > 0 &&
-            puedeDispararAlerta('variables_crecimiento')
-        ) {
-            const margen = Number(config.margen_crecimiento_variables) / 100;
-            const umbralVariables = statsMesAnterior.gastosVariables * (1 + margen);
-            if (stats.gastosVariables > umbralVariables) {
-                const crecimiento = ((stats.gastosVariables / statsMesAnterior.gastosVariables) - 1) * 100;
-                await agregarNotificacion({
-                    titulo:  'Gastos variables en aumento',
-                    mensaje: `Tus gastos variables subieron un ${crecimiento.toFixed(1)}% respecto al mes anterior (límite configurado: ${config.margen_crecimiento_variables}%).`,
-                    tipo:    'warning',
-                    origen:  'alertas_financieras',
-                    metadata: {
-                        variables_actual:   stats.gastosVariables,
-                        variables_anterior: statsMesAnterior.gastosVariables,
-                        crecimiento_pct:    Math.round(crecimiento),
-                        margen_configurado: config.margen_crecimiento_variables,
-                    },
-                });
-            }
+        const notificaciones = evaluarAlertasGastosFijos(stats, statsMesAnterior, config, puedeDispararAlerta);
+        for (const notif of notificaciones) {
+            await agregarNotificacion(notif);
         }
     }, [user, config, agregarNotificacion, puedeDispararAlerta]);
 
@@ -466,34 +348,10 @@ export const NotificacionesProvider = ({ children }) => {
      * @param {Object} stats - Resultado de getStats()
      */
     const verificarAlertaConcentracionCategoria = useCallback(async (stats) => {
-        if (!user || !stats || stats.totalGastos === 0) return;
-        if (!config.notificar_concentracion_categoria) return;
-        if (!puedeDispararAlerta('concentracion_categoria')) return;
-
-        const umbral = Number(config.porcentaje_concentracion_categoria);
-
-        // Buscar la categoría con mayor porcentaje
-        const entrada = Object.entries(stats.porCategoria || {})
-            .map(([nombre, datos]) => ({
-                nombre,
-                porcentaje: (datos.total / stats.totalGastos) * 100,
-                total: datos.total,
-            }))
-            .find(c => c.porcentaje >= umbral);
-
-        if (entrada) {
-            await agregarNotificacion({
-                titulo:  'Concentración de gasto en una categoría',
-                mensaje: `La categoría "${entrada.nombre}" concentra el ${entrada.porcentaje.toFixed(1)}% de tu gasto total del mes ($${entrada.total.toLocaleString('es-AR')}).`,
-                tipo:    'info',
-                origen:  'alertas_financieras',
-                metadata: {
-                    categoria:          entrada.nombre,
-                    porcentaje:         Math.round(entrada.porcentaje),
-                    total_categoria:    entrada.total,
-                    umbral_configurado: umbral,
-                },
-            });
+        if (!user || !stats) return;
+        const notificaciones = evaluarAlertaConcentracionCategoria(stats, config, puedeDispararAlerta);
+        for (const notif of notificaciones) {
+            await agregarNotificacion(notif);
         }
     }, [user, config, agregarNotificacion, puedeDispararAlerta]);
 
@@ -510,75 +368,16 @@ export const NotificacionesProvider = ({ children }) => {
      * @param {Object} stats - Resultado de getStats()
      */
     const verificarProyecciones = useCallback(async (stats) => {
-        if (!user || !stats || stats.ingresoMensual === 0) return;
+        if (!user || !stats) return;
 
-        const ahora = new Date();
-        const diasEnMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0).getDate();
-        const diaActual = ahora.getDate();
-        const diasRestantes = diasEnMes - diaActual;
-
-        if (diasRestantes <= 0) return;
-
-        const { ingresoMensual, totalGastos, saldoDisponible } = stats;
-
-        // Gasto diario promedio hasta hoy
-        const gastoDiarioPromedio = totalGastos / diaActual;
-        // Proyección de gasto total a fin de mes
-        const gastoProyectado = gastoDiarioPromedio * diasEnMes;
-        // Cuánto puede gastar por día para no quedarse en rojo
-        const gastoDiarioDisponible = saldoDisponible / diasRestantes;
-
-        // Alertas de proyección (email/notificación) — solo si el usuario las habilitó.
-        // El cálculo de gastoDiarioDisponible sigue siempre, independiente de este flag,
-        // porque el dashboard lo necesita como dato aunque las alertas estén apagadas.
-        if (
-            config.notificar_proyecciones &&
-            gastoProyectado > ingresoMensual &&
-            puedeDispararAlerta('proyeccion_saldo_negativo')
-        ) {
-            const deficit = gastoProyectado - ingresoMensual;
-            await agregarNotificacion({
-                titulo:  'Proyección de saldo negativo',
-                mensaje: `Al ritmo actual de gastos, terminarías el mes con un déficit de $${deficit.toLocaleString('es-AR', { maximumFractionDigits: 0 })}.`,
-                tipo:    'error',
-                origen:  'proyeccion',
-                metadata: {
-                    gasto_proyectado:     Math.round(gastoProyectado),
-                    ingreso_mensual:      ingresoMensual,
-                    deficit_proyectado:   Math.round(deficit),
-                    dias_restantes:       diasRestantes,
-                },
-            });
+        const { notificaciones, datos } = calcularProyecciones(stats, config, puedeDispararAlerta);
+        for (const notif of notificaciones) {
+            await agregarNotificacion(notif);
         }
 
-        // Alerta: ahorro estimado en riesgo
-        const objetivoAhorro = ingresoMensual * (Number(config.objetivo_ahorro_porcentaje) / 100);
-        const ahorroProyectado = ingresoMensual - gastoProyectado;
-        if (
-            config.notificar_proyecciones &&
-            objetivoAhorro > 0 &&
-            ahorroProyectado < objetivoAhorro &&
-            puedeDispararAlerta('ahorro_en_riesgo')
-        ) {
-            await agregarNotificacion({
-                titulo:  'Objetivo de ahorro en riesgo',
-                mensaje: `Al ritmo actual no alcanzarías tu objetivo de ahorro del ${config.objetivo_ahorro_porcentaje}% ($${objetivoAhorro.toLocaleString('es-AR', { maximumFractionDigits: 0 })}). Ahorro proyectado: $${Math.max(0, ahorroProyectado).toLocaleString('es-AR', { maximumFractionDigits: 0 })}.`,
-                tipo:    'warning',
-                origen:  'proyeccion',
-                metadata: {
-                    objetivo_ahorro:    Math.round(objetivoAhorro),
-                    ahorro_proyectado:  Math.round(Math.max(0, ahorroProyectado)),
-                    objetivo_pct:       config.objetivo_ahorro_porcentaje,
-                },
-            });
-        }
-
-        // Proyección informativa: gasto diario disponible (sin throttle — es dato, no alerta)
-        return {
-            gastoDiarioDisponible: Math.max(0, gastoDiarioDisponible),
-            gastoProyectado,
-            diasRestantes,
-        };
+        // El Dashboard consume este retorno como dato (gastoDiarioDisponible, gastoProyectado,
+        // diasRestantes), no solo como disparador de alertas — preservar el contrato.
+        return datos ?? undefined;
     }, [user, config, agregarNotificacion, puedeDispararAlerta]);
 
     /**
@@ -590,28 +389,8 @@ export const NotificacionesProvider = ({ children }) => {
      */
     const generarResumenDiario = useCallback(async (stats) => {
         if (!user || !stats) return;
-
-        const hoy = fechaHoyArgentina();
-        const gastosHoy = (stats.gastos || []).filter(g => {
-            const fechaGasto = (g.fecha || '').split('T')[0];
-            return fechaGasto === hoy;
-        });
-
-        const totalHoy = gastosHoy.reduce((s, g) => s + parseFloat(g.monto || 0), 0);
-
-        await agregarNotificacion({
-            titulo:  'Resumen diario de gastos',
-            mensaje: gastosHoy.length > 0
-                ? `Hoy registraste ${gastosHoy.length} gasto${gastosHoy.length > 1 ? 's' : ''} por un total de $${totalHoy.toLocaleString('es-AR')}.`
-                : 'No registraste gastos hoy.',
-            tipo:    'info',
-            origen:  'resumen',
-            metadata: {
-                fecha:         hoy,
-                cantidad:      gastosHoy.length,
-                total_del_dia: Math.round(totalHoy),
-            },
-        });
+        const notif = generarResumenDiarioPuro(stats);
+        if (notif) await agregarNotificacion(notif);
     }, [user, agregarNotificacion]);
 
     /**
@@ -622,47 +401,8 @@ export const NotificacionesProvider = ({ children }) => {
      */
     const generarResumenSemanal = useCallback(async (stats) => {
         if (!user || !stats) return;
-
-        const hoy = new Date();
-        const hace7Dias = new Date(hoy);
-        hace7Dias.setDate(hoy.getDate() - 6);
-        const desde = hace7Dias.toISOString().split('T')[0];
-        const hasta = hoy.toISOString().split('T')[0];
-
-        const gastosSemana = (stats.gastos || []).filter(g => {
-            const fecha = (g.fecha || '').split('T')[0];
-            return fecha >= desde && fecha <= hasta;
-        });
-
-        const totalSemana = gastosSemana.reduce((s, g) => s + parseFloat(g.monto || 0), 0);
-
-        // Top 3 categorías de la semana
-        const porCat = gastosSemana.reduce((acc, g) => {
-            const nombre = g.categorias?.nombre || 'Sin categoría';
-            acc[nombre] = (acc[nombre] || 0) + parseFloat(g.monto || 0);
-            return acc;
-        }, {});
-        const top3 = Object.entries(porCat)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 3)
-            .map(([nombre, total]) => `${nombre}: $${total.toLocaleString('es-AR')}`)
-            .join(' · ');
-
-        await agregarNotificacion({
-            titulo:  'Resumen semanal de gastos',
-            mensaje: gastosSemana.length > 0
-                ? `En los últimos 7 días gastaste $${totalSemana.toLocaleString('es-AR')} en ${gastosSemana.length} movimientos.${top3 ? ` Top categorías: ${top3}.` : ''}`
-                : 'No registraste gastos en los últimos 7 días.',
-            tipo:    'info',
-            origen:  'resumen',
-            metadata: {
-                desde,
-                hasta,
-                cantidad:      gastosSemana.length,
-                total_semana:  Math.round(totalSemana),
-                top_categorias: top3 || null,
-            },
-        });
+        const notif = generarResumenSemanalPuro(stats);
+        if (notif) await agregarNotificacion(notif);
     }, [user, agregarNotificacion]);
 
     /**
@@ -673,36 +413,8 @@ export const NotificacionesProvider = ({ children }) => {
      */
     const generarResumenMensual = useCallback(async (stats) => {
         if (!user || !stats) return;
-
-        const ahora = new Date();
-        const mes = ahora.toLocaleString('es-AR', { month: 'long' });
-
-        const top3 = Object.entries(stats.porCategoria || {})
-            .sort(([, a], [, b]) => b.total - a.total)
-            .slice(0, 3)
-            .map(([nombre, datos]) => `${nombre}: $${datos.total.toLocaleString('es-AR')}`)
-            .join(' · ');
-
-        const pctFijos = stats.ingresoMensual > 0
-            ? ((stats.gastosFijos / stats.ingresoMensual) * 100).toFixed(1)
-            : '—';
-
-        await agregarNotificacion({
-            titulo:  `Resumen del mes — ${mes.charAt(0).toUpperCase() + mes.slice(1)}`,
-            mensaje: `Total gastado: $${stats.totalGastos.toLocaleString('es-AR')} (fijos: $${stats.gastosFijos.toLocaleString('es-AR')} · variables: $${stats.gastosVariables.toLocaleString('es-AR')}). Saldo disponible: $${stats.saldoDisponible.toLocaleString('es-AR')}.${top3 ? ` Top categorías: ${top3}.` : ''}`,
-            tipo:    'info',
-            origen:  'resumen',
-            metadata: {
-                mes,
-                total_gastos:     Math.round(stats.totalGastos),
-                gastos_fijos:     Math.round(stats.gastosFijos),
-                gastos_variables: Math.round(stats.gastosVariables),
-                saldo_disponible: Math.round(stats.saldoDisponible),
-                ingreso_mensual:  stats.ingresoMensual,
-                pct_fijos:        pctFijos,
-                top_categorias:   top3 || null,
-            },
-        });
+        const notif = generarResumenMensualPuro(stats);
+        if (notif) await agregarNotificacion(notif);
     }, [user, agregarNotificacion]);
 
     // Memoizar el value para que los subscribers solo se re-rendericen
