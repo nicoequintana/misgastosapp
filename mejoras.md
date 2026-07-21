@@ -84,11 +84,17 @@ Todo verificado: 234 tests client + 153 tests server, lint limpio, build OK.
 
 Toda la lógica de negocio (validaciones, manejo de tarjeta/préstamo, el mecanismo anti-flash del fade-out de 300ms) se preservó idéntica, verificada línea por línea contra el original. 2 archivos de test nuevos (`GastoWizard.test.jsx`, `IngresoModal.test.jsx`). 281/281 tests, lint y build OK. Probado manualmente en navegador por Nicolás: wizard de gasto e Ingresos funcionan correctamente.
 
-### ⏳ Pendiente — R7 (refactor grande sin bug de por medio)
+### ✅ R7 — extraer motores de alerta de NotificacionesContext.jsx
 
-No encarado por tamaño/riesgo:
+`NotificacionesContext.jsx` (750 líneas) baja a 463. Los 8 motores de alerta se separan en lógica pura (`client/src/lib/alertas/{alertasFinancieras,alertaGastoAlto,alertasGastosFijos,alertaConcentracionCategoria,proyecciones,resumenDiario,resumenSemanal,resumenMensual}.js` + `index.js`) y efecto secundario (el contexto sigue siendo dueño de `agregarNotificacion`, el fetch+caché de `statsMesAnterior`, y `puedeDispararAlerta` sobre localStorage, que ahora se inyecta como parámetro a las funciones puras).
 
-- **R7** — extraer los 7 motores de alerta de `NotificacionesContext.jsx` (~430 líneas) a módulos puros en `lib/alertas/`.
+Cada función pura recibe `(stats, config, puedeDisparar)` y devuelve un array de notificaciones a crear (o, para `calcularProyecciones`, `{ notificaciones, datos }` — preserva el contrato de que el Dashboard puede consumir `gastoDiarioDisponible`/`gastoProyectado`/`diasRestantes` como retorno, aunque en la práctica hoy no lo usa). Cortocircuitos y orden de evaluación de cada regla (ej. "ingreso no configurado" corta las demás alertas) se preservaron exactamente.
+
+47 tests nuevos en 8 archivos, ninguno mockea Supabase ni localStorage — el throttle se inyecta como función mock, cumpliendo el objetivo original de R7 (funciones puras testeables). Firmas públicas de `useNotificaciones()` sin cambios. 328/328 tests, lint y build OK.
+
+### ⏳ Sin encarar
+
+- **UX-17** — validación on-blur en 3 formularios.
 
 Recomendado abordarlos en una sesión dedicada aparte, función por función, con tests de regresión antes de cada movimiento — mover código sin un bug real detrás tiene bajo margen de error tolerado.
 
