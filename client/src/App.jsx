@@ -13,6 +13,8 @@ const GrupoDetalle = lazy(() => import('./pages/grupos/GrupoDetalle'));
 const GrupoGastoNuevo   = lazy(() => import('./pages/grupos/GrupoGastoNuevo'));
 const GrupoGastoEditar  = lazy(() => import('./pages/grupos/GrupoGastoEditar'));
 const AceptarInvitacion = lazy(() => import('./pages/grupos/AceptarInvitacion'));
+const Registro          = lazy(() => import('./pages/Registro'));
+const VerificarEmail    = lazy(() => import('./pages/VerificarEmail'));
 
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -56,6 +58,10 @@ const AppWithLoader = () => {
           <Routes>
             {/* Ruta pública */}
             <Route path="/welcome" element={<PageTransition><Welcome /></PageTransition>} />
+
+            {/* Rutas públicas: registro con email/password */}
+            <Route path="/registro" element={<PageTransition><Registro /></PageTransition>} />
+            <Route path="/verificar-email" element={<PageTransition><VerificarEmail /></PageTransition>} />
 
             {/* Ruta pública: aceptar invitación — DEBE ir antes de /grupos/:id para evitar conflicto */}
             <Route path="/grupos/invitaciones/:token" element={<AceptarInvitacion />} />

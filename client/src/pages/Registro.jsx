@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate, Link, useNavigate } from 'react-router-dom';
+import { validarPassword } from '../utils/validarPassword';
 
 /**
  * Página de registro con email y contraseña.
- * Solicita nombre completo, email y contraseña.
+ * Solicita nombre, apellido, teléfono, fecha de nacimiento, email y contraseña.
  * La foto de perfil se carga desde Configuración una vez dentro de la app.
  * Tras el registro redirige a /verificar-email (el acceso requiere confirmación).
  */
@@ -13,6 +14,9 @@ const Registro = () => {
     const navigate = useNavigate();
 
     const [nombre, setNombre] = useState('');
+    const [apellido, setApellido] = useState('');
+    const [telefono, setTelefono] = useState('');
+    const [fechaNacimiento, setFechaNacimiento] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -31,14 +35,15 @@ const Registro = () => {
             setError('Las contraseñas no coinciden.');
             return;
         }
-        if (password.length < 8) {
-            setError('La contraseña debe tener al menos 8 caracteres.');
+        const { valida, errores } = validarPassword(password);
+        if (!valida) {
+            setError(errores[0]);
             return;
         }
 
         setEnviando(true);
         try {
-            await signUpWithEmail({ nombre, email, password });
+            await signUpWithEmail({ nombre, apellido, telefono, fechaNacimiento, email, password });
             navigate('/verificar-email', { replace: true });
         } catch (err) {
             if (err.message?.includes('already registered') || err.message?.includes('User already registered')) {
@@ -68,14 +73,45 @@ const Registro = () => {
                     <form onSubmit={handleSubmit} className="welcome-email-form">
                         <input
                             type="text"
-                            placeholder="Nombre completo"
+                            placeholder="Nombre"
                             value={nombre}
                             onChange={(e) => setNombre(e.target.value)}
                             required
                             disabled={enviando}
                             className="input welcome-input"
-                            autoComplete="name"
+                            autoComplete="given-name"
                             autoFocus
+                        />
+                        <input
+                            type="text"
+                            placeholder="Apellido"
+                            value={apellido}
+                            onChange={(e) => setApellido(e.target.value)}
+                            required
+                            disabled={enviando}
+                            className="input welcome-input"
+                            autoComplete="family-name"
+                        />
+                        <input
+                            type="tel"
+                            placeholder="Teléfono"
+                            value={telefono}
+                            onChange={(e) => setTelefono(e.target.value)}
+                            required
+                            disabled={enviando}
+                            className="input welcome-input"
+                            autoComplete="tel"
+                        />
+                        <input
+                            type="date"
+                            placeholder="Fecha de nacimiento"
+                            value={fechaNacimiento}
+                            onChange={(e) => setFechaNacimiento(e.target.value)}
+                            required
+                            disabled={enviando}
+                            className="input welcome-input"
+                            autoComplete="bday"
+                            max={new Date().toISOString().split('T')[0]}
                         />
                         <input
                             type="email"
@@ -89,7 +125,7 @@ const Registro = () => {
                         />
                         <input
                             type="password"
-                            placeholder="Contraseña (mín. 8 caracteres)"
+                            placeholder="Contraseña (mín. 10 caracteres, 1 mayúscula, 1 número, 1 especial)"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
