@@ -1,14 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { setSeo } from '../utils/seo';
 
 /**
  * Página de aterrizaje (Welcome) para usuarios no autenticados.
  * Fondo animado con orbs de plasma + glassmorphism en la card de login.
+ * Ofrece login con Google o con email/password (toggle), más links a
+ * registro y recuperación de clave.
  */
 const Welcome = () => {
-    const { session, signInWithGoogle, loading } = useAuth();
+    const { session, signInWithGoogle, signInWithPassword, loading } = useAuth();
+    const [modo, setModo] = useState('google'); // 'google' | 'password'
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [enviando, setEnviando] = useState(false);
 
     React.useEffect(() => {
         setSeo({
@@ -20,6 +27,19 @@ const Welcome = () => {
     if (session) {
         return <Navigate to="/" replace />;
     }
+
+    const handleSubmitPassword = async (e) => {
+        e.preventDefault();
+        setError('');
+        setEnviando(true);
+        try {
+            await signInWithPassword({ email, password });
+        } catch {
+            setError('Email o contraseña incorrectos.');
+        } finally {
+            setEnviando(false);
+        }
+    };
 
     return (
         <div className="wlc-root">
@@ -81,30 +101,101 @@ const Welcome = () => {
 
                             <div className="wlc-card-copy">
                                 <h2 className="wlc-card-title">Bienvenido</h2>
-                                <p className="wlc-card-subtitle">Ingresá con tu cuenta de Google para continuar.</p>
+                                <p className="wlc-card-subtitle">
+                                    {modo === 'google'
+                                        ? 'Ingresá con tu cuenta de Google para continuar.'
+                                        : 'Ingresá con tu email y contraseña.'}
+                                </p>
                             </div>
 
-                            <button
-                                onClick={signInWithGoogle}
-                                className="wlc-btn-google"
-                                disabled={loading}
-                            >
-                                {loading ? (
-                                    <span className="wlc-spinner" />
-                                ) : (
-                                    <svg className="wlc-google-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" aria-hidden="true">
-                                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                                    </svg>
-                                )}
-                                <span>{loading ? 'Conectando...' : 'Iniciar con Google'}</span>
-                            </button>
+                            <div className="wlc-login-toggle" role="tablist">
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={modo === 'google'}
+                                    className={`wlc-login-toggle-btn ${modo === 'google' ? 'wlc-login-toggle-btn--active' : ''}`}
+                                    onClick={() => setModo('google')}
+                                >
+                                    Google
+                                </button>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={modo === 'password'}
+                                    className={`wlc-login-toggle-btn ${modo === 'password' ? 'wlc-login-toggle-btn--active' : ''}`}
+                                    onClick={() => setModo('password')}
+                                >
+                                    Email
+                                </button>
+                            </div>
 
-                            <p className="wlc-security-note">
-                                <span className="material-symbols-outlined wlc-lock-icon">lock</span>
-                                Acceso seguro garantizado por Google
+                            {modo === 'google' ? (
+                                <>
+                                    <button
+                                        onClick={signInWithGoogle}
+                                        className="wlc-btn-google"
+                                        disabled={loading}
+                                    >
+                                        {loading ? (
+                                            <span className="wlc-spinner" />
+                                        ) : (
+                                            <svg className="wlc-google-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" aria-hidden="true">
+                                                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                                                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                                                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                                                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                                            </svg>
+                                        )}
+                                        <span>{loading ? 'Conectando...' : 'Iniciar con Google'}</span>
+                                    </button>
+
+                                    <p className="wlc-security-note">
+                                        <span className="material-symbols-outlined wlc-lock-icon">lock</span>
+                                        Acceso seguro garantizado por Google
+                                    </p>
+                                </>
+                            ) : (
+                                <form onSubmit={handleSubmitPassword} className="welcome-email-form">
+                                    <input
+                                        type="email"
+                                        placeholder="Email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        required
+                                        disabled={enviando}
+                                        className="welcome-input"
+                                        autoComplete="email"
+                                        autoFocus
+                                    />
+                                    <input
+                                        type="password"
+                                        placeholder="Contraseña"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        required
+                                        disabled={enviando}
+                                        className="welcome-input"
+                                        autoComplete="current-password"
+                                    />
+
+                                    {error && <p className="welcome-error">{error}</p>}
+
+                                    <button
+                                        type="submit"
+                                        className="btn-pill-primary"
+                                        disabled={enviando || loading}
+                                    >
+                                        {enviando ? 'Ingresando...' : 'Ingresar'}
+                                    </button>
+                                </form>
+                            )}
+
+                            <p className="welcome-register-link">
+                                ¿No tenés cuenta?{' '}
+                                <Link to="/registro" className="welcome-link">Registrate</Link>
+                            </p>
+                            <p className="welcome-register-link">
+                                <Link to="/recuperar-clave" className="welcome-link">¿Olvidaste tu contraseña?</Link>
                             </p>
                         </div>
                     </div>

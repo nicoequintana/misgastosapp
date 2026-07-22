@@ -1833,6 +1833,34 @@ body::after {
   line-height: 1.5;
 }
 
+/* Toggle Google / Email en la card de login */
+.wlc-login-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 50px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.wlc-login-toggle-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 50px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wlc-login-toggle-btn--active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
 /* Botón Google */
 .wlc-btn-google {
   width: 100%;
