@@ -9,6 +9,7 @@ const { normalizeAmount, generateFingerprint, compararApiKey } = require('./util
 const { supabaseAdmin } = require('./services/supabaseAdmin');
 const notificacionesRouter = require('./routes/notificaciones');
 const gruposRouter = require('./routes/grupos');
+const authRouter = require('./routes/auth');
 const { buildNotificacionN8n } = require('./services/notificaciones');
 const { persistirNotificacion, actualizarEstadoEmailDb, getConfigUsuario } = require('./services/notificacionesDb');
 const { procesarEnvioEmail } = require('./services/notificaciones');
@@ -101,6 +102,7 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 1000, standardHeaders: true, 
 app.use('/api/notifications', rateLimit({ windowMs: 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/integrations', rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/grupos', rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/auth', rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false }));
 
 // En producción, Express sirve el build estático del frontend
 if (isProduction) {
@@ -153,6 +155,9 @@ app.use('/api/notifications', notificacionesRouter);
 
 // Rutas del módulo de grupos de gastos compartidos
 app.use('/api/grupos', gruposRouter);
+
+// Rutas de autenticación (verificación de email duplicado, recuperación de clave)
+app.use('/api/auth', authRouter);
 
 // ==================== ENDPOINTS DE INTEGRACIÓN ====================
 

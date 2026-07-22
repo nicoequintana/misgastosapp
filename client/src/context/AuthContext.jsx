@@ -69,6 +69,25 @@ export const AuthProvider = ({ children }) => {
     };
 
     const signUpWithEmail = async ({ nombre, apellido, telefono, fechaNacimiento, email, password }) => {
+        // Con "Confirm email" habilitado, signUp() nunca lanza error si el email ya
+        // existe (para no filtrar qué emails están registrados) — y en este proyecto
+        // Supabase además genera un usuario NUEVO (id distinto) en cada llamada
+        // repetida, en vez de devolver el usuario original. El objeto user resultante
+        // es indistinguible entre "email nuevo" y "email duplicado" (mismo shape,
+        // created_at === updated_at en ambos casos), así que la única forma confiable
+        // de detectar el duplicado es consultarlo ANTES, vía un endpoint backend con
+        // service role (el frontend con anon key no puede leer auth.users).
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
+        const chequeoResponse = await fetch(`${backendUrl}/api/auth/existe-email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+        });
+        const chequeoDatos = await chequeoResponse.json();
+        if (chequeoDatos.ok && chequeoDatos.existe) {
+            throw new Error('User already registered');
+        }
+
         const { data, error } = await supabase.auth.signUp({
             email,
             password,
@@ -79,14 +98,6 @@ export const AuthProvider = ({ children }) => {
         if (error) {
             console.error('❌ Error al registrarse:', error.message);
             throw error;
-        }
-
-        // Con confirmación de email pendiente, signUp() devuelve session=null pero
-        // user con id — un array de identities vacío indica que el email ya existía
-        // (Supabase no lanza error explícito en ese caso para no filtrar qué emails
-        // están registrados).
-        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-            throw new Error('User already registered');
         }
 
         if (data.user) {
