@@ -187,16 +187,16 @@ const Welcome = () => {
                                     >
                                         {enviando ? 'Ingresando...' : 'Ingresar'}
                                     </button>
+
+                                    <p className="welcome-register-link">
+                                        ¿No tenés cuenta?{' '}
+                                        <Link to="/registro" className="welcome-link">Registrate</Link>
+                                    </p>
+                                    <p className="welcome-register-link">
+                                        <Link to="/recuperar-clave" className="welcome-link">¿Olvidaste tu contraseña?</Link>
+                                    </p>
                                 </form>
                             )}
-
-                            <p className="welcome-register-link">
-                                ¿No tenés cuenta?{' '}
-                                <Link to="/registro" className="welcome-link">Registrate</Link>
-                            </p>
-                            <p className="welcome-register-link">
-                                <Link to="/recuperar-clave" className="welcome-link">¿Olvidaste tu contraseña?</Link>
-                            </p>
                         </div>
                     </div>
 
