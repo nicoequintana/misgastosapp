@@ -15,6 +15,9 @@ const GrupoGastoEditar  = lazy(() => import('./pages/grupos/GrupoGastoEditar'));
 const AceptarInvitacion = lazy(() => import('./pages/grupos/AceptarInvitacion'));
 const Registro          = lazy(() => import('./pages/Registro'));
 const VerificarEmail    = lazy(() => import('./pages/VerificarEmail'));
+const RecuperarClave              = lazy(() => import('./pages/RecuperarClave'));
+const RecuperarClaveVerificar     = lazy(() => import('./pages/RecuperarClaveVerificar'));
+const RecuperarClaveNuevaPassword = lazy(() => import('./pages/RecuperarClaveNuevaPassword'));
 
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -62,6 +65,11 @@ const AppWithLoader = () => {
             {/* Rutas públicas: registro con email/password */}
             <Route path="/registro" element={<PageTransition><Registro /></PageTransition>} />
             <Route path="/verificar-email" element={<PageTransition><VerificarEmail /></PageTransition>} />
+
+            {/* Rutas públicas: recuperación de contraseña */}
+            <Route path="/recuperar-clave" element={<PageTransition><RecuperarClave /></PageTransition>} />
+            <Route path="/recuperar-clave/verificar" element={<PageTransition><RecuperarClaveVerificar /></PageTransition>} />
+            <Route path="/recuperar-clave/nueva-password" element={<PageTransition><RecuperarClaveNuevaPassword /></PageTransition>} />
 
             {/* Ruta pública: aceptar invitación — DEBE ir antes de /grupos/:id para evitar conflicto */}
             <Route path="/grupos/invitaciones/:token" element={<AceptarInvitacion />} />
