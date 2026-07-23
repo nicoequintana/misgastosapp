@@ -2041,6 +2041,20 @@ body::after {
   color: rgba(255, 255, 255, 0.4);
 }
 
+/* Resetea el padding/margin interno que WebKit agrega por su cuenta al
+   widget de fecha (independiente del appearance:none del contenedor) —
+   sin esto, el ancho renderizado final puede seguir difiriendo un par de
+   px del resto de los inputs aunque el <input> en sí mida igual. */
+.welcome-input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+.welcome-input[type="date"]::-webkit-datetime-edit {
+  padding: 0;
+  margin: 0;
+}
+.welcome-input[type="date"]::-webkit-calendar-picker-indicator {
+  margin-right: 0;
+  padding: 0;
+}
+
 .welcome-error { color: #f87171; font-size: 13px; text-align: center; margin: 0; }
 .welcome-link-btn { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 13px; cursor: pointer; padding: 4px; text-align: center; }
 .welcome-link-btn:hover { color: #fff; }
