@@ -84,82 +84,102 @@ const Registro = () => {
                     <h2 className="welcome-registro-titulo">Crear cuenta</h2>
 
                     <form onSubmit={handleSubmit} className="welcome-email-form">
-                        <input
-                            type="text"
-                            placeholder="Nombre"
-                            value={nombre}
-                            onChange={(e) => setNombre(e.target.value)}
-                            required
-                            disabled={enviando}
-                            className="welcome-input"
-                            autoComplete="given-name"
-                            autoFocus
-                        />
-                        <input
-                            type="text"
-                            placeholder="Apellido"
-                            value={apellido}
-                            onChange={(e) => setApellido(e.target.value)}
-                            required
-                            disabled={enviando}
-                            className="welcome-input"
-                            autoComplete="family-name"
-                        />
-                        <input
-                            type="tel"
-                            placeholder="Teléfono"
-                            value={telefono}
-                            onChange={(e) => setTelefono(e.target.value)}
-                            required
-                            disabled={enviando}
-                            className="welcome-input"
-                            autoComplete="tel"
-                        />
-                        <label htmlFor="fecha-nacimiento" className="welcome-date-label">
-                            Fecha de nacimiento
-                        </label>
-                        <input
-                            id="fecha-nacimiento"
-                            type="date"
-                            value={fechaNacimiento}
-                            onChange={(e) => setFechaNacimiento(e.target.value)}
-                            required
-                            disabled={enviando}
-                            className="welcome-input"
-                            autoComplete="bday"
-                            max={new Date().toISOString().split('T')[0]}
-                            data-has-value={fechaNacimiento ? 'true' : 'false'}
-                        />
-                        <input
-                            type="email"
-                            placeholder="Email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            disabled={enviando}
-                            className="welcome-input"
-                            autoComplete="email"
-                        />
-                        <input
-                            type="password"
-                            placeholder="Contraseña (mín. 10 caracteres, 1 mayúscula, 1 número, 1 especial)"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            disabled={enviando}
-                            className="welcome-input"
-                            autoComplete="new-password"
-                        />
-                        <input
-                            type="password"
-                            placeholder="Confirmar contraseña"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            required
-                            disabled={enviando}
-                            className="welcome-input"
-                            autoComplete="new-password"
-                        />
+                        <div className="welcome-field">
+                            <label htmlFor="nombre" className="welcome-input-label">Nombre</label>
+                            <input
+                                id="nombre"
+                                type="text"
+                                value={nombre}
+                                onChange={(e) => setNombre(e.target.value)}
+                                required
+                                disabled={enviando}
+                                className="welcome-input"
+                                autoComplete="given-name"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="welcome-field">
+                            <label htmlFor="apellido" className="welcome-input-label">Apellido</label>
+                            <input
+                                id="apellido"
+                                type="text"
+                                value={apellido}
+                                onChange={(e) => setApellido(e.target.value)}
+                                required
+                                disabled={enviando}
+                                className="welcome-input"
+                                autoComplete="family-name"
+                            />
+                        </div>
+                        <div className="welcome-field">
+                            <label htmlFor="telefono" className="welcome-input-label">Teléfono</label>
+                            <input
+                                id="telefono"
+                                type="tel"
+                                value={telefono}
+                                onChange={(e) => setTelefono(e.target.value)}
+                                required
+                                disabled={enviando}
+                                className="welcome-input"
+                                autoComplete="tel"
+                            />
+                        </div>
+                        <div className="welcome-field">
+                            <label htmlFor="fecha-nacimiento" className="welcome-input-label">Fecha de nacimiento</label>
+                            <input
+                                id="fecha-nacimiento"
+                                type="date"
+                                value={fechaNacimiento}
+                                onChange={(e) => setFechaNacimiento(e.target.value)}
+                                required
+                                disabled={enviando}
+                                className="welcome-input"
+                                autoComplete="bday"
+                                max={new Date().toISOString().split('T')[0]}
+                                data-has-value={fechaNacimiento ? 'true' : 'false'}
+                            />
+                        </div>
+                        <div className="welcome-field">
+                            <label htmlFor="email" className="welcome-input-label">Email</label>
+                            <input
+                                id="email"
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                disabled={enviando}
+                                className="welcome-input"
+                                autoComplete="email"
+                            />
+                        </div>
+                        <div className="welcome-field">
+                            <label htmlFor="password" className="welcome-input-label">
+                                Contraseña (mín. 10 caracteres, 1 mayúscula, 1 número, 1 especial)
+                            </label>
+                            <input
+                                id="password"
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                disabled={enviando}
+                                className="welcome-input"
+                                autoComplete="new-password"
+                            />
+                        </div>
+                        <div className="welcome-field">
+                            <label htmlFor="confirm-password" className="welcome-input-label">Confirmar contraseña</label>
+                            <input
+                                id="confirm-password"
+                                type="password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                required
+                                disabled={enviando}
+                                className="welcome-input"
+                                autoComplete="new-password"
+                            />
+                        </div>
 
                         {error && <p className="welcome-error">{error}</p>}
 

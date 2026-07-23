@@ -67,17 +67,20 @@ const RecuperarClave = () => {
                     </p>
 
                     <form onSubmit={handleSubmit} className="welcome-email-form">
-                        <input
-                            type="email"
-                            placeholder="Email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            disabled={enviando}
-                            className="welcome-input"
-                            autoComplete="email"
-                            autoFocus
-                        />
+                        <div className="welcome-field">
+                            <label htmlFor="recuperar-email" className="welcome-input-label">Email</label>
+                            <input
+                                id="recuperar-email"
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                disabled={enviando}
+                                className="welcome-input"
+                                autoComplete="email"
+                                autoFocus
+                            />
+                        </div>
 
                         {error && <p className="welcome-error">{error}</p>}
 

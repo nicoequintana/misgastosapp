@@ -2000,7 +2000,19 @@ body::after {
   background: rgba(255, 255, 255, 0.15);
 }
 
-.welcome-email-form { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.welcome-email-form { display: flex; flex-direction: column; gap: 14px; width: 100%; }
+
+/* Agrupa label + input como una unidad — así welcome-email-form solo
+   distribuye gap entre "campos", no entre cada label y su input suelto. */
+.welcome-field { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+
+.welcome-input-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 0 0 0 4px;
+}
+
 .welcome-input {
   width: 100%;
   min-width: 0; /* Safari: sin esto, input[type=date] fuerza su ancho intrínseco e ignora width:100% dentro de un flex */
@@ -2017,17 +2029,11 @@ body::after {
 
 /* Safari/WebKit ignora el atributo placeholder en input[type=date] — el
    widget queda vacío hasta elegir una fecha. Cuando no tiene valor todavía,
-   se atenúa el texto nativo "dd/mm/aaaa" que WebKit sí muestra por defecto,
-   y un <label> visible en el JSX (welcome-date-label) cubre la falta de
+   se atenúa el texto nativo "dd/mm/aaaa" que WebKit sí muestra por defecto;
+   el <label> siempre visible (welcome-input-label) cubre la falta de
    contexto que el placeholder daría en otros navegadores. */
 .welcome-input[type="date"]:not([data-has-value="true"])::-webkit-datetime-edit {
   color: rgba(255, 255, 255, 0.4);
-}
-
-.welcome-date-label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.45);
-  margin: -2px 0 -6px 4px;
 }
 
 .welcome-error { color: #f87171; font-size: 13px; text-align: center; margin: 0; }

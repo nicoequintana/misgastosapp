@@ -128,20 +128,24 @@ const RecuperarClaveVerificar = () => {
                     )}
 
                     <form onSubmit={handleSubmit} className="welcome-email-form">
-                        <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]{6}"
-                            maxLength={6}
-                            placeholder="000000"
-                            value={codigo}
-                            onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            required
-                            disabled={enviando || expirado}
-                            className="welcome-input"
-                            autoComplete="one-time-code"
-                            autoFocus
-                        />
+                        <div className="welcome-field">
+                            <label htmlFor="codigo" className="welcome-input-label">Código de verificación</label>
+                            <input
+                                id="codigo"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]{6}"
+                                maxLength={6}
+                                placeholder="000000"
+                                value={codigo}
+                                onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                required
+                                disabled={enviando || expirado}
+                                className="welcome-input"
+                                autoComplete="one-time-code"
+                                autoFocus
+                            />
+                        </div>
 
                         {error && <p className="welcome-error">{error}</p>}
 

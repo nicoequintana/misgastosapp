@@ -158,27 +158,33 @@ const Welcome = () => {
                                 </>
                             ) : (
                                 <form onSubmit={handleSubmitPassword} className="welcome-email-form">
-                                    <input
-                                        type="email"
-                                        placeholder="Email"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        required
-                                        disabled={enviando}
-                                        className="welcome-input"
-                                        autoComplete="email"
-                                        autoFocus
-                                    />
-                                    <input
-                                        type="password"
-                                        placeholder="Contraseña"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        required
-                                        disabled={enviando}
-                                        className="welcome-input"
-                                        autoComplete="current-password"
-                                    />
+                                    <div className="welcome-field">
+                                        <label htmlFor="welcome-email" className="welcome-input-label">Email</label>
+                                        <input
+                                            id="welcome-email"
+                                            type="email"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            required
+                                            disabled={enviando}
+                                            className="welcome-input"
+                                            autoComplete="email"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <div className="welcome-field">
+                                        <label htmlFor="welcome-password" className="welcome-input-label">Contraseña</label>
+                                        <input
+                                            id="welcome-password"
+                                            type="password"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            required
+                                            disabled={enviando}
+                                            className="welcome-input"
+                                            autoComplete="current-password"
+                                        />
+                                    </div>
 
                                     {error && <p className="welcome-error">{error}</p>}
 

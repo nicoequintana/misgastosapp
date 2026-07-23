@@ -90,27 +90,35 @@ const RecuperarClaveNuevaPassword = () => {
                     <h2 className="welcome-registro-titulo">Nueva contraseña</h2>
 
                     <form onSubmit={handleSubmit} className="welcome-email-form">
-                        <input
-                            type="password"
-                            placeholder="Contraseña (mín. 10 caracteres, 1 mayúscula, 1 número, 1 especial)"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            disabled={enviando}
-                            className="welcome-input"
-                            autoComplete="new-password"
-                            autoFocus
-                        />
-                        <input
-                            type="password"
-                            placeholder="Confirmar contraseña"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            required
-                            disabled={enviando}
-                            className="welcome-input"
-                            autoComplete="new-password"
-                        />
+                        <div className="welcome-field">
+                            <label htmlFor="nueva-password" className="welcome-input-label">
+                                Contraseña (mín. 10 caracteres, 1 mayúscula, 1 número, 1 especial)
+                            </label>
+                            <input
+                                id="nueva-password"
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                disabled={enviando}
+                                className="welcome-input"
+                                autoComplete="new-password"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="welcome-field">
+                            <label htmlFor="confirmar-nueva-password" className="welcome-input-label">Confirmar contraseña</label>
+                            <input
+                                id="confirmar-nueva-password"
+                                type="password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                required
+                                disabled={enviando}
+                                className="welcome-input"
+                                autoComplete="new-password"
+                            />
+                        </div>
 
                         {error && <p className="welcome-error">{error}</p>}
 
