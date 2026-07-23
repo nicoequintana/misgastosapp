@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useFondoOscuroAuth } from '../hooks/useFondoOscuroAuth';
 
 /**
  * Pantalla de espera post-registro.
@@ -7,6 +8,7 @@ import { Link } from 'react-router-dom';
  * antes de poder iniciar sesión.
  */
 const VerificarEmail = () => {
+    useFondoOscuroAuth();
     return (
         <div className="wlc-root">
             <div className="wlc-bg" aria-hidden="true">

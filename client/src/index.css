@@ -2014,7 +2014,21 @@ body::after {
 }
 .welcome-input::placeholder { color: rgba(255, 255, 255, 0.4); }
 .welcome-input:focus { outline: none; border-color: rgba(255, 255, 255, 0.35); }
-.welcome-input[type="date"] { appearance: none; -webkit-appearance: none; }
+
+/* Safari/WebKit ignora el atributo placeholder en input[type=date] — el
+   widget queda vacío hasta elegir una fecha. Cuando no tiene valor todavía,
+   se atenúa el texto nativo "dd/mm/aaaa" que WebKit sí muestra por defecto,
+   y un <label> visible en el JSX (welcome-date-label) cubre la falta de
+   contexto que el placeholder daría en otros navegadores. */
+.welcome-input[type="date"]:not([data-has-value="true"])::-webkit-datetime-edit {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.welcome-date-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  margin: -2px 0 -6px 4px;
+}
 
 .welcome-error { color: #f87171; font-size: 13px; text-align: center; margin: 0; }
 .welcome-link-btn { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 13px; cursor: pointer; padding: 4px; text-align: center; }

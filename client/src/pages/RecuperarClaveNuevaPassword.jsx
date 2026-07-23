@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { validarPassword } from '../utils/validarPassword';
+import { useFondoOscuroAuth } from '../hooks/useFondoOscuroAuth';
 
 /**
  * Paso 3 de recuperación de clave: define la nueva contraseña usando el
@@ -11,6 +12,7 @@ const RecuperarClaveNuevaPassword = () => {
     const location = useLocation();
     const email = location.state?.email;
     const resetToken = location.state?.resetToken;
+    useFondoOscuroAuth();
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');

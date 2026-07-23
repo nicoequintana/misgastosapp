@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate, Link } from 'react-router-dom';
 import { setSeo } from '../utils/seo';
+import { useFondoOscuroAuth } from '../hooks/useFondoOscuroAuth';
 
 /**
  * Página de aterrizaje (Welcome) para usuarios no autenticados.
@@ -11,6 +12,7 @@ import { setSeo } from '../utils/seo';
  */
 const Welcome = () => {
     const { session, signInWithGoogle, signInWithPassword, loading } = useAuth();
+    useFondoOscuroAuth();
     const [modo, setModo] = useState('google'); // 'google' | 'password'
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');

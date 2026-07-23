@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useFondoOscuroAuth } from '../hooks/useFondoOscuroAuth';
 
 /**
  * Paso 1 de recuperación de clave: pide el email y solicita el código.
@@ -8,6 +9,7 @@ import { Link, useNavigate } from 'react-router-dom';
  */
 const RecuperarClave = () => {
     const navigate = useNavigate();
+    useFondoOscuroAuth();
     const [email, setEmail] = useState('');
     const [enviando, setEnviando] = useState(false);
     const [error, setError] = useState('');

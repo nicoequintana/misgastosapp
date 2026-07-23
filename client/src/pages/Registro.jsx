@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate, Link, useNavigate } from 'react-router-dom';
 import { validarPassword } from '../utils/validarPassword';
+import { useFondoOscuroAuth } from '../hooks/useFondoOscuroAuth';
 
 /**
  * Página de registro con email y contraseña.
@@ -12,6 +13,7 @@ import { validarPassword } from '../utils/validarPassword';
 const Registro = () => {
     const { session, signUpWithEmail, loading } = useAuth();
     const navigate = useNavigate();
+    useFondoOscuroAuth();
 
     const [nombre, setNombre] = useState('');
     const [apellido, setApellido] = useState('');
@@ -113,9 +115,12 @@ const Registro = () => {
                             className="welcome-input"
                             autoComplete="tel"
                         />
+                        <label htmlFor="fecha-nacimiento" className="welcome-date-label">
+                            Fecha de nacimiento
+                        </label>
                         <input
+                            id="fecha-nacimiento"
                             type="date"
-                            placeholder="Fecha de nacimiento"
                             value={fechaNacimiento}
                             onChange={(e) => setFechaNacimiento(e.target.value)}
                             required
@@ -123,6 +128,7 @@ const Registro = () => {
                             className="welcome-input"
                             autoComplete="bday"
                             max={new Date().toISOString().split('T')[0]}
+                            data-has-value={fechaNacimiento ? 'true' : 'false'}
                         />
                         <input
                             type="email"

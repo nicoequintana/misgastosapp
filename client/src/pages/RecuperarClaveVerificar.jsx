@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useFondoOscuroAuth } from '../hooks/useFondoOscuroAuth';
 
 /**
  * Paso 2 de recuperación de clave: ingresar el código de 6 dígitos con
@@ -10,6 +11,7 @@ const RecuperarClaveVerificar = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const email = location.state?.email;
+    useFondoOscuroAuth();
 
     const [codigo, setCodigo] = useState('');
     const [segundosRestantes, setSegundosRestantes] = useState(5 * 60);
