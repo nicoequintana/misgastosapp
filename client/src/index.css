@@ -1475,6 +1475,7 @@ body::after {
 .wlc-root {
   position: relative;
   min-height: 100vh;
+  min-height: 100dvh; /* Safari iOS: 100vh no descuenta la barra de direcciones dinámica */
   display: flex;
   flex-direction: column;
   background: #060d1a;
@@ -2002,6 +2003,7 @@ body::after {
 .welcome-email-form { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 .welcome-input {
   width: 100%;
+  min-width: 0; /* Safari: sin esto, input[type=date] fuerza su ancho intrínseco e ignora width:100% dentro de un flex */
   padding: 12px 16px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -2012,6 +2014,7 @@ body::after {
 }
 .welcome-input::placeholder { color: rgba(255, 255, 255, 0.4); }
 .welcome-input:focus { outline: none; border-color: rgba(255, 255, 255, 0.35); }
+.welcome-input[type="date"] { appearance: none; -webkit-appearance: none; }
 
 .welcome-error { color: #f87171; font-size: 13px; text-align: center; margin: 0; }
 .welcome-link-btn { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 13px; cursor: pointer; padding: 4px; text-align: center; }
