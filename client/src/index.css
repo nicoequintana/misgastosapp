@@ -1734,6 +1734,7 @@ body::after {
 
 /* ---------- Card login (derecha) ---------- */
 .wlc-card-wrap {
+  width: 100%; /*agregada*/
   display: flex;
   justify-content: center;
   animation: wlc-fade-left 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both;
@@ -1742,7 +1743,7 @@ body::after {
 .wlc-card {
   position: relative;
   width: 100%;
-  max-width: 420px;
+  max-width: 800px;/*agregada*/
   padding: 48px 44px;
   border-radius: 36px;
   background: rgba(255,255,255,0.04);
@@ -2019,7 +2020,7 @@ body::after {
 .welcome-link { color: var(--accent, #6366f1); text-decoration: none; font-weight: 500; }
 .welcome-link:hover { text-decoration: underline; }
 
-.welcome-card-registro { max-width: 420px; width: 100%; margin: 40px auto; padding: 36px 32px; }
+.welcome-card-registro { max-width: 800px; width: 100%; margin: 40px auto; padding: 36px 32px; }
 .welcome-registro-titulo { font-size: 22px; font-weight: 700; color: #fff; margin: 0 0 8px; text-align: center; }
 
 .registro-avatar-selector {
