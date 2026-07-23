@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate, Link, useNavigate } from 'react-router-dom';
+import { validarPassword } from '../utils/validarPassword';
 
 /**
  * Página de registro con email y contraseña.
- * Solicita nombre completo, email y contraseña.
+ * Solicita nombre, apellido, teléfono, fecha de nacimiento, email y contraseña.
  * La foto de perfil se carga desde Configuración una vez dentro de la app.
  * Tras el registro redirige a /verificar-email (el acceso requiere confirmación).
  */
@@ -13,6 +14,9 @@ const Registro = () => {
     const navigate = useNavigate();
 
     const [nombre, setNombre] = useState('');
+    const [apellido, setApellido] = useState('');
+    const [telefono, setTelefono] = useState('');
+    const [fechaNacimiento, setFechaNacimiento] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -31,14 +35,15 @@ const Registro = () => {
             setError('Las contraseñas no coinciden.');
             return;
         }
-        if (password.length < 8) {
-            setError('La contraseña debe tener al menos 8 caracteres.');
+        const { valida, errores } = validarPassword(password);
+        if (!valida) {
+            setError(errores[0]);
             return;
         }
 
         setEnviando(true);
         try {
-            await signUpWithEmail({ nombre, email, password });
+            await signUpWithEmail({ nombre, apellido, telefono, fechaNacimiento, email, password });
             navigate('/verificar-email', { replace: true });
         } catch (err) {
             if (err.message?.includes('already registered') || err.message?.includes('User already registered')) {
@@ -52,30 +57,72 @@ const Registro = () => {
     };
 
     return (
-        <div className="welcome-page-body">
-            <nav className="welcome-navbar">
-                <div className="welcome-navbar-brand">
-                    <span className="material-symbols-outlined welcome-navbar-icon">payments</span>
-                    <span className="welcome-navbar-title">Tus Gastos</span>
+        <div className="wlc-root">
+            <div className="wlc-bg" aria-hidden="true">
+                <div className="wlc-orb wlc-orb--1" />
+                <div className="wlc-orb wlc-orb--2" />
+                <div className="wlc-orb wlc-orb--3" />
+                <div className="wlc-orb wlc-orb--4" />
+                <div className="wlc-grid-overlay" />
+            </div>
+
+            <nav className="wlc-nav">
+                <div className="wlc-brand">
+                    <div className="wlc-brand-icon">
+                        <span className="material-symbols-outlined">payments</span>
+                    </div>
+                    <span className="wlc-brand-name">Tus Gastos</span>
                 </div>
             </nav>
 
-            <main className="welcome-main">
-                <div className="welcome-card-login welcome-card-registro">
+            <main className="wlc-main">
+                <div className="wlc-card-wrap">
+                <div className="wlc-card welcome-card-registro">
 
                     <h2 className="welcome-registro-titulo">Crear cuenta</h2>
 
                     <form onSubmit={handleSubmit} className="welcome-email-form">
                         <input
                             type="text"
-                            placeholder="Nombre completo"
+                            placeholder="Nombre"
                             value={nombre}
                             onChange={(e) => setNombre(e.target.value)}
                             required
                             disabled={enviando}
-                            className="input welcome-input"
-                            autoComplete="name"
+                            className="welcome-input"
+                            autoComplete="given-name"
                             autoFocus
+                        />
+                        <input
+                            type="text"
+                            placeholder="Apellido"
+                            value={apellido}
+                            onChange={(e) => setApellido(e.target.value)}
+                            required
+                            disabled={enviando}
+                            className="welcome-input"
+                            autoComplete="family-name"
+                        />
+                        <input
+                            type="tel"
+                            placeholder="Teléfono"
+                            value={telefono}
+                            onChange={(e) => setTelefono(e.target.value)}
+                            required
+                            disabled={enviando}
+                            className="welcome-input"
+                            autoComplete="tel"
+                        />
+                        <input
+                            type="date"
+                            placeholder="Fecha de nacimiento"
+                            value={fechaNacimiento}
+                            onChange={(e) => setFechaNacimiento(e.target.value)}
+                            required
+                            disabled={enviando}
+                            className="welcome-input"
+                            autoComplete="bday"
+                            max={new Date().toISOString().split('T')[0]}
                         />
                         <input
                             type="email"
@@ -84,17 +131,17 @@ const Registro = () => {
                             onChange={(e) => setEmail(e.target.value)}
                             required
                             disabled={enviando}
-                            className="input welcome-input"
+                            className="welcome-input"
                             autoComplete="email"
                         />
                         <input
                             type="password"
-                            placeholder="Contraseña (mín. 8 caracteres)"
+                            placeholder="Contraseña (mín. 10 caracteres, 1 mayúscula, 1 número, 1 especial)"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
                             disabled={enviando}
-                            className="input welcome-input"
+                            className="welcome-input"
                             autoComplete="new-password"
                         />
                         <input
@@ -104,7 +151,7 @@ const Registro = () => {
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             required
                             disabled={enviando}
-                            className="input welcome-input"
+                            className="welcome-input"
                             autoComplete="new-password"
                         />
 
@@ -123,6 +170,7 @@ const Registro = () => {
                         ¿Ya tenés cuenta?{' '}
                         <Link to="/welcome" className="welcome-link">Iniciar sesión</Link>
                     </p>
+                </div>
                 </div>
             </main>
         </div>

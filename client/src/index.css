@@ -1734,6 +1734,7 @@ body::after {
 
 /* ---------- Card login (derecha) ---------- */
 .wlc-card-wrap {
+  width: 100%; /*agregada*/
   display: flex;
   justify-content: center;
   animation: wlc-fade-left 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both;
@@ -1742,7 +1743,7 @@ body::after {
 .wlc-card {
   position: relative;
   width: 100%;
-  max-width: 420px;
+  max-width: 800px;/*agregada*/
   padding: 48px 44px;
   border-radius: 36px;
   background: rgba(255,255,255,0.04);
@@ -1831,6 +1832,34 @@ body::after {
   font-size: 14px;
   color: rgba(255,255,255,0.45);
   line-height: 1.5;
+}
+
+/* Toggle Google / Email en la card de login */
+.wlc-login-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 50px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.wlc-login-toggle-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 50px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wlc-login-toggle-btn--active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
 }
 
 /* Botón Google */
@@ -1991,7 +2020,7 @@ body::after {
 .welcome-link { color: var(--accent, #6366f1); text-decoration: none; font-weight: 500; }
 .welcome-link:hover { text-decoration: underline; }
 
-.welcome-card-registro { max-width: 420px; width: 100%; margin: 0 auto; }
+.welcome-card-registro { max-width: 800px; width: 100%; margin: 40px auto; padding: 36px 32px; }
 .welcome-registro-titulo { font-size: 22px; font-weight: 700; color: #fff; margin: 0 0 8px; text-align: center; }
 
 .registro-avatar-selector {

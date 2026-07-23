@@ -418,9 +418,106 @@ const enviarEmailInvitacionRegistro = async (destinatario, { grupoNombre, invita
     }
 };
 
+/**
+ * Construye el HTML del email con el código de recuperación de contraseña.
+ */
+const buildCodigoRecuperacionHtml = ({ codigo, minutosExpiracion }) => {
+    return `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+    <body style="margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Arial,sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;">
+            <tr><td align="center">
+                <table width="100%" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+                    <tr>
+                        <td style="background:linear-gradient(135deg,#137fec,#6366f1);padding:24px 32px;">
+                            <p style="margin:0;font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);text-transform:uppercase;letter-spacing:1px;">
+                                TusGastosApp
+                            </p>
+                            <h1 style="margin:8px 0 0;font-size:22px;font-weight:800;color:#ffffff;line-height:1.3;">
+                                🔑 Recuperar contraseña
+                            </h1>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:28px 32px;">
+                            <p style="margin:0 0 20px;font-size:16px;color:#0f172a;line-height:1.6;">
+                                Usá este código para restablecer tu contraseña. Vence en ${escapeHtml(String(minutosExpiracion))} minutos.
+                            </p>
+
+                            <div style="text-align:center;margin:28px 0;">
+                                <span style="display:inline-block;padding:16px 32px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;font-size:32px;font-weight:800;letter-spacing:8px;color:#137fec;">
+                                    ${escapeHtml(codigo)}
+                                </span>
+                            </div>
+
+                            <p style="margin:20px 0 0;font-size:13px;color:#94a3b8;text-align:center;">
+                                Si no pediste este código, podés ignorar este mensaje.
+                            </p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;">
+                            <p style="margin:0;font-size:11px;color:#94a3b8;text-align:center;">
+                                Este email fue enviado automáticamente por TusGastosApp.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td></tr>
+        </table>
+    </body>
+    </html>`;
+};
+
+/**
+ * Envía el email con el código de recuperación de contraseña.
+ * Nunca lanza — el llamador decide qué hacer si el envío falla.
+ *
+ * @param {string} destinatario - Email del usuario
+ * @param {Object} datos
+ * @param {string} datos.codigo - Código de 6 dígitos en texto plano
+ * @param {number} [datos.minutosExpiracion] - Minutos hasta que vence el código
+ */
+const enviarEmailCodigoRecuperacion = async (destinatario, { codigo, minutosExpiracion = 5 }) => {
+    if (!isSmtpConfigured()) {
+        console.warn('⚠️ SMTP no configurado. Saltando envío de email de código de recuperación.');
+        return { ok: false, error: 'SMTP no configurado' };
+    }
+
+    if (!destinatario) {
+        return { ok: false, error: 'Destinatario no especificado' };
+    }
+
+    try {
+        const transporter = crearTransporter();
+
+        const fromName  = (process.env.SMTP_FROM_NAME || 'TusGastosApp').replace(/[\r\n\t]/g, ' ').slice(0, 100);
+        const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+
+        await transporter.sendMail({
+            from:    `"${fromName}" <${fromEmail}>`,
+            to:      destinatario,
+            subject: '[TusGastosApp] Código para restablecer tu contraseña',
+            html:    buildCodigoRecuperacionHtml({ codigo, minutosExpiracion }),
+            text:    `Tu código de recuperación es ${codigo}. Vence en ${minutosExpiracion} minutos. Si no lo pediste, ignorá este mensaje.`,
+        });
+
+        return { ok: true };
+    } catch (err) {
+        console.error('❌ Error al enviar email de código de recuperación:', err.message);
+        return { ok: false, error: err.message };
+    }
+};
+
 module.exports = {
     enviarEmailNotificacion,
     enviarEmailInvitacionGrupo,
     enviarEmailInvitacionRegistro,
+    enviarEmailCodigoRecuperacion,
     isSmtpConfigured,
 };

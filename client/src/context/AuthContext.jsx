@@ -68,6 +68,64 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const signUpWithEmail = async ({ nombre, apellido, telefono, fechaNacimiento, email, password }) => {
+        // Con "Confirm email" habilitado, signUp() nunca lanza error si el email ya
+        // existe (para no filtrar qué emails están registrados) — y en este proyecto
+        // Supabase además genera un usuario NUEVO (id distinto) en cada llamada
+        // repetida, en vez de devolver el usuario original. El objeto user resultante
+        // es indistinguible entre "email nuevo" y "email duplicado" (mismo shape,
+        // created_at === updated_at en ambos casos), así que la única forma confiable
+        // de detectar el duplicado es consultarlo ANTES, vía un endpoint backend con
+        // service role (el frontend con anon key no puede leer auth.users).
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
+        const chequeoResponse = await fetch(`${backendUrl}/api/auth/existe-email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+        });
+        const chequeoDatos = await chequeoResponse.json();
+        if (chequeoDatos.ok && chequeoDatos.existe) {
+            throw new Error('User already registered');
+        }
+
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                emailRedirectTo: `${window.location.origin}/`,
+            },
+        });
+        if (error) {
+            console.error('❌ Error al registrarse:', error.message);
+            throw error;
+        }
+
+        if (data.user) {
+            // RLS (auth.uid() = id) permite este insert porque el usuario recién
+            // creado ya tiene un JWT válido, aunque su email no esté confirmado.
+            const { error: perfilError } = await supabase.from('usuarios').upsert({
+                id: data.user.id,
+                nombre,
+                apellido,
+                telefono,
+                fecha_nacimiento: fechaNacimiento,
+            });
+            if (perfilError) {
+                // No revertimos el signUp — el perfil se puede completar después
+                // desde Configuración.
+                console.error('⚠️ Error al guardar perfil extendido:', perfilError.message);
+            }
+        }
+    };
+
+    const signInWithPassword = async ({ email, password }) => {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+            console.error('❌ Error al iniciar sesión con contraseña:', error.message);
+            throw error;
+        }
+    };
+
     const signOut = async () => {
         // scope: 'global' invalida todos los tokens del usuario en todos los dispositivos.
         // Usar cuando se sospecha exposición de tokens (URL filtrada, sesión comprometida).
@@ -81,8 +139,8 @@ export const AuthProvider = ({ children }) => {
     };
 
     const value = useMemo(
-        () => ({ session, user, signOut, signInWithGoogle, loading }),
-        [session, user, loading] // signOut y signInWithGoogle son referencias estables
+        () => ({ session, user, signOut, signInWithGoogle, signUpWithEmail, signInWithPassword, loading }),
+        [session, user, loading] // el resto son referencias estables
     );
 
     return (

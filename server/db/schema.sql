@@ -244,8 +244,20 @@ CREATE POLICY "ingresos_delete" ON ingresos
 CREATE TABLE IF NOT EXISTS usuarios (
     id                    UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     theme_id              VARCHAR(50), -- INFERIDO, VERIFICAR: default y longitud exactos
+    nombre                TEXT,
+    apellido              TEXT,
+    telefono              TEXT,
+    fecha_nacimiento      DATE,
     ultima_actualizacion  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE usuarios
+    ADD CONSTRAINT usuarios_telefono_formato
+        CHECK (telefono IS NULL OR telefono ~ '^\+?[0-9]{8,15}$'),
+    ADD CONSTRAINT usuarios_fecha_nacimiento_pasado
+        CHECK (fecha_nacimiento IS NULL OR fecha_nacimiento <= CURRENT_DATE),
+    ADD CONSTRAINT usuarios_fecha_nacimiento_razonable
+        CHECK (fecha_nacimiento IS NULL OR fecha_nacimiento >= '1900-01-01');
 
 ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
 
@@ -263,6 +275,32 @@ CREATE POLICY "usuarios_insert" ON usuarios
 DROP POLICY IF EXISTS "usuarios_update" ON usuarios; -- INFERIDO, VERIFICAR
 CREATE POLICY "usuarios_update" ON usuarios
     FOR UPDATE USING (auth.uid() = id);
+
+
+-- ----------------------------------------------------------------------------
+-- password_reset_codes
+-- Códigos de recuperación de contraseña (flujo custom, no resetPasswordForEmail
+-- nativo de Supabase). Código de 6 dígitos, expiración de 5 minutos.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS password_reset_codes (
+    id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id           UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    email             TEXT NOT NULL,
+    codigo_hash       TEXT NOT NULL,
+    reset_token_hash  TEXT,
+    intentos          SMALLINT NOT NULL DEFAULT 0,
+    usado             BOOLEAN NOT NULL DEFAULT false,
+    verificado        BOOLEAN NOT NULL DEFAULT false,
+    fecha_creacion    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    fecha_expiracion  TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_codes_user_id ON password_reset_codes(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_codes_email ON password_reset_codes(email);
+
+ALTER TABLE password_reset_codes ENABLE ROW LEVEL SECURITY;
+-- Sin policies: deny-all para anon/authenticated. Solo el backend con
+-- supabaseAdmin (service role, bypassa RLS) lee/escribe esta tabla.
 
 
 -- ----------------------------------------------------------------------------

@@ -59,8 +59,37 @@ const compararApiKey = (apiKey, expectedKey) => {
     return crypto.timingSafeEqual(bufApiKey, bufExpected);
 };
 
+/**
+ * Hashea un valor con SHA-256 — usado para códigos de recuperación de clave
+ * y tokens de reseteo, nunca se persisten en texto plano.
+ *
+ * @param {string} valor
+ * @returns {string} hash hexadecimal
+ */
+const hashSha256 = (valor) => crypto.createHash('sha256').update(valor).digest('hex');
+
+/**
+ * Compara un valor recibido contra un hash SHA-256 esperado, en tiempo
+ * constante (mismo criterio que compararApiKey) para no filtrar por timing
+ * cuántos caracteres del código/token coinciden.
+ *
+ * @param {string} valor - Valor recibido en texto plano
+ * @param {string} hashEsperado - Hash SHA-256 esperado (hex)
+ * @returns {boolean}
+ */
+const compararHash = (valor, hashEsperado) => {
+    if (typeof valor !== 'string' || typeof hashEsperado !== 'string') return false;
+    const hashRecibido = hashSha256(valor);
+    const bufRecibido = Buffer.from(hashRecibido, 'hex');
+    const bufEsperado = Buffer.from(hashEsperado, 'hex');
+    if (bufRecibido.length !== bufEsperado.length) return false;
+    return crypto.timingSafeEqual(bufRecibido, bufEsperado);
+};
+
 module.exports = {
     normalizeAmount,
     generateFingerprint,
-    compararApiKey
+    compararApiKey,
+    hashSha256,
+    compararHash
 };
