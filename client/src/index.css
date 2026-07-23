@@ -2023,6 +2023,11 @@ body::after {
   color: #fff;
   font-size: 14px;
   box-sizing: border-box;
+  /* Sin esto, Safari le agrega su propio chrome nativo (fondo/borde/padding
+     del OS) a input[type=date] por encima del estilo custom de arriba, y el
+     ancho final renderizado queda distinto al resto de los inputs del form. */
+  appearance: none;
+  -webkit-appearance: none;
 }
 .welcome-input::placeholder { color: rgba(255, 255, 255, 0.4); }
 .welcome-input:focus { outline: none; border-color: rgba(255, 255, 255, 0.35); }
