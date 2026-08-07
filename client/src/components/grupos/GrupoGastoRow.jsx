@@ -58,9 +58,11 @@ const GrupoGastoRow = ({ gasto, miembros = [], userId, onAnular, grupoId }) => {
         try {
             setAnulando(true);
             await onAnular(gasto.id);
+            setModalAnularAbierto(false);
+        } catch (err) {
+            console.error('Error al anular gasto:', err);
         } finally {
             setAnulando(false);
-            setModalAnularAbierto(false);
         }
     };
 

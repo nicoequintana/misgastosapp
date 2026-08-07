@@ -69,9 +69,6 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
     const [eliminandoGrupo, setEliminandoGrupo] = useState(false);
     const [errorEliminar, setErrorEliminar] = useState(null);
 
-    // Estado para anular gasto grupal
-    const [gastoAAnular, setGastoAAnular] = useState(null);
-    const [anulandoGasto, setAnulandoGasto] = useState(false);
 
     // Estado para cancelar invitación pendiente
     const [invitacionACancelar, setInvitacionACancelar] = useState(null);
@@ -164,19 +161,11 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
         }
     }, [tabActivo, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Confirma y anula un gasto grupal
-    const handleConfirmarAnular = async () => {
-        if (!gastoAAnular) return;
-        try {
-            setAnulandoGasto(true);
-            await db.anularGastoGrupal(gastoAAnular.id, id);
-            setGastoAAnular(null);
-            await cargarGastos();
-        } catch (err) {
-            console.error('Error al anular gasto:', err);
-        } finally {
-            setAnulandoGasto(false);
-        }
+    // Anula un gasto grupal — la confirmación ya la pide GrupoGastoRow (su propio
+    // ConfirmModal), así que acá solo ejecutamos la acción y recargamos la lista.
+    const handleAnularGasto = async (gastoId) => {
+        await db.anularGastoGrupal(gastoId, id);
+        await cargarGastos();
     };
 
     // Confirma y cancela una invitación pendiente
@@ -461,7 +450,7 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                                             miembros={miembros}
                                             userId={user?.id}
                                             esAdmin={esAdmin}
-                                            onAnular={(gastoId) => setGastoAAnular(gastos.find(g => g.id === gastoId) ?? { id: gastoId })}
+                                            onAnular={handleAnularGasto}
                                             grupoId={grupo.id}
                                         />
                                     ))}
@@ -597,16 +586,6 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                     <GrupoSaldos key={tabActivo} grupoId={grupo.id} miembros={miembros} />
                 </div>
             )}
-
-            {/* Modal de confirmación de anular gasto grupal */}
-            <ConfirmModal
-                isOpen={!!gastoAAnular}
-                onClose={() => setGastoAAnular(null)}
-                onConfirm={handleConfirmarAnular}
-                loading={anulandoGasto}
-                title="Anular gasto"
-                message={`¿Anulás el gasto "${gastoAAnular?.descripcion || ''}"? Esta acción no se puede deshacer.`}
-            />
 
             {/* Modal de confirmación de cancelar invitación */}
             <ConfirmModal
