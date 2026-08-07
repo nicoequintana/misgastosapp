@@ -400,7 +400,7 @@ Invitaciones por email con token UUID de 7 días de vigencia.
 | `invitado_por` | UUID FK → auth.users | Admin que realiza la invitación |
 | `estado` | VARCHAR(20) | pendiente / aceptada / rechazada / expirada / cancelada |
 | `fecha_expiracion` | TIMESTAMPTZ | NOW() + 7 días |
-| `created_at` | TIMESTAMPTZ | Timestamp de creación (usado para rate limiting) |
+| `fecha_creacion` | TIMESTAMPTZ | Timestamp de creación (usado para rate limiting) |
 
 #### `grupo_gastos`
 Gastos registrados dentro de un grupo. Desde la migración `20260515_cuotas_grupales.sql` soporta compras en cuotas con tarjeta.
