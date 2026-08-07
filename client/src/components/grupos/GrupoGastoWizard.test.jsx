@@ -166,3 +166,78 @@ describe('GrupoGastoWizard — paso 4 (participantes/nota)', () => {
         await waitFor(() => expect(screen.getByText('Paso 5 de 5')).toBeInTheDocument());
     });
 });
+
+describe('GrupoGastoWizard — paso 5 (resumen) y guardado', () => {
+    it('muestra el resumen con descripción, monto y preview de división', async () => {
+        renderWizard();
+        await avanzarHastaPaso4();
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+        await waitFor(() => expect(screen.getByText('Paso 5 de 5')).toBeInTheDocument());
+        expect(screen.getByText('Cena')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Guardar/i })).toBeInTheDocument();
+    });
+
+    it('guarda el gasto simple (sin cuotas) y muestra resultado exitoso', async () => {
+        const onGastoGuardado = vi.fn();
+        renderWizard({ onGastoGuardado });
+        await avanzarHastaPaso4();
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+        await waitFor(() => expect(screen.getByText('Paso 5 de 5')).toBeInTheDocument());
+
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Guardar/i }));
+
+        expect(await screen.findByText(/¡Gasto registrado!/i)).toBeInTheDocument();
+        expect(db.crearGastoGrupal).toHaveBeenCalledWith(expect.objectContaining({
+            grupoId: 1,
+            descripcion: 'Cena',
+            idMetodoPago: 10,
+            participantesUserIds: ['u1', 'u2'],
+        }));
+
+        fireEvent.click(screen.getByRole('button', { name: /Continuar/i }));
+        expect(onGastoGuardado).toHaveBeenCalledWith({ tipo: 'success' });
+    });
+
+    it('guarda un gasto en cuotas usando crearGastoGrupalEnCuotas', async () => {
+        renderWizard();
+        await waitFor(() => expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument());
+        fireEvent.change(screen.getByLabelText(/Monto/i), { target: { value: '1000' } });
+        fireEvent.change(screen.getByLabelText(/Descripción/i), { target: { value: 'Viaje' } });
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+        await waitFor(() => expect(screen.getByText('Paso 2 de 5')).toBeInTheDocument());
+        fireEvent.click(await screen.findByText('VISA'));
+        fireEvent.change(await screen.findByLabelText(/primera cuota/i), { target: { value: '2026-09' } });
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+        await waitFor(() => expect(screen.getByText('Paso 3 de 5')).toBeInTheDocument());
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+        await waitFor(() => expect(screen.getByText('Paso 4 de 5')).toBeInTheDocument());
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+        await waitFor(() => expect(screen.getByText('Paso 5 de 5')).toBeInTheDocument());
+
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Guardar/i }));
+
+        expect(await screen.findByText(/¡Gasto registrado!/i)).toBeInTheDocument();
+        expect(db.crearGastoGrupalEnCuotas).toHaveBeenCalledWith(expect.objectContaining({
+            idMetodoPago: 20,
+            primeraCuota: '2026-09',
+        }));
+    });
+
+    it('muestra resultado de error si falla el guardado y permite volver al formulario', async () => {
+        db.crearGastoGrupal.mockRejectedValue(new Error('Error de red'));
+        renderWizard();
+        await avanzarHastaPaso4();
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+        await waitFor(() => expect(screen.getByText('Paso 5 de 5')).toBeInTheDocument());
+
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Guardar/i }));
+
+        expect(await screen.findByText(/No se pudo registrar el gasto/i)).toBeInTheDocument();
+        expect(screen.getByText('Error de red')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Continuar/i }));
+        // handleContinuarResultado manda de vuelta al paso 5 (resumen) en error, no al 1 —
+        // el usuario reintenta sin recompletar todo el wizard.
+        await waitFor(() => expect(screen.getByText('Paso 5 de 5')).toBeInTheDocument());
+    });
+});

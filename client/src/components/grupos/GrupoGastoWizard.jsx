@@ -42,6 +42,7 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
         errorGuardado, fase, resultado, handleSubmit, volverAFormulario,
         erroresCampo, setErrorCampo,
         handleBlurDescripcion, handleBlurMonto, handleBlurPrimeraCuota, handleBlurPagadoPor,
+        divisionPreview, formatearMonto,
         user,
     } = form;
 
@@ -343,6 +344,38 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
                             />
                         </div>
                         </>
+                    )}
+                    {pasoGasto === 5 && (
+                        <div className="grupo-gasto-nuevo__preview">
+                            <p className="grupo-gasto-nuevo__preview-texto"><strong>{descripcion}</strong></p>
+                            <p className="grupo-gasto-nuevo__preview-texto">{formatearMonto(Number(monto))}</p>
+                            {categoriaId && (
+                                <p className="grupo-gasto-nuevo__preview-nota">
+                                    Categoría: {categorias.find(c => c.id === Number(categoriaId))?.nombre}
+                                </p>
+                            )}
+                            <p className="grupo-gasto-nuevo__preview-nota">
+                                Método de pago: {metodosPago.find(m => m.id === Number(metodoPagoId))?.nombre}
+                                {esTarjeta ? ` — ${cuotas} cuota${cuotas !== 1 ? 's' : ''} desde ${primeraCuota}` : ''}
+                            </p>
+                            <p className="grupo-gasto-nuevo__preview-nota">
+                                Pagó: {miembros.find(m => m.user_id === pagadoPor)?.alias || 'Sin definir'}
+                            </p>
+                            <p className="grupo-gasto-nuevo__preview-nota">
+                                Participantes: {participantes.length}
+                            </p>
+                            {divisionPreview && (
+                                divisionPreview.esTarjeta ? (
+                                    <p className="grupo-gasto-nuevo__preview-texto">
+                                        Cada uno paga: <strong>{formatearMonto(divisionPreview.montoPorPersona)}</strong> por mes durante <strong>{divisionPreview.cuotas} cuotas</strong>
+                                    </p>
+                                ) : (
+                                    <p className="grupo-gasto-nuevo__preview-texto">
+                                        Cada uno paga: <strong>{formatearMonto(divisionPreview.base)}</strong>
+                                    </p>
+                                )
+                            )}
+                        </div>
                     )}
                     {errorPaso && (
                         <p className="edit-form-error" role="alert">{errorPaso}</p>
