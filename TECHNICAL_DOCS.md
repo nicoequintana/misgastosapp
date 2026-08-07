@@ -151,8 +151,7 @@ tusgastosapp/
 │       │       ├── GrupoNuevo.jsx     ← Crear grupo
 │       │       ├── GrupoDetalle.jsx   ← Detalle y gastos del grupo
 │       │       ├── GrupoSaldos.jsx    ← Saldos y transferencias sugeridas
-│       │       ├── GrupoGastoNuevo.jsx   ← Registrar gasto grupal (incluyendo cuotas)
-│       │       ├── GrupoGastoEditar.jsx  ← Editar gasto grupal
+│       │       ├── GrupoGastoEditar.jsx  ← Editar gasto grupal (formulario largo)
 │       │       └── AceptarInvitacion.jsx ← Flujo de aceptación de invitación
 │       ├── components/
 │       │   ├── GlassCard.jsx          ← Tarjeta glassmorphism base
@@ -178,6 +177,7 @@ tusgastosapp/
 │       │       ├── TransferenciasSugeridas.jsx ← Sugerencias de liquidación
 │       │       ├── SaldoTable.jsx          ← Tabla de saldos del grupo
 │       │       ├── GrupoGastoRow.jsx       ← Fila de gasto grupal
+│       │       ├── GrupoGastoWizard.jsx    ← Modal wizard (5 pasos) para crear gasto grupal
 │       │       └── InvitarMiembroModal.jsx ← Modal de invitación por email
 │       ├── layouts/               ← Layout principal con Header/Sidebar
 │       └── utils/
@@ -876,7 +876,9 @@ saldo_neto = pagado + liquidado_enviado − asignado − liquidado_recibido
 
 **Algoritmo de transferencias mínimas (`grupos/saldos.js`):** Algoritmo greedy que empareja el deudor más grande con el acreedor más grande en cada iteración. Complejidad O(N log N). Garantiza el mínimo número de transferencias (máximo N-1 para N miembros).
 
-**Páginas:** `Grupos.jsx`, `GrupoDetalle.jsx`, `GrupoSaldos.jsx`, `GrupoNuevo.jsx`, `GrupoGastoNuevo.jsx`, `GrupoGastoEditar.jsx`, `AceptarInvitacion.jsx`
+**Páginas:** `Grupos.jsx`, `GrupoDetalle.jsx`, `GrupoSaldos.jsx`, `GrupoNuevo.jsx`, `GrupoGastoEditar.jsx`, `AceptarInvitacion.jsx`
+
+**Carga de gasto grupal:** la creación usa `GrupoGastoWizard.jsx` (modal de 5 pasos, disparado desde `GrupoDetalle.jsx`), mientras que la edición sigue usando el formulario largo de `GrupoGastoEditar.jsx` — decisión de diseño deliberada, no una migración pendiente.
 
 **Helpers:**
 - `cuotasGroupHelper.js`: funciones puras para agrupar y procesar cuotas grupales
