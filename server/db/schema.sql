@@ -488,7 +488,7 @@ CREATE TABLE IF NOT EXISTS grupo_invitaciones (
                             CHECK (estado IN ('pendiente', 'aceptada', 'rechazada', 'expirada', 'cancelada')),
     fecha_expiracion   TIMESTAMPTZ NOT NULL DEFAULT (now() + INTERVAL '7 days'),
     fecha_resolucion   TIMESTAMPTZ, -- seteado al expirar/cancelar/aceptar
-    created_at         TIMESTAMPTZ NOT NULL DEFAULT now() -- usado para rate limiting (superaRateLimit en grupos.js)
+    fecha_creacion     TIMESTAMPTZ NOT NULL DEFAULT now() -- CONFIRMADO en DB real (2026-08-07): la columna se llama fecha_creacion, no created_at. Usada para rate limiting (superaRateLimit en _helpers.js)
 );
 
 ALTER TABLE grupo_invitaciones ENABLE ROW LEVEL SECURITY;

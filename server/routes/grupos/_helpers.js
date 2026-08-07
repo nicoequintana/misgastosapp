@@ -141,7 +141,7 @@ const superaRateLimit = async (grupoId) => {
         .from('grupo_invitaciones')
         .select('id', { count: 'exact', head: true })
         .eq('grupo_id', Number(grupoId))
-        .gte('created_at', hace1h);
+        .gte('fecha_creacion', hace1h);
 
     if (error) {
         // Fail closed (fix S-03): si la query de conteo falla no podemos saber si el
