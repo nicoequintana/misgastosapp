@@ -1081,10 +1081,13 @@ BEGIN
         RAISE EXCEPTION 'Se requiere al menos un participante';
     END IF;
 
+    -- Fix 20260807: chequear FOUND, no si id_gasto_padre es NULL — un gasto
+    -- sin cuotas tiene id_gasto_padre NULL legítimamente (ver
+    -- migrations/20260807_fix_update_grupo_gasto_installments_found.sql).
     SELECT id_gasto_padre INTO v_gasto_padre_id FROM grupo_gastos
     WHERE id = p_gasto_id AND estado = 'activo';
 
-    IF v_gasto_padre_id IS NULL THEN
+    IF NOT FOUND THEN
         RAISE EXCEPTION 'El gasto no existe o ya fue anulado';
     END IF;
 
