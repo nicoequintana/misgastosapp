@@ -241,3 +241,56 @@ describe('GrupoGastoWizard — paso 5 (resumen) y guardado', () => {
         await waitFor(() => expect(screen.getByText('Paso 5 de 5')).toBeInTheDocument());
     });
 });
+
+describe('GrupoGastoWizard — reapertura sin desmontar (regresión)', () => {
+    // GrupoDetalle.jsx mantiene este componente siempre montado y solo alterna la prop
+    // `isOpen` (mismo patrón que Modal.jsx) — nunca lo desmonta entre aperturas. Estos
+    // tests reproducen ese escenario con rerender() en vez de montar una instancia nueva
+    // por test, que es lo que ocultaba el bug reportado en producción: un intento fallido
+    // dejaba error/datos pegados para la próxima apertura.
+    it('limpia el error de "Siguiente" de un intento anterior al reabrir', async () => {
+        const { rerender } = renderWizard({ isOpen: true });
+        await waitFor(() => expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument());
+
+        // Intento anterior: toca Siguiente sin completar nada, queda el error visible.
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+        expect(await screen.findByText(/El monto debe ser mayor a cero/i)).toBeInTheDocument();
+
+        // Cierra sin completar (isOpen=false) y reabre (isOpen=true) — mismo componente,
+        // sin desmontar, tal como hace GrupoDetalle.jsx.
+        rerender(
+            <AuthContext.Provider value={{ user: { id: 'u1' } }}>
+                <GrupoGastoWizard isOpen={false} onClose={vi.fn()} grupoId={1} onGastoGuardado={vi.fn()} />
+            </AuthContext.Provider>
+        );
+        rerender(
+            <AuthContext.Provider value={{ user: { id: 'u1' } }}>
+                <GrupoGastoWizard isOpen={true} onClose={vi.fn()} grupoId={1} onGastoGuardado={vi.fn()} />
+            </AuthContext.Provider>
+        );
+
+        await waitFor(() => expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument());
+        expect(screen.queryByText(/El monto debe ser mayor a cero/i)).not.toBeInTheDocument();
+    });
+
+    it('vuelve a pedir miembros/categorías/métodos de pago cada vez que se reabre', async () => {
+        const { rerender } = renderWizard({ isOpen: true });
+        await waitFor(() => expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument());
+        await waitFor(() => expect(db.obtenerMiembrosDelGrupo).toHaveBeenCalledTimes(1));
+
+        rerender(
+            <AuthContext.Provider value={{ user: { id: 'u1' } }}>
+                <GrupoGastoWizard isOpen={false} onClose={vi.fn()} grupoId={1} onGastoGuardado={vi.fn()} />
+            </AuthContext.Provider>
+        );
+        rerender(
+            <AuthContext.Provider value={{ user: { id: 'u1' } }}>
+                <GrupoGastoWizard isOpen={true} onClose={vi.fn()} grupoId={1} onGastoGuardado={vi.fn()} />
+            </AuthContext.Provider>
+        );
+
+        // Reabrir dispara una nueva carga — si la sesión/token cambió entre aperturas
+        // (ej. se resolvió después del montaje inicial), esta segunda carga la recoge.
+        await waitFor(() => expect(db.obtenerMiembrosDelGrupo).toHaveBeenCalledTimes(2));
+    });
+});

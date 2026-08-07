@@ -13,7 +13,7 @@ export const OPCIONES_CUOTAS = Array.from({ length: 18 }, (_, i) => i + 1);
  * En modo 'editar' precarga el gasto existente; en modo 'crear' arranca vacío
  * con el usuario actual como pagador por defecto.
  */
-export const useGrupoGastoForm = ({ grupoId, gastoId, modo }) => {
+export const useGrupoGastoForm = ({ grupoId, gastoId, modo, activo = true }) => {
     const { user } = useContext(AuthContext);
 
     // Estado de datos del grupo
@@ -50,9 +50,13 @@ export const useGrupoGastoForm = ({ grupoId, gastoId, modo }) => {
     const [resultado, setResultado] = useState(null);
 
     // Carga los miembros activos del grupo, categorías y métodos de pago (y, en
-    // modo editar, el gasto existente) al montar.
+    // modo editar, el gasto existente) al montar y cada vez que `activo` pasa a true.
+    // `activo` lo controla el consumidor (ej. GrupoGastoWizard con su prop `isOpen`) para
+    // los casos donde el hook queda montado de forma persistente detrás de un modal que
+    // se abre/cierra sin desmontarse — sin este re-disparo, los datos (y el token de auth
+    // usado en las queries) quedan congelados desde el primer montaje del componente padre.
     const cargarDatos = useCallback(async () => {
-        if (!grupoId || (modo === 'editar' && !gastoId)) return;
+        if (!activo || !grupoId || (modo === 'editar' && !gastoId)) return;
         try {
             setCargando(true);
             setErrorCarga(null);
@@ -121,11 +125,21 @@ export const useGrupoGastoForm = ({ grupoId, gastoId, modo }) => {
         } finally {
             setCargando(false);
         }
-    }, [grupoId, gastoId, modo, user?.id]);
+    }, [activo, grupoId, gastoId, modo, user?.id]);
 
     useEffect(() => {
         cargarDatos();
     }, [cargarDatos]);
+
+    // Al reactivarse (ej. se abre el wizard tras haber estado montado-pero-oculto),
+    // limpiamos errores de un intento anterior — si no, quedan pegados para siempre
+    // porque este hook no se remonta junto con el modal.
+    useEffect(() => {
+        if (activo) {
+            setErroresCampo({});
+            setErrorGuardado(null);
+        }
+    }, [activo]);
 
     // Detecta si el método de pago seleccionado acepta cuotas (flag explícito en
     // metodos_pago.acepta_cuotas) — mismo criterio que handleCambioMetodoPago en Dashboard.jsx.

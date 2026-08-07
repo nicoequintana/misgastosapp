@@ -26,7 +26,7 @@ const TOTAL_PASOS = 5;
  *   popup de resultado (éxito o error), para que el llamador recargue la lista de gastos.
  */
 const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
-    const form = useGrupoGastoForm({ grupoId, modo: 'crear' });
+    const form = useGrupoGastoForm({ grupoId, modo: 'crear', activo: isOpen });
     const {
         miembros, categorias, metodosPago, cargando, errorCarga,
         descripcion, setDescripcion,
@@ -48,12 +48,18 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
 
     const [pasoGasto, setPasoGasto] = useState(1);
     const [botonesPasoBloqueados, setBotonesPasoBloqueados] = useState(false);
+    const [errorPaso, setErrorPaso] = useState(null);
 
-    // Al abrir el modal, siempre arranca en el paso 1 — evita reabrir en medio de un
-    // wizard anterior si el usuario cerró sin terminar.
+    // Al abrir el modal, siempre arranca en el paso 1 y limpia el error de navegación de un
+    // intento anterior — evita reabrir en medio de un wizard anterior si el usuario cerró sin
+    // terminar, o ver un error de paso que quedó pegado (este componente no se desmonta al
+    // cerrar el modal, así que el estado no se resetea solo).
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- mismo patrón que GastoWizard.jsx (reset de paso al abrir el modal)
-        if (isOpen) setPasoGasto(1);
+        if (isOpen) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- mismo patrón que GastoWizard.jsx (reset de paso al abrir el modal)
+            setPasoGasto(1);
+            setErrorPaso(null);
+        }
     }, [isOpen]);
 
     useEffect(() => {
@@ -85,8 +91,6 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
         }
         return null;
     };
-
-    const [errorPaso, setErrorPaso] = useState(null);
 
     const handleSiguientePaso = () => {
         const error = validarPasoGasto(pasoGasto);
@@ -363,7 +367,10 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
                                     {esTarjeta ? ` — ${cuotas} cuota${cuotas !== 1 ? 's' : ''} desde ${primeraCuota}` : ''}
                                 </p>
                                 <p className="grupo-gasto-nuevo__preview-nota">
-                                    Pagó: {miembros.find(m => m.user_id === pagadoPor)?.alias || 'Sin definir'}
+                                    Pagó: {(() => {
+                                        const m = miembros.find(mi => mi.user_id === pagadoPor);
+                                        return m ? (m.alias || m.nombre || 'Usuario sin nombre') : 'Sin definir';
+                                    })()}
                                 </p>
                                 <p className="grupo-gasto-nuevo__preview-nota">
                                     Participantes: {participantes.length}
