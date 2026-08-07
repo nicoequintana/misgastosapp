@@ -590,7 +590,9 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
             {/* ── Tab: Saldos ── */}
             {tabActivo === 'saldos' && (
                 <div className="grupo-detalle__panel">
-                    <GrupoSaldos grupoId={grupo.id} miembros={miembros} />
+                    {/* key fuerza remount al reentrar al tab, así se recalculan
+                        los saldos con los gastos/liquidaciones cargados mientras tanto */}
+                    <GrupoSaldos key={tabActivo} grupoId={grupo.id} miembros={miembros} />
                 </div>
             )}
 
