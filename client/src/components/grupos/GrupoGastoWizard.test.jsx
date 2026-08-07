@@ -92,3 +92,37 @@ describe('GrupoGastoWizard — paso 1 (monto/descripción)', () => {
         expect(await screen.findByText('COMIDA')).toBeInTheDocument();
     });
 });
+
+async function avanzarHastaPaso3() {
+    await waitFor(() => expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/Monto/i), { target: { value: '1000' } });
+    fireEvent.change(screen.getByLabelText(/Descripción/i), { target: { value: 'Cena' } });
+    await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+    await waitFor(() => expect(screen.getByText('Paso 2 de 5')).toBeInTheDocument());
+    fireEvent.click(await screen.findByText('EFECTIVO'));
+    await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+    await waitFor(() => expect(screen.getByText('Paso 3 de 5')).toBeInTheDocument());
+}
+
+describe('GrupoGastoWizard — paso 3 (pagado por)', () => {
+    it('muestra el select de pagado por con el usuario actual precargado', async () => {
+        renderWizard();
+        await avanzarHastaPaso3();
+        expect(screen.getByLabelText(/Pagó/i)).toHaveValue('u1');
+    });
+
+    it('bloquea avanzar si no hay pagador seleccionado', async () => {
+        renderWizard();
+        await avanzarHastaPaso3();
+        fireEvent.change(screen.getByLabelText(/Pagó/i), { target: { value: '' } });
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+        expect(await screen.findByText('Seleccioná quién pagó.')).toBeInTheDocument();
+    });
+
+    it('avanza a paso 4 con pagador seleccionado', async () => {
+        renderWizard();
+        await avanzarHastaPaso3();
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+        await waitFor(() => expect(screen.getByText('Paso 4 de 5')).toBeInTheDocument());
+    });
+});

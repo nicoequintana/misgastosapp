@@ -27,12 +27,12 @@ const TOTAL_PASOS = 5;
 const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
     const form = useGrupoGastoForm({ grupoId, modo: 'crear' });
     const {
-        categorias, metodosPago, cargando, errorCarga,
+        miembros, categorias, metodosPago, cargando, errorCarga,
         descripcion, setDescripcion,
         monto, setMonto,
         categoriaId, setCategoriaId,
         metodoPagoId, handleCambioMetodoPago,
-        pagadoPor,
+        pagadoPor, setPagadoPor,
         participantes,
         nota,
         esTarjeta,
@@ -40,7 +40,8 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
         primeraCuota, setPrimeraCuota,
         errorGuardado, fase, resultado, handleSubmit, volverAFormulario,
         erroresCampo, setErrorCampo,
-        handleBlurDescripcion, handleBlurMonto, handleBlurPrimeraCuota,
+        handleBlurDescripcion, handleBlurMonto, handleBlurPrimeraCuota, handleBlurPagadoPor,
+        user,
     } = form;
 
     const [pasoGasto, setPasoGasto] = useState(1);
@@ -292,6 +293,30 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
                             </>
                         )}
                         </>
+                    )}
+                    {pasoGasto === 3 && (
+                        <div className="form-group">
+                            <label className="form-label-box" htmlFor="grupo-gasto-pagadopor">Pagó</label>
+                            <select
+                                id="grupo-gasto-pagadopor"
+                                className="form-select"
+                                value={pagadoPor}
+                                onChange={(e) => { setPagadoPor(e.target.value); limpiarErrorCampo('pagadoPor'); }}
+                                onBlur={handleBlurPagadoPor}
+                                aria-describedby={erroresCampo.pagadoPor ? 'grupo-gasto-pagadopor-error' : undefined}
+                            >
+                                <option value="">Seleccioná quién pagó...</option>
+                                {miembros.map((m) => (
+                                    <option key={m.user_id} value={m.user_id}>
+                                        {m.alias || m.nombre || 'Usuario sin nombre'}
+                                        {m.user_id === user?.id ? ' (vos)' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                            {erroresCampo.pagadoPor && (
+                                <p id="grupo-gasto-pagadopor-error" className="edit-form-error" role="alert">{erroresCampo.pagadoPor}</p>
+                            )}
+                        </div>
                     )}
                     {errorPaso && (
                         <p className="edit-form-error" role="alert">{errorPaso}</p>
