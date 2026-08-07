@@ -4,6 +4,7 @@ import GrupoTabs from '../../components/grupos/GrupoTabs';
 import MiembroChip from '../../components/grupos/MiembroChip';
 import GrupoGastoRow from '../../components/grupos/GrupoGastoRow';
 import GrupoCuotasCard from '../../components/grupos/GrupoCuotasCard';
+import GrupoGastoWizard from '../../components/grupos/GrupoGastoWizard';
 import GrupoSaldos from './GrupoSaldos';
 import InvitarMiembroModal from '../../components/grupos/InvitarMiembroModal';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -54,6 +55,7 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
     const [gastos, setGastos] = useState([]);
     const [cargandoGastos, setCargandoGastos] = useState(false);
     const [cuotasGrupo, setCuotasGrupo] = useState([]);
+    const [wizardGastoAbierto, setWizardGastoAbierto] = useState(false);
 
     // Estado del modal de invitación
     const [mostrarInvitar, setMostrarInvitar] = useState(false);
@@ -412,7 +414,7 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                         <div className="grupo-detalle__tab-actions">
                             <button
                                 className="btn btn-primary"
-                                onClick={() => navigate(`/grupos/${grupo.id}/gastos/nuevo`)}
+                                onClick={() => setWizardGastoAbierto(true)}
                             >
                                 <span className="material-symbols-outlined">add</span>
                                 Cargar gasto
@@ -624,6 +626,16 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                 loading={eliminandoMiembro}
                 title="Eliminar miembro"
                 message={`¿Eliminás a ${miembroAEliminar?.alias || miembroAEliminar?.nombre || 'este miembro'} del grupo? Esta acción no se puede deshacer.`}
+            />
+
+            {/* Wizard de carga de gasto grupal */}
+            <GrupoGastoWizard
+                isOpen={wizardGastoAbierto}
+                onClose={() => setWizardGastoAbierto(false)}
+                grupoId={grupo.id}
+                onGastoGuardado={({ tipo }) => {
+                    if (tipo === 'success') cargarGastos();
+                }}
             />
         </div>
     );

@@ -10,7 +10,6 @@ const Reportes     = lazy(() => import('./pages/Reportes'));
 const Grupos       = lazy(() => import('./pages/grupos/Grupos'));
 const GrupoNuevo   = lazy(() => import('./pages/grupos/GrupoNuevo'));
 const GrupoDetalle = lazy(() => import('./pages/grupos/GrupoDetalle'));
-const GrupoGastoNuevo   = lazy(() => import('./pages/grupos/GrupoGastoNuevo'));
 const GrupoGastoEditar  = lazy(() => import('./pages/grupos/GrupoGastoEditar'));
 const AceptarInvitacion = lazy(() => import('./pages/grupos/AceptarInvitacion'));
 const Registro          = lazy(() => import('./pages/Registro'));
@@ -88,7 +87,6 @@ const AppWithLoader = () => {
                 <Route path="grupos" element={<PageTransition><Grupos /></PageTransition>} />
                 <Route path="grupos/nuevo" element={<PageTransition><GrupoNuevo /></PageTransition>} />
                 <Route path="grupos/:id" element={<PageTransition><GrupoDetalle /></PageTransition>} />
-                <Route path="grupos/:id/gastos/nuevo" element={<PageTransition><GrupoGastoNuevo /></PageTransition>} />
                 <Route path="grupos/:id/gastos/:gastoId/editar" element={<PageTransition><GrupoGastoEditar /></PageTransition>} />
                 <Route path="grupos/:id/miembros" element={<PageTransition><GrupoDetalle defaultTab="miembros" /></PageTransition>} />
                 <Route path="grupos/:id/saldos" element={<PageTransition><GrupoDetalle defaultTab="saldos" /></PageTransition>} />
