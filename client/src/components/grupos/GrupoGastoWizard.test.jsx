@@ -126,3 +126,43 @@ describe('GrupoGastoWizard — paso 3 (pagado por)', () => {
         await waitFor(() => expect(screen.getByText('Paso 4 de 5')).toBeInTheDocument());
     });
 });
+
+async function avanzarHastaPaso4() {
+    await avanzarHastaPaso3();
+    await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+    await waitFor(() => expect(screen.getByText('Paso 4 de 5')).toBeInTheDocument());
+}
+
+describe('GrupoGastoWizard — paso 4 (participantes/nota)', () => {
+    it('muestra participantes con todos los activos preseleccionados', async () => {
+        renderWizard();
+        await avanzarHastaPaso4();
+        expect(screen.getByText('Nico')).toBeInTheDocument();
+        expect(screen.getByText('Ana')).toBeInTheDocument();
+    });
+
+    it('bloquea avanzar si no hay participantes seleccionados', async () => {
+        renderWizard();
+        await avanzarHastaPaso4();
+        // Deselecciona ambos participantes (checkboxes de MiembrosSelector). MiembrosSelector
+        // mapea siempre sobre los mismos miembros activos (el checkbox no desaparece al
+        // destildarse, solo cambia su estado checked), así que el índice 0/1 se mantiene
+        // estable entre renders — pero igual se re-consulta con getAllByRole después del
+        // primer click para no depender de referencias potencialmente obsoletas del array
+        // devuelto antes del re-render.
+        fireEvent.click(screen.getAllByRole('checkbox')[0]);
+        fireEvent.click(screen.getAllByRole('checkbox')[1]);
+        const checkboxes = screen.getAllByRole('checkbox');
+        expect(checkboxes[0]).not.toBeChecked();
+        expect(checkboxes[1]).not.toBeChecked();
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+        expect(await screen.findByText(/Seleccioná al menos un participante/i)).toBeInTheDocument();
+    });
+
+    it('avanza a paso 5 con participantes seleccionados', async () => {
+        renderWizard();
+        await avanzarHastaPaso4();
+        await clickCuandoHabilitado(screen.getByRole('button', { name: /Siguiente/i }));
+        await waitFor(() => expect(screen.getByText('Paso 5 de 5')).toBeInTheDocument());
+    });
+});

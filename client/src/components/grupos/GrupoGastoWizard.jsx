@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Modal from '../Modal';
 import CurrencyInput from '../CurrencyInput';
 import ChipSelector from '../ChipSelector';
+import MiembrosSelector from './MiembrosSelector';
 import ResultModal from '../ResultModal';
 import { useGrupoGastoForm, OPCIONES_CUOTAS } from '../../hooks/useGrupoGastoForm';
 import * as db from '../../lib/db';
@@ -33,8 +34,8 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
         categoriaId, setCategoriaId,
         metodoPagoId, handleCambioMetodoPago,
         pagadoPor, setPagadoPor,
-        participantes,
-        nota,
+        participantes, setParticipantes,
+        nota, setNota,
         esTarjeta,
         cuotas, setCuotas,
         primeraCuota, setPrimeraCuota,
@@ -296,7 +297,7 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
                     )}
                     {pasoGasto === 3 && (
                         <div className="form-group">
-                            <label className="form-label-box" htmlFor="grupo-gasto-pagadopor">Pagó</label>
+                            <label className="form-label-box" htmlFor="grupo-gasto-pagadopor">Pagó <span style={{ color: 'var(--danger)' }}>*</span></label>
                             <select
                                 id="grupo-gasto-pagadopor"
                                 className="form-select"
@@ -304,6 +305,7 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
                                 onChange={(e) => { setPagadoPor(e.target.value); limpiarErrorCampo('pagadoPor'); }}
                                 onBlur={handleBlurPagadoPor}
                                 aria-describedby={erroresCampo.pagadoPor ? 'grupo-gasto-pagadopor-error' : undefined}
+                                required
                             >
                                 <option value="">Seleccioná quién pagó...</option>
                                 {miembros.map((m) => (
@@ -317,6 +319,30 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
                                 <p id="grupo-gasto-pagadopor-error" className="edit-form-error" role="alert">{erroresCampo.pagadoPor}</p>
                             )}
                         </div>
+                    )}
+                    {pasoGasto === 4 && (
+                        <>
+                        <div className="form-group">
+                            <label className="form-label-box" id="grupo-gasto-participantes-label">Participantes</label>
+                            <MiembrosSelector
+                                miembros={miembros}
+                                seleccionados={participantes}
+                                onChange={setParticipantes}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label-box" htmlFor="grupo-gasto-nota">Nota (opcional)</label>
+                            <textarea
+                                id="grupo-gasto-nota"
+                                className="input"
+                                placeholder="Detalles adicionales..."
+                                value={nota}
+                                onChange={(e) => setNota(e.target.value)}
+                                rows={3}
+                                maxLength={500}
+                            />
+                        </div>
+                        </>
                     )}
                     {errorPaso && (
                         <p className="edit-form-error" role="alert">{errorPaso}</p>
