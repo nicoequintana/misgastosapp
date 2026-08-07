@@ -347,34 +347,46 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
                     )}
                     {pasoGasto === 5 && (
                         <div className="grupo-gasto-nuevo__preview">
-                            <p className="grupo-gasto-nuevo__preview-texto"><strong>{descripcion}</strong></p>
-                            <p className="grupo-gasto-nuevo__preview-texto">{formatearMonto(Number(monto))}</p>
-                            {categoriaId && (
+                            <span className="material-symbols-outlined grupo-gasto-nuevo__preview-icon">
+                                calculate
+                            </span>
+                            <div>
+                                <p className="grupo-gasto-nuevo__preview-texto"><strong>{descripcion}</strong></p>
+                                <p className="grupo-gasto-nuevo__preview-texto">{formatearMonto(Number(monto))}</p>
+                                {categoriaId && (
+                                    <p className="grupo-gasto-nuevo__preview-nota">
+                                        Categoría: {categorias.find(c => c.id === Number(categoriaId))?.nombre}
+                                    </p>
+                                )}
                                 <p className="grupo-gasto-nuevo__preview-nota">
-                                    Categoría: {categorias.find(c => c.id === Number(categoriaId))?.nombre}
+                                    Método de pago: {metodosPago.find(m => m.id === Number(metodoPagoId))?.nombre}
+                                    {esTarjeta ? ` — ${cuotas} cuota${cuotas !== 1 ? 's' : ''} desde ${primeraCuota}` : ''}
                                 </p>
-                            )}
-                            <p className="grupo-gasto-nuevo__preview-nota">
-                                Método de pago: {metodosPago.find(m => m.id === Number(metodoPagoId))?.nombre}
-                                {esTarjeta ? ` — ${cuotas} cuota${cuotas !== 1 ? 's' : ''} desde ${primeraCuota}` : ''}
-                            </p>
-                            <p className="grupo-gasto-nuevo__preview-nota">
-                                Pagó: {miembros.find(m => m.user_id === pagadoPor)?.alias || 'Sin definir'}
-                            </p>
-                            <p className="grupo-gasto-nuevo__preview-nota">
-                                Participantes: {participantes.length}
-                            </p>
-                            {divisionPreview && (
-                                divisionPreview.esTarjeta ? (
-                                    <p className="grupo-gasto-nuevo__preview-texto">
-                                        Cada uno paga: <strong>{formatearMonto(divisionPreview.montoPorPersona)}</strong> por mes durante <strong>{divisionPreview.cuotas} cuotas</strong>
-                                    </p>
-                                ) : (
-                                    <p className="grupo-gasto-nuevo__preview-texto">
-                                        Cada uno paga: <strong>{formatearMonto(divisionPreview.base)}</strong>
-                                    </p>
-                                )
-                            )}
+                                <p className="grupo-gasto-nuevo__preview-nota">
+                                    Pagó: {miembros.find(m => m.user_id === pagadoPor)?.alias || 'Sin definir'}
+                                </p>
+                                <p className="grupo-gasto-nuevo__preview-nota">
+                                    Participantes: {participantes.length}
+                                </p>
+                                {divisionPreview && (
+                                    divisionPreview.esTarjeta ? (
+                                        <p className="grupo-gasto-nuevo__preview-texto">
+                                            Cada uno paga: <strong>{formatearMonto(divisionPreview.montoPorPersona)}</strong> por mes durante <strong>{divisionPreview.cuotas} cuotas</strong>
+                                        </p>
+                                    ) : (
+                                        <>
+                                            <p className="grupo-gasto-nuevo__preview-texto">
+                                                Cada uno paga: <strong>{formatearMonto(divisionPreview.base)}</strong>
+                                            </p>
+                                            {divisionPreview.tieneDiferencia && (
+                                                <p className="grupo-gasto-nuevo__preview-nota">
+                                                    El pagador absorbe {formatearMonto(divisionPreview.diferencia)} de diferencia por redondeo.
+                                                </p>
+                                            )}
+                                        </>
+                                    )
+                                )}
+                            </div>
                         </div>
                     )}
                     {errorPaso && (
