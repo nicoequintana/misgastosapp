@@ -8,6 +8,7 @@ import GrupoGastoWizard from '../../components/grupos/GrupoGastoWizard';
 import GrupoSaldos from './GrupoSaldos';
 import InvitarMiembroModal from '../../components/grupos/InvitarMiembroModal';
 import ConfirmModal from '../../components/ConfirmModal';
+import ResultModal from '../../components/ResultModal';
 import { useAuth } from '../../context/AuthContext';
 import * as db from '../../lib/db';
 import { formatDate, formatCurrency } from '../../utils/format';
@@ -56,6 +57,7 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
     const [cargandoGastos, setCargandoGastos] = useState(false);
     const [cuotasGrupo, setCuotasGrupo] = useState([]);
     const [wizardGastoAbierto, setWizardGastoAbierto] = useState(false);
+    const [gastoAnuladoOk, setGastoAnuladoOk] = useState(false);
 
     // Estado del modal de invitación
     const [mostrarInvitar, setMostrarInvitar] = useState(false);
@@ -163,9 +165,14 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
 
     // Anula un gasto grupal — la confirmación ya la pide GrupoGastoRow (su propio
     // ConfirmModal), así que acá solo ejecutamos la acción y recargamos la lista.
+    // El popup de éxito se muestra recién acá (en el padre) y no en GrupoGastoRow,
+    // porque cargarGastos() pone cargandoGastos=true y eso desmonta toda la lista
+    // de filas mientras se refetchea — un popup controlado por GrupoGastoRow se
+    // destruiría junto con la fila antes de llegar a verse.
     const handleAnularGasto = async (gastoId) => {
         await db.anularGastoGrupal(gastoId, id);
         await cargarGastos();
+        setGastoAnuladoOk(true);
     };
 
     // Confirma y cancela una invitación pendiente
@@ -615,6 +622,14 @@ const GrupoDetalle = ({ defaultTab = 'resumen' }) => {
                 onGastoGuardado={({ tipo }) => {
                     if (tipo === 'success') cargarGastos();
                 }}
+            />
+
+            {/* Popup de resultado tras anular un gasto con éxito */}
+            <ResultModal
+                isOpen={gastoAnuladoOk}
+                onClose={() => setGastoAnuladoOk(false)}
+                tipo="success"
+                titulo="Gasto anulado"
             />
         </div>
     );
