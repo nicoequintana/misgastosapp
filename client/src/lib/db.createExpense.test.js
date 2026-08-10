@@ -123,6 +123,7 @@ describe('createExpense', () => {
                 p_fecha_primera_cuota: '2026-08',
                 p_id_categoria: 5,
                 p_id_metodo_pago: 2,
+                p_es_fijo: false,
             });
         });
 

@@ -834,13 +834,17 @@ CREATE TRIGGER trg_grupos_alta_admin_creador
 -- proceso perdía conexión a mitad de camino. SECURITY INVOKER: respeta las
 -- políticas RLS de gastos (gastos_insert: auth.uid() = user_id), no es un bypass.
 
+-- Fix 20260810: agregado p_es_fijo (DEFAULT true, preserva compatibilidad)
+-- para no hardcodear es_fijo = true en el INSERT — ver
+-- migrations/20260810_fix_create_expense_installments_es_fijo.sql.
 CREATE OR REPLACE FUNCTION create_expense_installments(
     p_descripcion      TEXT,
     p_monto_total      NUMERIC(12,2),
     p_cuotas           SMALLINT,
     p_fecha_primera_cuota TEXT,
     p_id_categoria     BIGINT DEFAULT NULL,
-    p_id_metodo_pago   BIGINT DEFAULT NULL
+    p_id_metodo_pago   BIGINT DEFAULT NULL,
+    p_es_fijo          BOOLEAN DEFAULT true
 )
 RETURNS SETOF gastos
 LANGUAGE plpgsql
@@ -891,7 +895,7 @@ BEGIN
         fecha, es_fijo, cuotas, numero_cuota, id_gasto_padre
     ) VALUES (
         v_user_id, v_descripcion_cuota, v_monto_cuota, p_id_categoria, p_id_metodo_pago,
-        v_fecha_primera, true, v_cuotas, 1, NULL
+        v_fecha_primera, p_es_fijo, v_cuotas, 1, NULL
     ) RETURNING id INTO v_id_padre;
 
     UPDATE gastos SET id_gasto_padre = v_id_padre WHERE id = v_id_padre;
@@ -905,7 +909,7 @@ BEGIN
             fecha, es_fijo, cuotas, numero_cuota, id_gasto_padre
         ) VALUES (
             v_user_id, v_descripcion_cuota, v_monto_por_cuota, p_id_categoria, p_id_metodo_pago,
-            v_fecha_cuota, true, v_cuotas, i, v_id_padre
+            v_fecha_cuota, p_es_fijo, v_cuotas, i, v_id_padre
         );
     END LOOP;
 
@@ -1100,6 +1104,7 @@ BEGIN
     END IF;
 
     IF v_cuotas <= 1 THEN
+        -- Sin cuotas: un solo update sobre la fila padre.
         UPDATE grupo_gastos SET
             descripcion    = p_descripcion,
             monto          = p_monto,
@@ -1107,9 +1112,22 @@ BEGIN
             fecha          = v_fecha_gasto,
             nota           = p_nota,
             id_categoria   = p_id_categoria,
-            id_metodo_pago = p_id_metodo_pago
+            id_metodo_pago = p_id_metodo_pago,
+            cuotas         = 1,
+            numero_cuota   = 1,
+            id_gasto_padre = NULL
         WHERE id = p_gasto_id AND estado = 'activo'
         RETURNING * INTO v_gasto;
+
+        -- Fix 20260810: si el gasto tenía cuotas hijas de una edición previa
+        -- (ej. se cambió de tarjeta con cuotas a un método sin cuotas), hay
+        -- que borrarlas acá también — antes solo se borraban en la rama
+        -- v_cuotas > 1, dejando huérfanas las cuotas 2..N que duplicaban el
+        -- monto en vw_grupo_saldos (ver
+        -- migrations/20260810_fix_cuotas_huerfanas_update_grupo_gasto.sql).
+        -- El ON DELETE CASCADE de grupo_gasto_participantes.gasto_id limpia
+        -- sus participantes solo.
+        DELETE FROM grupo_gastos WHERE id_gasto_padre = p_gasto_id AND id != p_gasto_id;
     ELSE
         IF p_primera_cuota IS NULL OR p_primera_cuota !~ '^\d{4}-\d{2}(-\d{2})?$' THEN
             RAISE EXCEPTION 'Formato de fecha inválido, se espera YYYY-MM';

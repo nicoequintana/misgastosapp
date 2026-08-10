@@ -119,6 +119,11 @@ export const createExpense = async (gasto) => {
         // ?? en vez de || — evita colapsar id_categoria/id_metodo_pago = 0 a null (fix C-02).
         p_id_categoria: gasto.id_categoria ?? null,
         p_id_metodo_pago: gasto.id_metodo_pago ?? null,
+        // Se pasa explícito en vez de confiar en el DEFAULT true del RPC — el
+        // front hoy siempre fuerza es_fijo: true para tarjeta/préstamo, pero
+        // la firma de la función no debe depender de esa coincidencia (fix
+        // migrations/20260810_fix_create_expense_installments_es_fijo.sql).
+        p_es_fijo: Boolean(gasto.es_fijo),
     });
 
     if (errRpc) {
