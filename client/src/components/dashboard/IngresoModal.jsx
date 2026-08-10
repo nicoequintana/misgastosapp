@@ -305,17 +305,16 @@ const IngresoModal = ({ isOpen, onClose, categoriaIngresos, onIngresoGuardado })
     };
 
     /**
-     * Cierra el modal de Ingresos. Reseteamos vistaIngreso/pasoIngreso acá (no solo al
-     * reabrir) para que, si el usuario cierra estando a mitad del wizard, no se alcance a
-     * ver el wizard con datos parciales destellando durante el fade-out de 300ms del modal
-     * (mismo riesgo ya documentado en GastoWizard para el modal de gastos).
+     * Cierra el modal de Ingresos. A propósito NO reseteamos vistaIngreso/pasoIngreso/
+     * incomeEditando acá: Modal.jsx mantiene el contenido montado 300ms tras isOpen=false
+     * (animación isClosing) y si reseteáramos en el mismo tick se vería el listado
+     * ('lista') destellando encima del wizard que el usuario estaba usando durante ese
+     * fade-out. El useEffect de reapertura (líneas ~91-103) ya deja todo limpio la
+     * próxima vez que se abre — mismo patrón documentado en GastoWizard.jsx y
+     * GrupoGastoWizard.jsx para este mismo problema.
      */
     const handleCerrarModal = () => {
         onClose();
-        setIncomeEditando(null);
-        setVistaIngreso('lista');
-        setPasoIngreso(1);
-        setErrorIngresoForm(null);
     };
 
     return (
