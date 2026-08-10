@@ -53,13 +53,17 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
     // Al abrir el modal, siempre arranca en el paso 1 y limpia el error de navegación de un
     // intento anterior — evita reabrir en medio de un wizard anterior si el usuario cerró sin
     // terminar, o ver un error de paso que quedó pegado (este componente no se desmonta al
-    // cerrar el modal, así que el estado no se resetea solo).
+    // cerrar el modal, así que el estado no se resetea solo). También volvemos `fase` a 'form':
+    // en un cierre exitoso no se llama volverAFormulario() (para no flashear el formulario
+    // detrás del ResultModal mientras se cierra), así que si no lo hacemos acá, la próxima
+    // apertura mostraría el ResultModal de la vez anterior en vez del formulario.
     useEffect(() => {
         if (isOpen) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect -- mismo patrón que GastoWizard.jsx (reset de paso al abrir el modal)
             setPasoGasto(1);
             setErrorPaso(null);
+            volverAFormulario();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- volverAFormulario no está memoizada en el hook; solo debe dispararse cuando cambia isOpen, no en cada render
     }, [isOpen]);
 
     useEffect(() => {
@@ -144,12 +148,16 @@ const GrupoGastoWizard = ({ isOpen, onClose, grupoId, onGastoGuardado }) => {
     const handleContinuarResultado = () => {
         const fueExito = resultado?.tipo === 'success';
         onGastoGuardado?.({ tipo: resultado?.tipo });
-        volverAFormulario();
         if (fueExito) {
+            // No llamamos volverAFormulario() acá: el modal tarda ~300ms en desvanecerse
+            // (animación de cierre en Modal.jsx) y si cambiamos `fase` a 'form' de inmediato,
+            // durante ese lapso se alcanza a ver un flash del formulario del wizard detrás
+            // del ResultModal que se está cerrando.
             onClose();
         } else {
             // Si falló el guardado, el usuario vuelve a intentar desde el resumen
             // (paso 5), no desde cero — evita que tenga que recompletar todo el wizard.
+            volverAFormulario();
             setPasoGasto(TOTAL_PASOS);
         }
     };

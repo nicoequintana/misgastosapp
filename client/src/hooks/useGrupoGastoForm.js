@@ -110,6 +110,18 @@ export const useGrupoGastoForm = ({ grupoId, gastoId, modo, activo = true }) => 
                     setMonto(Number(gastoExistente.monto) || 0);
                 }
             } else {
+                // Modo crear: este hook no se remonta al cerrar/reabrir el wizard (ver
+                // comentario en cargarDatos), así que hay que resetear todos los campos acá
+                // o quedan pegados los valores de la carga anterior.
+                setDescripcion('');
+                setMonto(0);
+                setFecha(fechaHoyArgentina());
+                setCategoriaId('');
+                setMetodoPagoId('');
+                setNota('');
+                setEsTarjeta(false);
+                setCuotas(1);
+                setPrimeraCuota('');
                 // Por defecto, el pagador es el usuario actual
                 if (user?.id) setPagadoPor(user.id);
                 // Por defecto, todos los miembros activos son participantes
